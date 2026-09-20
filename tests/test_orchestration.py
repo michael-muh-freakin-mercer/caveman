@@ -901,3 +901,10 @@ def test_replan_additions_cannot_preinflate_their_budget(kernel):
         core.apply_replan(rid, proposal.id)
     with pytest.raises(GateError, match="fresh unique tasks"):
         core.add_tasks(rid, [inflated])
+
+
+def test_recover_rejects_an_unknown_failure_id(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    with pytest.raises(GateError, match="Unknown failure"):
+        core.recover(rid, "not-a-failure", "reason")

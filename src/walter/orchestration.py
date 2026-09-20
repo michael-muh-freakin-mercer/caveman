@@ -578,7 +578,9 @@ class Orchestrator:
         if actor_id not in {"manager", self.manager_id}:
             raise GateError("Recovery authority does not match configured Manager")
         def operation(run, events):
-            failure = next(f for f in run.failures if f.id == failure_id)
+            failure = next((f for f in run.failures if f.id == failure_id), None)
+            if failure is None:
+                raise GateError(f"Unknown failure {failure_id}")
             task = run.tasks[failure.task_id]
             if any(r.failure_id == failure_id for r in run.recoveries) or task.status != TaskStatus.FAILED:
                 raise GateError("Failure already recovered or superseded")

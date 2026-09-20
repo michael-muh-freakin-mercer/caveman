@@ -270,6 +270,11 @@ class SQLiteStore:
 
     def events(self, run_id: str) -> list[Event]:
         with self._lock:
+            # An unknown run must not read as an existing run with no history:
+            # `walter run events <typo>` printed an empty list and exited 0.
+            if self.connection.execute(
+                    "SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone() is None:
+                raise KeyError(run_id)
             events = []
             for expected, (sequence, payload) in enumerate(self.connection.execute(
                     "SELECT sequence,payload FROM events WHERE run_id=? ORDER BY sequence", (run_id,)), 1):

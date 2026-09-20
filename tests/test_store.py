@@ -545,3 +545,12 @@ def test_usage_accounting_survives_a_lost_version_race(tmp_path):
     assert [item.id for item in run.usage_records] == [record.id]
     assert run.usage_records[0].total_tokens == 7
     store.close()
+
+
+def test_events_for_an_unknown_run_is_not_an_empty_history(tmp_path):
+    store = SQLiteStore(tmp_path / "missing.db")
+    run = Orchestrator(store).create_run("objective", ["criterion"])
+    assert store.events(run.id)
+    with pytest.raises(KeyError):
+        store.events("not-a-run")
+    store.close()
