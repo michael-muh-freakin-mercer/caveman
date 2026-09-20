@@ -296,6 +296,22 @@ class Orchestrator:
         self._mutate(run_id, operation)
         return self.get_run(run_id)
 
+    @staticmethod
+    def _reject_identifier_collision(run, task_id: str):
+        """Task IDs, input names and artifact IDs share one reference namespace.
+
+        ``_input_artifact_ids`` resolves a declared reference against tasks
+        first, so introducing a task whose ID equals a registered input name
+        silently retargets every packet that already declared that name. The
+        consumer keeps its READY status while delegation starts failing, so the
+        collision is refused instead. ``register_input`` already guards the
+        opposite direction.
+        """
+        if task_id in run.available_inputs:
+            raise GateError(f"Task ID collides with a registered input name: {task_id}")
+        if task_id in run.artifacts:
+            raise GateError(f"Task ID collides with an artifact ID: {task_id}")
+
     def add_tasks(self, run_id: str, tasks: list[TaskNode]):
         def operation(run, events):
             if run.plan.revision or any(t.attempts for t in run.tasks.values()):
@@ -306,6 +322,7 @@ class Orchestrator:
                         task.artifact_ids or task.assignment or task.attempt_baseline or
                         task.revision_baseline):
                     raise GateError("Only fresh unique tasks can be added")
+                self._reject_identifier_collision(run, task.id)
                 self._validate_capability_checks(task)
                 run.tasks[task.id] = task
                 run.plan.task_ids.append(task.id)
@@ -988,6 +1005,7 @@ class Orchestrator:
                         or source.assignment or source.artifact_ids or source.attempt_baseline
                         or source.revision_baseline):
                     raise GateError("Replan additions must be fresh unique tasks")
+                self._reject_identifier_collision(run, source.id)
                 self._validate_capability_checks(source)
                 run.tasks[source.id] = source.model_copy(deep=True)
             self._graph(run)

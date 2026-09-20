@@ -908,3 +908,31 @@ def test_recover_rejects_an_unknown_failure_id(kernel):
     core.add_tasks(rid, [task()])
     with pytest.raises(GateError, match="Unknown failure"):
         core.recover(rid, "not-a-failure", "reason")
+
+
+def test_task_ids_cannot_shadow_registered_inputs_or_artifacts(kernel):
+    """Task IDs, input names and artifact IDs are one reference namespace.
+
+    _input_artifact_ids resolves a reference against tasks before inputs, so a
+    colliding task ID retargeted an already-satisfied required_inputs entry.
+    The consumer stayed READY in the snapshot while delegation began failing.
+    """
+    core, rid = kernel
+    consumer = task("consumer")
+    consumer.packet.required_inputs = ["calc.py"]
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    core.add_tasks(rid, [consumer])
+    assert core.get_run(rid).tasks["consumer"].status == TaskStatus.READY
+
+    with pytest.raises(GateError, match="collides with a registered input name"):
+        core.add_tasks(rid, [task("calc.py")])
+
+    producer = accepted(core, rid, "consumer")
+    proposal = ReplanProposal(base_revision=0, trigger="Add colliding work",
+        evidence=["e"], add=[task(producer.id)])
+    core.propose_replan(rid, proposal)
+    with pytest.raises(GateError, match="collides with an artifact ID"):
+        core.apply_replan(rid, proposal.id)
+    # register_input already guards the opposite direction.
+    with pytest.raises(GateError, match="immutable"):
+        core.register_input(rid, "consumer", "sha256:bbb")
