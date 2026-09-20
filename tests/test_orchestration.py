@@ -910,6 +910,23 @@ def test_recover_rejects_an_unknown_failure_id(kernel):
         core.recover(rid, "not-a-failure", "reason")
 
 
+def test_acceptance_names_the_unsatisfied_validation_gates(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task(required_checks=["pytest", "compile"], review_required=False)])
+    artifact = candidate(core, rid)
+    with pytest.raises(GateError, match="missing: compile, pytest"):
+        core.accept(rid, "a", "manager", "no evidence yet")
+    core.validate(rid, artifact.id, "pytest", False, "3 failed", "executor")
+    core.validate(rid, artifact.id, "compile", True, "exit 0", "executor")
+    with pytest.raises(GateError, match="failed: pytest"):
+        core.accept(rid, "a", "manager", "ignore the failure")
+    core.validate(rid, artifact.id, "pytest", True, "exit 0 after environment fix", "executor")
+    decision = core.accept(rid, "a", "manager", "Evidence complete")
+    # Superseding an earlier failure is permitted but must never be silent.
+    assert any("earlier failed run of: pytest" in item for item in decision.consequences)
+    assert core.get_run(rid).artifacts[artifact.id].validations[0].passed is False
+
+
 def test_task_ids_cannot_shadow_registered_inputs_or_artifacts(kernel):
     """Task IDs, input names and artifact IDs are one reference namespace.
 
