@@ -3,7 +3,8 @@ import sqlite3
 import threading
 import pytest
 from walter.contracts import TaskPacket, WorkerResult
-from walter.models import ApprovalStatus, Event, ModelUsageRecord, TaskNode, TaskStatus
+from walter.models import (ApprovalStatus, BlockerReason, Event, ModelUsageRecord, TaskNode,
+    TaskStatus)
 from walter.orchestration import GateError, Orchestrator
 from walter.store import ConcurrentUpdate, SQLiteStore, SnapshotIncompatible
 
@@ -430,7 +431,7 @@ def test_missing_v1_approval_is_explicitly_blocked_and_manager_can_regate(tmp_pa
     node = migrated.tasks["legacy"]
     assert node.status == TaskStatus.BLOCKED
     assert node.approval_ids == ["missing-legacy-request"]
-    assert "explicit Manager re-gating" in node.blocker
+    assert node.blocker.startswith(BlockerReason.LEGACY_APPROVAL_REGATE)
     with pytest.raises(GateError):
         core.delegate(rid, "legacy", "worker")
     assert [event.model_dump(mode="json") for event in migrated_store.events(rid)] == original_events

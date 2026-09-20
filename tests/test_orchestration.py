@@ -1,8 +1,9 @@
 import pytest
 from walter.contracts import CapabilityRequestPayload, TaskPacket, WorkerResult
-from walter.models import (ApprovalStatus, CapabilityProfile, CapabilityRequestStatus, Event,
+from walter.models import (ApprovalStatus, BlockerReason, CapabilityProfile, CapabilityRequestStatus, Event,
     FailureClass, ReplanProposal, TaskNode, TaskStatus)
-from walter.orchestration import (EXECUTABLE_DEVELOPER_CHECKS, GateError, Orchestrator)
+from walter.orchestration import (EXECUTABLE_DEVELOPER_CHECKS, REFRESHABLE_BLOCKERS, GateError,
+    Orchestrator)
 from walter.store import SQLiteStore
 
 
@@ -651,7 +652,7 @@ def test_escalate_unsupported_capability_blocks_task(kernel):
     run = core.get_run(rid)
     assert decision.action == "ESCALATE"
     assert run.tasks["a"].status == TaskStatus.BLOCKED
-    assert run.tasks["a"].blocker == "Unsupported capability requires Manager escalation"
+    assert run.tasks["a"].blocker == BlockerReason.UNSUPPORTED_CAPABILITY
 
 
 def test_escalate_tool_failure_blocks_task(kernel):
@@ -664,7 +665,7 @@ def test_escalate_tool_failure_blocks_task(kernel):
     run = core.get_run(rid)
     assert decision.action == "ESCALATE"
     assert run.tasks["a"].status == TaskStatus.BLOCKED
-    assert run.tasks["a"].blocker == "Tool failure requires Manager escalation"
+    assert run.tasks["a"].blocker == BlockerReason.TOOL_FAILURE
 
 
 def test_replan_recovery_blocks_task_until_manager_replans(kernel):
@@ -677,7 +678,7 @@ def test_replan_recovery_blocks_task_until_manager_replans(kernel):
     run = core.get_run(rid)
     assert decision.action == "REPLAN"
     assert run.tasks["a"].status == TaskStatus.BLOCKED
-    assert run.tasks["a"].blocker == "Manager replan required"
+    assert run.tasks["a"].blocker == BlockerReason.MANAGER_REPLAN_REQUIRED
     proposal = ReplanProposal(base_revision=0, trigger="Ambiguity resolved", evidence=["Operator clarified scope"], reopen=["a"])
     core.propose_replan(rid, proposal)
     core.apply_replan(rid, proposal.id)
@@ -716,7 +717,7 @@ def test_recovery_revise_and_replace_record_blockers(kernel):
     run = core.get_run(rid)
     assert decision.action == "REPLACE"
     assert run.tasks["a"].status == TaskStatus.REPLACED
-    assert run.tasks["a"].blocker == "Worker replacement required"
+    assert run.tasks["a"].blocker == BlockerReason.WORKER_REPLACEMENT_REQUIRED
 
 
 def tamper(core, rid, mutate):
@@ -953,3 +954,40 @@ def test_task_ids_cannot_shadow_registered_inputs_or_artifacts(kernel):
     # register_input already guards the opposite direction.
     with pytest.raises(GateError, match="immutable"):
         core.register_input(rid, "consumer", "sha256:bbb")
+
+
+def test_blocker_reasons_persist_as_plain_strings_and_gate_refresh(kernel):
+    """The two properties the BlockerReason refactor depends on.
+
+    First, a reason must round-trip through the snapshot as a plain string that
+    still compares equal to its enum member -- the kernel compares durable
+    blockers to decide transitions, and a reloaded snapshot yields str, not the
+    enum. Second, REFRESHABLE_BLOCKERS must be the only set _refresh will
+    promote from; any other reason requires an explicit Manager action.
+    """
+    core, rid = kernel
+    core.add_tasks(rid, [task("escalated"), task("replanned")])
+    for tid, classification in (("escalated", FailureClass.CAPABILITY_UNAVAILABLE),
+                                ("replanned", FailureClass.TASK_AMBIGUITY)):
+        core.delegate(rid, tid, "author")
+        core.start(rid, tid)
+        failure = core.fail(rid, tid, classification, "runtime evidence")
+        core.recover(rid, failure.id, "route it")
+
+    reloaded = core.store.load(rid)
+    blocker = reloaded.tasks["escalated"].blocker
+    assert blocker == BlockerReason.CAPABILITY_ESCALATION_PENDING
+    # Persisted as a plain string, so the value is what older builds and
+    # operators already see -- not an enum repr.
+    assert type(blocker) is str
+    assert f'"blocker":"{BlockerReason.CAPABILITY_ESCALATION_PENDING.value}"' in (
+        reloaded.model_dump_json())
+
+    # Neither blocker is refreshable, so no amount of gate re-evaluation
+    # promotes these tasks; only explicit recovery or replan does.
+    assert BlockerReason.CAPABILITY_ESCALATION_PENDING not in REFRESHABLE_BLOCKERS
+    assert BlockerReason.MANAGER_REPLAN_REQUIRED not in REFRESHABLE_BLOCKERS
+    core.register_input(rid, "unrelated.py", "sha256:abc")  # triggers _refresh
+    still = core.get_run(rid)
+    assert still.tasks["escalated"].status == TaskStatus.BLOCKED
+    assert still.tasks["replanned"].status == TaskStatus.BLOCKED

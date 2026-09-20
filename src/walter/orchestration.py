@@ -9,7 +9,7 @@ import json
 from typing import Callable
 from .contracts import WorkerResult
 from .models import (AcceptanceDecision, ApprovalDecision, ApprovalGate, ApprovalRequest, ApprovalStatus, Artifact,
-    ArtifactValidation, CapabilityProfile, CapabilityRequest, CapabilityRequestStatus, Decision, Event, FailureClass, ModelUsageRecord, RecoveryDecision,
+    ArtifactValidation, BlockerReason, CapabilityProfile, CapabilityRequest, CapabilityRequestStatus, Decision, Event, FailureClass, ModelUsageRecord, RecoveryDecision,
     ReplanProposal, Review, Run, TaskNode, TaskStatus, WorkerAssignment, WorkerFailure,
     WorkPlan, now)
 from .store import ConcurrentUpdate, SQLiteStore
@@ -25,6 +25,15 @@ EXECUTABLE_DEVELOPER_CHECKS = frozenset({"compile", "pytest"})
 # Bounded retries for append-only usage accounting when another process commits
 # to the same run between this load and save.
 USAGE_RECORD_ATTEMPTS = 5
+
+# A BLOCKED task carrying one of these reasons is waiting only on gates that
+# _refresh can re-evaluate on its own. Any other reason -- classified failure
+# evidence, a pending approval, an outstanding legacy gate -- needs an explicit
+# Manager action before the task may return to READY.
+REFRESHABLE_BLOCKERS = frozenset({
+    BlockerReason.CAPABILITY_PREREQUISITES_MISSING,
+    BlockerReason.APPROVAL_PREREQUISITES_SATISFIED,
+})
 
 
 TRANSITIONS = {
@@ -266,8 +275,8 @@ class Orchestrator:
         for task in run.tasks.values():
             if task.status == TaskStatus.PLANNED and self._ready(run, task):
                 self._transition(run, events, task, TaskStatus.READY, "Dependencies and input gates satisfied")
-            elif (task.status == TaskStatus.BLOCKED and task.blocker in
-                    {"Capability prerequisites missing", "Approval prerequisites satisfied"} and self._ready(run, task)):
+            elif (task.status == TaskStatus.BLOCKED and task.blocker in REFRESHABLE_BLOCKERS
+                    and self._ready(run, task)):
                 task.blocker = None
                 self._transition(run, events, task, TaskStatus.READY, "Capability prerequisites satisfied")
 
@@ -348,7 +357,7 @@ class Orchestrator:
             task = run.tasks[task_id]
             if task.workspace_id or task.attempts or task.status not in {TaskStatus.PLANNED, TaskStatus.READY, TaskStatus.BLOCKED} or not workspace_id.strip():
                 raise GateError("Workspace binding must be initial and precede delegation")
-            if task.status == TaskStatus.BLOCKED and task.blocker != "Capability prerequisites missing":
+            if task.status == TaskStatus.BLOCKED and task.blocker != BlockerReason.CAPABILITY_PREREQUISITES_MISSING:
                 raise GateError("Workspace cannot resolve this blocker")
             task.workspace_id = workspace_id
             self._event(run, events, "workspace.bound", task_id=task_id, workspace_id=workspace_id)
@@ -642,19 +651,19 @@ class Orchestrator:
                 task.blocker = failure.evidence
             elif action == "REPLACE":
                 self._transition(run, events, task, TaskStatus.REPLACED, reason)
-                task.blocker = "Worker replacement required"
+                task.blocker = BlockerReason.WORKER_REPLACEMENT_REQUIRED
                 self._event(run, events, "worker.replaced", task_id=task.id, failure_id=failure.id,
                     worker_id=task.assignment.worker_id if task.assignment else None)
             elif action == "ESCALATE":
                 self._transition(run, events, task, TaskStatus.BLOCKED, reason)
                 task.blocker = {
-                    FailureClass.CAPABILITY_UNAVAILABLE: "Capability escalation pending",
-                    FailureClass.UNSUPPORTED_CAPABILITY: "Unsupported capability requires Manager escalation",
-                    FailureClass.TOOL_FAILURE: "Tool failure requires Manager escalation",
+                    FailureClass.CAPABILITY_UNAVAILABLE: BlockerReason.CAPABILITY_ESCALATION_PENDING,
+                    FailureClass.UNSUPPORTED_CAPABILITY: BlockerReason.UNSUPPORTED_CAPABILITY,
+                    FailureClass.TOOL_FAILURE: BlockerReason.TOOL_FAILURE,
                 }[kind]
             elif action == "REPLAN":
                 self._transition(run, events, task, TaskStatus.BLOCKED, reason)
-                task.blocker = "Manager replan required"
+                task.blocker = BlockerReason.MANAGER_REPLAN_REQUIRED
             if task.artifact_ids:
                 rejected = run.artifacts[task.artifact_ids[-1]]
                 rejected.status = "rejected"
@@ -701,7 +710,7 @@ class Orchestrator:
                             task.approval_gates[index] = replacement_gate
                             if task.status == TaskStatus.READY:
                                 self._transition(run, events, task, TaskStatus.BLOCKED, "Replacement approval pending")
-                            task.blocker = "Required approval pending"
+                            task.blocker = BlockerReason.APPROVAL_PENDING
                             self._event(run, events, "task.approval_gate_replaced", task_id=task.id,
                                 prior_approval_id=supersedes, gate=replacement_gate.model_dump(mode="json"))
             run.approvals[request.id] = request
@@ -730,15 +739,16 @@ class Orchestrator:
             task.approval_gates.append(gate)
             task.approval_ids.remove(legacy_approval_id)
             if task.approval_ids:
-                task.blocker = ("Legacy approval gate requires explicit Manager re-gating: " +
+                # Free text: the outstanding IDs are part of the operator-facing reason.
+                task.blocker = (BlockerReason.LEGACY_APPROVAL_REGATE + ": " +
                     ", ".join(task.approval_ids))
             elif request.status == ApprovalStatus.APPROVED:
-                task.blocker = ("Capability prerequisites missing" if
+                task.blocker = (BlockerReason.CAPABILITY_PREREQUISITES_MISSING if
                     task.capability == CapabilityProfile.DEVELOPER_SANDBOX and not task.workspace_id
-                    else "Approval prerequisites satisfied")
+                    else BlockerReason.APPROVAL_PREREQUISITES_SATISFIED)
             else:
-                task.blocker = ("Required approval rejected" if request.status == ApprovalStatus.REJECTED
-                    else "Required approval pending")
+                task.blocker = (BlockerReason.APPROVAL_REJECTED if request.status == ApprovalStatus.REJECTED
+                    else BlockerReason.APPROVAL_PENDING)
             self._event(run, events, "task.legacy_approval_gate_recovered", task_id=task_id,
                 legacy_approval_id=legacy_approval_id, gate=gate.model_dump(mode="json"))
             self._refresh(run, events)
@@ -760,9 +770,9 @@ class Orchestrator:
                 raise GateError("Approval gate already attached")
             task.approval_gates.append(gate)
             if task.status == TaskStatus.READY and request.status != ApprovalStatus.APPROVED:
-                self._transition(run, events, task, TaskStatus.BLOCKED, "Required approval pending")
-                task.blocker = ("Required approval rejected" if request.status == ApprovalStatus.REJECTED
-                    else "Required approval pending")
+                self._transition(run, events, task, TaskStatus.BLOCKED, BlockerReason.APPROVAL_PENDING)
+                task.blocker = (BlockerReason.APPROVAL_REJECTED if request.status == ApprovalStatus.REJECTED
+                    else BlockerReason.APPROVAL_PENDING)
             self._event(run, events, "task.approval_gated", task_id=task_id, gate=gate.model_dump(mode="json"))
             self._refresh(run, events)
         self._mutate(run_id, operation)
@@ -780,12 +790,12 @@ class Orchestrator:
             self._event(run, events, "approval.granted" if approved else "approval.rejected", decision=decision.model_dump())
             for task in run.tasks.values():
                 if any(g.request_id == approval_id for g in task.approval_gates):
-                    if approved and task.status == TaskStatus.BLOCKED and task.blocker == "Required approval pending":
-                        task.blocker = ("Capability prerequisites missing" if
+                    if approved and task.status == TaskStatus.BLOCKED and task.blocker == BlockerReason.APPROVAL_PENDING:
+                        task.blocker = (BlockerReason.CAPABILITY_PREREQUISITES_MISSING if
                             task.capability == CapabilityProfile.DEVELOPER_SANDBOX and not task.workspace_id
-                            else "Approval prerequisites satisfied")
+                            else BlockerReason.APPROVAL_PREREQUISITES_SATISFIED)
                     elif not approved:
-                        task.blocker = "Required approval rejected"
+                        task.blocker = BlockerReason.APPROVAL_REJECTED
             self._refresh(run, events)
             return decision
         return self._mutate(run_id, operation)
@@ -885,8 +895,8 @@ class Orchestrator:
                 capability_request_id=capability_request.id, task_id=task.id,
                 capability=task.capability.value, workspace_id=task.workspace_id,
                 approval_id=capability_request.approval_id)
-            if task.status == TaskStatus.BLOCKED and task.blocker == "Capability escalation pending":
-                task.blocker = "Approval prerequisites satisfied"
+            if task.status == TaskStatus.BLOCKED and task.blocker == BlockerReason.CAPABILITY_ESCALATION_PENDING:
+                task.blocker = BlockerReason.APPROVAL_PREREQUISITES_SATISFIED
             self._refresh(run, events)
             return capability_request.model_copy(deep=True)
         return self._mutate(run_id, operation)
@@ -947,13 +957,14 @@ class Orchestrator:
             self._approved(run, approval_id, "change_capability", scope)
             task.capability, task.workspace_id = capability, workspace_id
             self._event(run, events, "capability.escalated", **scope, approval_id=approval_id)
-            if task.status == TaskStatus.BLOCKED and task.blocker == "Capability escalation pending":
-                task.blocker = ("Capability prerequisites missing" if
+            if task.status == TaskStatus.BLOCKED and task.blocker == BlockerReason.CAPABILITY_ESCALATION_PENDING:
+                task.blocker = (BlockerReason.CAPABILITY_PREREQUISITES_MISSING if
                     capability == CapabilityProfile.DEVELOPER_SANDBOX and not workspace_id
-                    else "Approval prerequisites satisfied")
+                    else BlockerReason.APPROVAL_PREREQUISITES_SATISFIED)
             if task.status == TaskStatus.READY and not self._ready(run, task):
-                self._transition(run, events, task, TaskStatus.BLOCKED, "Capability prerequisites missing")
-                task.blocker = "Capability prerequisites missing"
+                self._transition(run, events, task, TaskStatus.BLOCKED,
+                    BlockerReason.CAPABILITY_PREREQUISITES_MISSING)
+                task.blocker = BlockerReason.CAPABILITY_PREREQUISITES_MISSING
             self._refresh(run, events)
         self._mutate(run_id, operation)
 

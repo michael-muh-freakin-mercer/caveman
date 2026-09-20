@@ -8,7 +8,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 from pydantic import ValidationError
-from .models import Event, Run, now
+from .models import BlockerReason, Event, Run, now
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,9 @@ class SQLiteStore:
                 })
             task["approval_ids"] = unresolved
             if unresolved:
-                task["blocker"] = "Legacy approval gate requires explicit Manager re-gating: " + ", ".join(unresolved)
+                # Raw-JSON context: use .value so the payload stays plain strings.
+                task["blocker"] = (BlockerReason.LEGACY_APPROVAL_REGATE.value + ": "
+                                   + ", ".join(unresolved))
                 if task.get("status") in {"READY", "DELEGATED", "RUNNING", "SUBMITTED", "REVIEWING"}:
                     task["status"] = "BLOCKED"
             elif task["approval_gates"]:
@@ -143,8 +145,9 @@ class SQLiteStore:
                         unsatisfied.append(request["status"])
                 if unsatisfied and task.get("status") == "READY":
                     task["status"] = "BLOCKED"
-                    task["blocker"] = ("Required approval rejected" if "rejected" in unsatisfied
-                        else "Required approval pending")
+                    task["blocker"] = (BlockerReason.APPROVAL_REJECTED.value
+                                       if "rejected" in unsatisfied
+                                       else BlockerReason.APPROVAL_PENDING.value)
             if not unresolved:
                 task["approval_ids"] = []
         document["schema_version"] = 2
