@@ -5,6 +5,7 @@ import hashlib
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from pydantic import ValidationError
 from .models import Event, Run, now
@@ -174,6 +175,23 @@ class SQLiteStore:
     def close(self):
         with self._lock:
             self.connection.close()
+
+    @contextmanager
+    def transaction(self):
+        """Serialize a whole read-modify-write against other in-process callers.
+
+        ``load`` and ``save`` are individually thread-safe, but a caller that
+        loads a snapshot, mutates it and saves it is only protected by the
+        optimistic version check.  The Agents SDK executes several tool calls
+        from one model turn concurrently (async tools on the event loop, sync
+        tools on ``asyncio.to_thread`` worker threads), so that window is
+        routinely contended and produced spurious ``ConcurrentUpdate`` errors.
+        Holding this reentrant lock across the whole sequence removes the
+        in-process race while leaving the version check to protect against
+        other processes.
+        """
+        with self._lock:
+            yield
 
     def _load_snapshot(self, run_id: str, payload: str) -> Run:
         """Validate a snapshot, pruning only unknown fields written by newer code shapes.

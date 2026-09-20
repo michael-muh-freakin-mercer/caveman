@@ -466,3 +466,82 @@ def test_missing_v1_approval_is_explicitly_blocked_and_manager_can_regate(tmp_pa
     assert reloaded.connection.execute("PRAGMA user_version").fetchone()[0] == 2
     reloaded.close()
 
+
+def test_concurrent_tool_dispatch_does_not_lose_durable_mutations(tmp_path):
+    """The SDK dispatches several tool calls from one model turn concurrently.
+
+    Async tools share the event loop while sync tools run on worker threads, so
+    every durable read-modify-write is contended. Neither the operational
+    mutations nor the append-only usage accounting may be dropped.
+    """
+    store = SQLiteStore(tmp_path / "contended.db")
+    core = Orchestrator(store)
+    rid = core.create_run("objective", ["criterion"]).id
+    core.add_tasks(rid, [TaskNode(packet=TaskPacket(
+        task_id=f"t{index}", role="writer", objective="write", deliverable="report",
+        acceptance_criteria=["accurate"], stop_condition="deliver")) for index in range(8)])
+
+    errors = []
+    barrier = threading.Barrier(9)
+
+    def delegator(index):
+        barrier.wait()
+        try:
+            core.delegate(rid, f"t{index}", f"worker-{index}")
+            core.start(rid, f"t{index}")
+        except BaseException as exc:  # pragma: no cover - failure detail
+            errors.append(("delegate", exc))
+
+    def accountant():
+        barrier.wait()
+        for _ in range(16):
+            try:
+                core.record_usage(rid, raw_usage={"prompt_tokens": 7, "completion_tokens": 3})
+            except BaseException as exc:  # pragma: no cover - failure detail
+                errors.append(("usage", exc))
+
+    threads = [threading.Thread(target=delegator, args=(index,)) for index in range(8)]
+    threads.append(threading.Thread(target=accountant))
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors, errors
+    run = store.load(rid)
+    assert all(task.status == TaskStatus.RUNNING for task in run.tasks.values())
+    assert len(run.usage_records) == 16
+    assert sum(record.total_tokens or 0 for record in run.usage_records) == 16 * 10
+    # The snapshot and the append-only event log must agree after contention.
+    assert [event.sequence for event in store.events(rid)] == list(
+        range(1, run.event_cursor + 1))
+    store.close()
+
+
+def test_usage_accounting_survives_a_lost_version_race(tmp_path):
+    """A billed provider call must not be discarded by an out-of-process commit."""
+    store = SQLiteStore(tmp_path / "raced.db")
+    core = Orchestrator(store)
+    rid = core.create_run("objective", ["criterion"]).id
+
+    original_save = store.save
+    interfered = []
+
+    def save(run, events, expected_version):
+        if not interfered and events and events[0].kind == "model.usage.recorded":
+            interfered.append(True)
+            # Simulate another process committing between this load and save.
+            other = original_save(
+                store.load(rid), [Event(run_id=rid, kind="other.process")],
+                store.load(rid).version)
+            assert other.version == expected_version + 1
+        return original_save(run, events, expected_version)
+
+    store.save = save
+    record = core.record_usage(rid, raw_usage={"prompt_tokens": 5, "completion_tokens": 2})
+    store.save = original_save
+    run = store.load(rid)
+    assert interfered == [True]
+    assert [item.id for item in run.usage_records] == [record.id]
+    assert run.usage_records[0].total_tokens == 7
+    store.close()

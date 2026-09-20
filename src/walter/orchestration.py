@@ -12,7 +12,7 @@ from .models import (AcceptanceDecision, ApprovalDecision, ApprovalGate, Approva
     ArtifactValidation, CapabilityProfile, CapabilityRequest, CapabilityRequestStatus, Decision, Event, FailureClass, ModelUsageRecord, RecoveryDecision,
     ReplanProposal, Review, Run, TaskNode, TaskStatus, WorkerAssignment, WorkerFailure,
     WorkPlan, now)
-from .store import SQLiteStore
+from .store import ConcurrentUpdate, SQLiteStore
 from .usage import token_counts, usage_mapping
 
 
@@ -21,6 +21,10 @@ class GateError(ValueError):
 
 
 EXECUTABLE_DEVELOPER_CHECKS = frozenset({"compile", "pytest"})
+
+# Bounded retries for append-only usage accounting when another process commits
+# to the same run between this load and save.
+USAGE_RECORD_ATTEMPTS = 5
 
 
 TRANSITIONS = {
@@ -103,21 +107,35 @@ class Orchestrator:
 
         # A final model response can arrive after finish_run completes the run.
         # Append accounting only; all operational mutations retain _mutate's gate.
-        run = self.get_run(run_id)
-        events = []
-        run.usage_records.append(record.model_copy(deep=True))
-        self._event(run, events, "model.usage.recorded", usage=record.model_dump(mode="json"))
-        self.store.save(run, events, run.version)
+        #
+        # This row describes a provider call that has already happened, so losing
+        # it understates the run's cost and weakens the pre-call budget. Appending
+        # a record with a stable ID is commutative and idempotent, so a lost race
+        # against another process is retried rather than surfaced as a failure of
+        # the (already billed) model call.
+        for remaining in reversed(range(USAGE_RECORD_ATTEMPTS)):
+            try:
+                with self.store.transaction():
+                    run = self.get_run(run_id)
+                    events = []
+                    run.usage_records.append(record.model_copy(deep=True))
+                    self._event(run, events, "model.usage.recorded", usage=record.model_dump(mode="json"))
+                    self.store.save(run, events, run.version)
+                break
+            except ConcurrentUpdate:
+                if not remaining:
+                    raise
         return record.model_copy(deep=True)
 
     def _mutate(self, run_id: str, operation: Callable):
-        run = self.get_run(run_id)
-        if run.status != "active":
-            raise GateError("Run is terminal")
-        events = []
-        result = operation(run, events)
-        self.store.save(run, events, run.version)
-        return result
+        with self.store.transaction():
+            run = self.get_run(run_id)
+            if run.status != "active":
+                raise GateError("Run is terminal")
+            events = []
+            result = operation(run, events)
+            self.store.save(run, events, run.version)
+            return result
 
     @staticmethod
     def _event(run, events, kind, **data):
