@@ -821,3 +821,33 @@ def test_complete_revalidates_accepted_lineage(kernel):
         core.complete(rid, "done", criterion_evidence={"accurate": [b.id]})
     tamper(core, rid, lambda run: run.artifacts[a.id].input_artifact_ids.clear())
     core.complete(rid, "done", criterion_evidence={"accurate": [b.id]})
+
+
+def test_replan_invalidates_consumers_declared_through_required_inputs(kernel):
+    """Consumers must be resolved exactly as _input_artifact_ids resolves them.
+
+    A task may name its upstream through required_inputs instead of
+    dependencies. If the replan sweep ignores that edge, the consumer stays
+    ACCEPTED while its accepted artifact cites superseded provenance, which the
+    completion gate can only reject -- the run becomes unfinishable.
+    """
+    core, rid = kernel
+    upstream = task("a")
+    middle = task("b")
+    middle.packet.required_inputs = ["a"]
+    downstream = task("c")
+    downstream.packet.required_inputs = ["b"]
+    core.add_tasks(rid, [upstream, middle, downstream])
+    artifacts = {tid: accepted(core, rid, tid) for tid in ("a", "b", "c")}
+
+    proposal = ReplanProposal(base_revision=0, trigger="Source invalid",
+        evidence=["Upstream contradiction"], reopen=["a"])
+    core.propose_replan(rid, proposal)
+    core.apply_replan(rid, proposal.id)
+
+    run = core.get_run(rid)
+    assert run.tasks["a"].status == TaskStatus.READY
+    assert run.tasks["b"].status == TaskStatus.PLANNED
+    assert run.tasks["c"].status == TaskStatus.PLANNED
+    assert all(run.artifacts[a.id].status == "superseded" for a in artifacts.values())
+    assert run.accepted_artifacts == []

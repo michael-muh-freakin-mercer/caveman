@@ -944,7 +944,12 @@ class Orchestrator:
                 changed = False
                 artifact_ids = {a for key in affected for a in run.tasks[key].artifact_ids}
                 for key, task in run.tasks.items():
-                    if key not in affected and set(task.packet.dependencies) & (affected | artifact_ids):
+                    # Consumers are resolved exactly as _input_artifact_ids resolves
+                    # them, so a task that names its upstream through required_inputs
+                    # is invalidated too. Missing one leaves an ACCEPTED task whose
+                    # accepted artifact cites superseded provenance.
+                    consumed = set(task.packet.dependencies) | set(task.packet.required_inputs)
+                    if key not in affected and consumed & (affected | artifact_ids):
                         affected.add(key)
                         changed = True
             for key in affected:
