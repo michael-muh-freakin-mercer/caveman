@@ -97,6 +97,12 @@ class TaskNode(Model):
     status: TaskStatus = TaskStatus.PLANNED
     attempts: int = 0
     revisions: int = 0
+    # Lifetime counters above are append-only audit history. A replan that
+    # reopens a task rebases these baselines so the task gets a fresh budget in
+    # the new plan revision without rewriting its history. Remaining budget is
+    # always attempts - attempt_baseline against max_attempts.
+    attempt_baseline: int = Field(default=0, ge=0)
+    revision_baseline: int = Field(default=0, ge=0)
     max_attempts: int = Field(default=3, ge=1)
     max_revisions: int = Field(default=2, ge=0)
     assignment: WorkerAssignment | None = None

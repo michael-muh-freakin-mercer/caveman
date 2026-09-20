@@ -690,3 +690,25 @@ def test_invoke_passes_configured_budget_to_worker_model(monkeypatch):
     model = captured["model"]
     assert isinstance(model, UsageRecordingModel)
     assert model.budget is budget
+
+
+def test_receipt_reports_the_budget_remaining_in_this_plan_revision():
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    for attempt in range(3):
+        core.delegate(controller.run_id, "task", f"worker-{attempt}")
+        core.start(controller.run_id, "task")
+        core.fail(controller.run_id, "task", FailureClass.TIMEOUT, "interrupted")
+        core.recover(controller.run_id, controller.inspect().failures[-1].id, "retry")
+    exhausted = json.loads(controller._receipt())["tasks"]["task"]
+    assert exhausted["attempts"] == 3 and exhausted["attempts_remaining"] == 0
+
+    proposal, approval = controller.propose_replan(
+        trigger="Materially different plan", evidence=["operator narrowed scope"],
+        add=[], remove=[], reopen=["task"])
+    core.decide_approval(controller.run_id, approval.id, True, "human", "approved")
+    controller.apply_replan(proposal.id)
+    reopened = json.loads(controller._receipt())["tasks"]["task"]
+    # Lifetime history is preserved; the new revision states a usable budget.
+    assert reopened["attempts"] == 3 and reopened["attempts_remaining"] == 3
+    assert core.delegate(controller.run_id, "task", "fresh-worker").task_id == "task"

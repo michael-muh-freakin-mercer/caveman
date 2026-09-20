@@ -302,7 +302,9 @@ class Orchestrator:
                 raise GateError("Use explicit replan after execution begins")
             for source in tasks:
                 task = source.model_copy(deep=True)
-                if task.id in run.tasks or task.status != TaskStatus.PLANNED or task.attempts or task.artifact_ids or task.assignment:
+                if (task.id in run.tasks or task.status != TaskStatus.PLANNED or task.attempts or
+                        task.artifact_ids or task.assignment or task.attempt_baseline or
+                        task.revision_baseline):
                     raise GateError("Only fresh unique tasks can be added")
                 self._validate_capability_checks(task)
                 run.tasks[task.id] = task
@@ -369,9 +371,10 @@ class Orchestrator:
             task = run.tasks[task_id]
             if not worker_id.strip() or worker_id == self.manager_id:
                 raise GateError("Worker identity is not delegatable")
-            if task.attempts >= task.max_attempts:
+            if task.attempts - task.attempt_baseline >= task.max_attempts:
                 raise GateError(
-                    f"Attempt budget exhausted ({task.attempts}/{task.max_attempts})")
+                    f"Attempt budget exhausted "
+                    f"({task.attempts - task.attempt_baseline}/{task.max_attempts})")
             blocker = self._readiness_blocker(run, task)
             if blocker:
                 raise GateError(f"Task is not ready: {blocker}")
@@ -589,9 +592,9 @@ class Orchestrator:
                 action = "REPLACE"
             elif kind in {FailureClass.CAPABILITY_UNAVAILABLE, FailureClass.UNSUPPORTED_CAPABILITY, FailureClass.TOOL_FAILURE}:
                 action = "ESCALATE"
-            if action in {"RETRY", "REVISE"} and task.attempts >= task.max_attempts:
+            if action in {"RETRY", "REVISE"} and task.attempts - task.attempt_baseline >= task.max_attempts:
                 action = "REPLAN"
-            if action == "REVISE" and task.revisions >= task.max_revisions:
+            if action == "REVISE" and task.revisions - task.revision_baseline >= task.max_revisions:
                 action = "REPLACE"
             if action == "RETRY":
                 if not self._ready(run, task):
@@ -964,11 +967,24 @@ class Orchestrator:
                 task.assignment = None
                 task.result = None
                 task.blocker = None
+                if key not in proposal.remove:
+                    # A reopened task must be executable again. Its assignment,
+                    # result and blocker are already cleared, but the lifetime
+                    # attempt/revision counters are audit history and must keep
+                    # growing, so rebase the budgets instead of resetting them.
+                    # Without this a task that exhausted its attempts reaches
+                    # READY and delegate() refuses it forever, which makes the
+                    # documented "materially different plan" recovery route a
+                    # dead end. Total work stays bounded by the replan budget.
+                    task.attempt_baseline = task.attempts
+                    task.revision_baseline = task.revisions
                 self._event(run, events, "task.invalidated", task_id=key, reason=proposal.trigger)
             for key, deps in proposal.dependencies.items():
                 run.tasks[key].packet.dependencies = list(deps)
             for source in proposal.add:
-                if source.id in run.tasks or source.status != TaskStatus.PLANNED or source.attempts or source.assignment or source.artifact_ids:
+                if (source.id in run.tasks or source.status != TaskStatus.PLANNED or source.attempts
+                        or source.assignment or source.artifact_ids or source.attempt_baseline
+                        or source.revision_baseline):
                     raise GateError("Replan additions must be fresh unique tasks")
                 self._validate_capability_checks(source)
                 run.tasks[source.id] = source.model_copy(deep=True)

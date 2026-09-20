@@ -130,7 +130,13 @@ class DurableController:
             "criteria_defined": self._criteria_defined(),
             "tasks": {task_id: {
                 "status": task.status.value,
+                # attempts is lifetime audit history and may exceed max_attempts
+                # after a reopen replan rebased the budget, so state the
+                # remaining budget explicitly rather than making the Manager
+                # infer it.
                 "attempts": task.attempts,
+                "attempts_remaining": max(
+                    0, task.max_attempts - (task.attempts - task.attempt_baseline)),
                 "revisions": task.revisions,
                 "capability": task.capability.value,
                 "artifact_ids": task.artifact_ids,

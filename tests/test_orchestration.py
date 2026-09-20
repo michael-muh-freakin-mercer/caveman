@@ -851,3 +851,53 @@ def test_replan_invalidates_consumers_declared_through_required_inputs(kernel):
     assert run.tasks["c"].status == TaskStatus.PLANNED
     assert all(run.artifacts[a.id].status == "superseded" for a in artifacts.values())
     assert run.accepted_artifacts == []
+
+
+def test_replan_reopen_restores_a_bounded_attempt_budget(kernel):
+    """Reopening is the documented escape from an exhausted attempt budget.
+
+    The lifetime counters stay monotonic for audit; only the budget baseline
+    moves, so the new plan revision gets exactly max_attempts again.
+    """
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    for attempt in range(3):
+        core.delegate(rid, "a", f"worker-{attempt}")
+        core.start(rid, "a")
+        core.fail(rid, "a", FailureClass.TIMEOUT, f"attempt {attempt} interrupted")
+        core.recover(rid, core.get_run(rid).failures[-1].id, "retry after interruption")
+    exhausted = core.get_run(rid).tasks["a"]
+    assert exhausted.attempts == 3 and exhausted.status == TaskStatus.BLOCKED
+    with pytest.raises(GateError, match=r"Attempt budget exhausted \(3/3\)"):
+        core.delegate(rid, "a", "blocked-worker")
+
+    proposal = ReplanProposal(base_revision=0, trigger="Materially different plan",
+        evidence=["Operator narrowed the objective"], reopen=["a"])
+    core.propose_replan(rid, proposal)
+    core.apply_replan(rid, proposal.id)
+    reopened = core.get_run(rid).tasks["a"]
+    assert reopened.status == TaskStatus.READY
+    assert reopened.attempts == 3 and reopened.attempt_baseline == 3
+
+    for attempt in range(3):
+        core.delegate(rid, "a", f"revision-worker-{attempt}")
+        core.start(rid, "a")
+        core.fail(rid, "a", FailureClass.TIMEOUT, f"retry {attempt} interrupted")
+        core.recover(rid, core.get_run(rid).failures[-1].id, "retry after interruption")
+    assert core.get_run(rid).tasks["a"].attempts == 6
+    with pytest.raises(GateError, match=r"Attempt budget exhausted \(3/3\)"):
+        core.delegate(rid, "a", "worker-final")
+
+
+def test_replan_additions_cannot_preinflate_their_budget(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    inflated = task("b")
+    inflated.attempt_baseline = 5
+    proposal = ReplanProposal(base_revision=0, trigger="Add work", evidence=["e"],
+        add=[inflated])
+    core.propose_replan(rid, proposal)
+    with pytest.raises(GateError, match="fresh unique tasks"):
+        core.apply_replan(rid, proposal.id)
+    with pytest.raises(GateError, match="fresh unique tasks"):
+        core.add_tasks(rid, [inflated])
