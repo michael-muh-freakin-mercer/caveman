@@ -95,6 +95,10 @@ def test_default_grant_cannot_write_or_delete_safety_boundary(workspace):
     protected = [
         "PERMISSIONS.md", "SYSTEM_PROMPT.md", "src/walter/sandbox.py",
         "src/walter/orchestration.py",
+        # Cost control, the worker contract and the launch surface decide
+        # authority just as much as the kernel does.
+        "src/walter/usage.py", "src/walter/usage_model.py",
+        "src/walter/contracts.py", "src/walter/__init__.py", "pyproject.toml",
     ]
     # Missing protected paths are still protected from creation.
     for path in protected:

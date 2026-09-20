@@ -102,6 +102,9 @@ SECRET_SUFFIXES = (".pem", ".p12", ".pfx")
 # testable, diffable and fingerprinted, but ordinary developer grants cannot
 # mutate them.  A Manager must create a separate signed grant bound to an exact
 # human approval digest to authorize a safety-boundary candidate.
+#
+# The set is every doctrine file plus every control-plane module: anything that
+# decides authority, cost, the worker contract, or how Walter is launched.
 SAFETY_PATHS = frozenset({
     "AGENTS.md", "SYSTEM_PROMPT.md", "PERMISSIONS.md", "AGENT_CREATION.md",
     "QA_PROTOCOL.md", "FAILURE_RECOVERY.md", "TOOLS.md", "TASK_PROTOCOL.md",
@@ -109,6 +112,13 @@ SAFETY_PATHS = frozenset({
     "src/walter/sandbox.py", "src/walter/orchestration.py", "src/walter/models.py",
     "src/walter/store.py", "src/walter/adapter.py", "src/walter/runtime.py",
     "src/walter/cli.py", "src/walter/readiness.py",
+    # Cost control, the worker/task contract, the package surface, and the
+    # console-script/dependency declaration are authority boundaries too: a
+    # candidate that quietly disables the usage budget, widens the worker
+    # contract, or repoints the `walter` entrypoint must be as conspicuous as
+    # one that edits the kernel.
+    "src/walter/usage.py", "src/walter/usage_model.py", "src/walter/contracts.py",
+    "src/walter/__init__.py", "pyproject.toml",
 })
 
 MAX_FILE_BYTES = 2_000_000
