@@ -96,6 +96,10 @@ class BlockerReason(StrEnum):
     WORKER_REPLACEMENT_REQUIRED = "Worker replacement required"
     # Prefix only; callers append the outstanding approval IDs.
     LEGACY_APPROVAL_REGATE = "Legacy approval gate requires explicit Manager re-gating"
+    # Prefix only; callers append the precise readiness reason. Set when a READY
+    # task loses readiness, and treated as refreshable so the task returns to
+    # READY automatically once the underlying gate is satisfied again.
+    READINESS_LAPSED = "Readiness lapsed"
 
 
 class ApprovalGate(Model):

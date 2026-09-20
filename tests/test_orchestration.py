@@ -991,3 +991,63 @@ def test_blocker_reasons_persist_as_plain_strings_and_gate_refresh(kernel):
     still = core.get_run(rid)
     assert still.tasks["escalated"].status == TaskStatus.BLOCKED
     assert still.tasks["replanned"].status == TaskStatus.BLOCKED
+
+
+def test_refresh_demotes_ready_tasks_whose_readiness_lapsed(kernel):
+    """_refresh only promoted, so the snapshot could advertise stale readiness.
+
+    A READY task whose gates no longer hold was refused by delegate() while
+    inspect_run still reported READY. It is now demoted with the precise
+    reason, and returns to READY on its own once the gate is satisfied again.
+    In-flight work is never demoted.
+    """
+    core, rid = kernel
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    consumer, inflight = task("consumer"), task("inflight")
+    consumer.packet.required_inputs = ["calc.py"]
+    inflight.packet.required_inputs = ["calc.py"]
+    core.add_tasks(rid, [consumer, inflight])
+    core.delegate(rid, "inflight", "author")
+    core.start(rid, "inflight")
+    assert core.get_run(rid).tasks["consumer"].status == TaskStatus.READY
+    assert core.get_run(rid).tasks["inflight"].status == TaskStatus.RUNNING
+
+    # Remove the input out of band, then run any mutation that calls _refresh.
+    tamper(core, rid, lambda run: run.available_inputs.pop("calc.py"))
+    core.register_input(rid, "unrelated.py", "sha256:bbb")
+
+    run = core.get_run(rid)
+    assert run.tasks["consumer"].status == TaskStatus.BLOCKED
+    assert run.tasks["consumer"].blocker == (
+        BlockerReason.READINESS_LAPSED + ": Required input is unavailable: calc.py")
+    # The event carries the precise reason, not the prefixed blocker.
+    blocked = [event for event in core.store.events(rid)
+               if event.kind == "task.blocked" and event.data["task_id"] == "consumer"]
+    assert blocked[-1].data["reason"] == "Required input is unavailable: calc.py"
+    # Active work keeps its assignment; its gates are re-checked at submission.
+    assert run.tasks["inflight"].status == TaskStatus.RUNNING
+
+    # Satisfying the gate again re-promotes without any explicit recovery.
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    recovered = core.get_run(rid)
+    assert recovered.tasks["consumer"].status == TaskStatus.READY
+    assert recovered.tasks["consumer"].blocker is None
+    core.delegate(rid, "consumer", "worker")
+
+
+def test_refresh_leaves_ready_tasks_and_other_states_alone(kernel):
+    """The demote branch must not disturb tasks that are genuinely ready."""
+    core, rid = kernel
+    core.add_tasks(rid, [task("ready"), task("blocked")])
+    core.delegate(rid, "blocked", "author")
+    core.start(rid, "blocked")
+    failure = core.fail(rid, "blocked", FailureClass.TASK_AMBIGUITY, "ambiguous objective")
+    core.recover(rid, failure.id, "Route ambiguity to explicit replan")
+
+    core.register_input(rid, "trigger.py", "sha256:ccc")  # triggers _refresh
+    run = core.get_run(rid)
+    assert run.tasks["ready"].status == TaskStatus.READY
+    assert run.tasks["ready"].blocker is None
+    # A non-refreshable blocker is not promoted and not rewritten.
+    assert run.tasks["blocked"].status == TaskStatus.BLOCKED
+    assert run.tasks["blocked"].blocker == BlockerReason.MANAGER_REPLAN_REQUIRED

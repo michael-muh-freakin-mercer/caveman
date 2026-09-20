@@ -271,14 +271,36 @@ class Orchestrator:
     def _ready(self, run, task):
         return self._readiness_blocker(run, task) is None
 
+    @staticmethod
+    def _refreshable_blocker(task) -> bool:
+        """Whether _refresh may return this BLOCKED task to READY on its own.
+
+        A readiness-lapsed blocker carries the precise reason as free text after
+        a fixed prefix, so it is matched by prefix rather than by set membership.
+        """
+        blocker = task.blocker or ""
+        return (blocker in REFRESHABLE_BLOCKERS
+                or blocker.startswith(BlockerReason.READINESS_LAPSED))
+
     def _refresh(self, run, events):
         for task in run.tasks.values():
             if task.status == TaskStatus.PLANNED and self._ready(run, task):
                 self._transition(run, events, task, TaskStatus.READY, "Dependencies and input gates satisfied")
-            elif (task.status == TaskStatus.BLOCKED and task.blocker in REFRESHABLE_BLOCKERS
+            elif (task.status == TaskStatus.BLOCKED and self._refreshable_blocker(task)
                     and self._ready(run, task)):
                 task.blocker = None
                 self._transition(run, events, task, TaskStatus.READY, "Capability prerequisites satisfied")
+            elif task.status == TaskStatus.READY:
+                # Only promoting left the snapshot able to advertise readiness
+                # that no longer holds: delegate() refused the task while
+                # inspect_run still reported READY. Demote with the precise
+                # reason instead. In-flight, terminal and revision states are
+                # untouched -- their gates are re-checked at their own
+                # transitions, and demoting active work would discard it.
+                lapsed = self._readiness_blocker(run, task)
+                if lapsed:
+                    self._transition(run, events, task, TaskStatus.BLOCKED, lapsed)
+                    task.blocker = BlockerReason.READINESS_LAPSED + ": " + lapsed
 
     def set_completion_criteria(self, run_id: str, criteria: list[str]):
         def operation(run, events):
