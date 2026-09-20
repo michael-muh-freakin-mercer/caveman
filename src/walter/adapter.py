@@ -216,10 +216,16 @@ class DurableController:
         Trusted code reads each file and computes its digest; the model only
         names paths. The kernel stores the immutable reference, which makes the
         name usable as a declared ``required_inputs`` entry.
+
+        Re-naming a path that is already registered with the identical digest is
+        a no-op, so a later planning round may repeat earlier paths. A digest
+        that differs from the registered one is an integrity signal: the kernel
+        keeps inputs immutable and the mismatch is reported instead of hidden.
         """
         root = (self.workspaces.repository if self.workspaces is not None
                 else Path.cwd()).resolve()
         registered = {}
+        existing = self.inspect().available_inputs
         for raw in paths:
             rel = Path(raw)
             if rel.is_absolute() or ".." in rel.parts or ".git" in rel.parts:
@@ -228,9 +234,17 @@ class DurableController:
             if not candidate.is_relative_to(root) or not candidate.is_file():
                 raise ValueError(f"Input path is not a regular repository file: {raw}")
             name = rel.as_posix()
-            digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
-            self.core.register_input(self.run_id, name, f"sha256:{digest}")
-            registered[name] = f"sha256:{digest}"
+            reference = "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
+            previous = existing.get(name)
+            if previous is None:
+                self.core.register_input(self.run_id, name, reference)
+                existing[name] = reference
+            elif previous != reference:
+                raise ValueError(
+                    f"Registered input {name} is immutable but the repository file now "
+                    f"digests to {reference} instead of {previous}. Replan against the "
+                    "changed file instead of re-registering the same name.")
+            registered[name] = reference
         return registered
 
     def candidate_scope(self, task_id: str, *, target: str) -> dict:
@@ -439,14 +453,16 @@ class DurableController:
         @tool
         def validate_task(task_id: str) -> str:
             """Run predeclared checks through trusted executors; takes no claimed pass flag."""
-            self.validate(task_id)
-            return self._receipt()
+            records = self.validate(task_id)
+            return json.dumps({"validations": self._validation_outcome(records),
+                               "run": json.loads(self._receipt())})
 
         @tool
         async def review_task(task_id: str) -> str:
             """Commission a fresh read-only reviewer with candidate and validation evidence."""
-            await self.review(task_id)
-            return self._receipt()
+            report = await self.review(task_id)
+            return json.dumps({"review": {"passed": report.passed, "reason": report.reason},
+                               "run": json.loads(self._receipt())})
 
         @tool
         def accept_task(task_id: str, reason: str) -> str:
@@ -656,6 +672,7 @@ class DurableController:
         task, artifact = self._candidate(task_id)
         self._fingerprint(task_id)
         executor_grant = None
+        recorded = []
         if task.workspace_id:
             if self.workspaces is None:
                 raise ValueError("Workspace backend unavailable")
@@ -698,9 +715,36 @@ class DurableController:
             else:
                 raise ValueError("Unsupported trusted validation check")
             validator_id = executor_grant.worker_id if executor_grant else "executor-" + uuid4().hex
-            self.core.validate(self.run_id, artifact.id, check, valid, evidence,
-                               validator_id=validator_id,
-                               workspace_fingerprint=self._fingerprint(task_id))
+            record = self.core.validate(self.run_id, artifact.id, check, valid, evidence,
+                                        validator_id=validator_id,
+                                        workspace_fingerprint=self._fingerprint(task_id))
+            recorded.append(record)
+        return recorded
+
+    @staticmethod
+    def _validation_outcome(records) -> list[dict]:
+        """Compact per-check outcome so a mutating tool result is self-describing."""
+        outcome = []
+        for record in records:
+            entry = {"check": record.check, "passed": record.passed}
+            if not record.passed:
+                # A pass needs no explanation. A failure must carry actionable
+                # detail without echoing a whole test log through the model
+                # context, so keep the tail of each stream rather than slicing
+                # the serialized evidence blob at an arbitrary byte.
+                try:
+                    detail = json.loads(record.evidence)
+                except (TypeError, ValueError):
+                    entry["evidence"] = record.evidence[-800:]
+                else:
+                    entry["returncode"] = detail.get("returncode")
+                    for stream in ("stdout", "stderr"):
+                        text = (detail.get(stream) or "").strip()
+                        if text:
+                            entry[stream] = text[-1200:]
+            outcome.append(entry)
+        return outcome
+
 
     async def review(self, task_id: str):
         task, artifact = self._candidate(task_id)
@@ -723,6 +767,7 @@ class DurableController:
             report.evidence.append("Reviewer did not inspect any candidate file using read tools")
         self.core.review(self.run_id, artifact.id, reviewer_id, report.passed,
                          json.dumps(report.model_dump()), workspace_fingerprint=self._fingerprint(task_id))
+        return report
 
     def _fingerprint(self, task_id):
         task, artifact = self._candidate(task_id)

@@ -32,6 +32,16 @@ def packet(task_id="task"):
     )
 
 
+async def _call_tool(function_tool, **arguments):
+    """Invoke a Manager tool through the real SDK FunctionTool boundary."""
+    from agents.tool_context import ToolContext
+
+    payload = json.dumps(arguments)
+    context = ToolContext(None, tool_name=function_tool.name, tool_call_id="call-1",
+                          tool_arguments=payload)
+    return await function_tool.on_invoke_tool(context, payload)
+
+
 def controller_for(task, tmp_path=None):
     core = Orchestrator(SQLiteStore())
     run = core.create_run("fixture", ["accepted fixture"])
@@ -690,6 +700,96 @@ def test_invoke_passes_configured_budget_to_worker_model(monkeypatch):
     model = captured["model"]
     assert isinstance(model, UsageRecordingModel)
     assert model.budget is budget
+
+
+def test_validate_task_reports_the_actual_check_outcome():
+    """A mutating tool result must say whether the check it just ran passed.
+
+    The compact receipt introduced for token economy reports only task and
+    artifact status, so a Manager that ran validate_task could not tell a
+    recorded failure from a pass without a full inspect_run.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    assignment = core.delegate(controller.run_id, "task", "worker")
+    core.start(controller.run_id, "task")
+    core.submit(controller.run_id, "task", assignment.id, "worker",
+        WorkerResult(task_id="task", status="completed", summary="done",
+                     deliverable="an inspectable result"))
+    tools = {tool.name: tool for tool in controller.tools()}
+    payload = json.loads(asyncio.run(_call_tool(tools["validate_task"], task_id="task")))
+    assert payload["validations"] == [{"check": "result_schema", "passed": True}]
+    assert payload["run"]["tasks"]["task"]["status"] == "REVIEWING"
+
+
+def test_validate_task_surfaces_a_failure_with_actionable_evidence(tmp_path):
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
+    (repository / "calc.py").write_text("def add(a, b):\n    return a + b\n")
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
+                   cwd=repository, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-qm", "base"], cwd=repository, check=True)
+    workspaces = RecordingWorkspaceManager(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("fixture", ["accepted fixture"])
+    core.add_tasks(run.id, [TaskNode(packet=packet(),
+        capability=CapabilityProfile.DEVELOPER_SANDBOX, required_checks=["pytest"])])
+    controller = DurableController(core, run.id, workspaces)
+    grant = workspaces.create_candidate(run.id, "task", "author")
+    core.bind_workspace(run.id, "task", grant.id)
+    assignment = core.delegate(run.id, "task", "author")
+    core.start(run.id, "task")
+    fingerprint = workspaces.freeze(grant.id)
+    core.submit(run.id, "task", assignment.id, "author",
+        WorkerResult(task_id="task", status="completed", summary="done",
+                     deliverable="claimed complete"),
+        workspace_fingerprint=fingerprint)
+    tools = {tool.name: tool for tool in controller.tools()}
+    payload = json.loads(asyncio.run(_call_tool(tools["validate_task"], task_id="task")))
+    outcome = payload["validations"][0]
+    assert outcome == {"check": "pytest", "passed": False,
+                       "evidence": "No candidate test files were added or changed; "
+                                   "a developer candidate must include tests"}
+    assert payload["run"]["tasks"]["task"]["attempts_remaining"] == 2
+    # The kernel must still refuse acceptance, and name the failing gate.
+    with pytest.raises(ValueError, match="failed: pytest"):
+        core.accept(run.id, "task", reason="ignore", workspace_fingerprint=fingerprint)
+
+
+def test_registering_an_unchanged_input_again_is_a_no_op(tmp_path):
+    """A later planning round may repeat a path it already registered."""
+    controller = _repository_controller(tmp_path)
+    first = controller.register_repository_inputs(["calc.py"])
+    both = controller.register_repository_inputs(["calc.py", "test_calc.py"])
+    assert both["calc.py"] == first["calc.py"]
+    run = controller.inspect()
+    assert set(run.available_inputs) == {"calc.py", "test_calc.py"}
+    assert [event.kind for event in controller.core.store.events(controller.run_id)].count(
+        "input.registered") == 2
+
+
+def test_registering_a_changed_input_reports_the_digest_conflict(tmp_path):
+    controller = _repository_controller(tmp_path)
+    controller.register_repository_inputs(["calc.py"])
+    repository = controller.workspaces.repository
+    (repository / "calc.py").write_text("def add(a, b):\n    return a - b\n")
+    with pytest.raises(ValueError, match="immutable but the repository file now"):
+        controller.register_repository_inputs(["calc.py"])
+    assert len(controller.inspect().available_inputs) == 1
+
+
+def test_validation_outcome_extracts_stream_tails_from_executor_evidence():
+    """Executable checks record a JSON blob; slicing it would cut mid-field."""
+    evidence = json.dumps({"argv": ["python3", "-m", "pytest"], "returncode": 1,
+                           "stdout": "x" * 4000 + "1 failed", "stderr": ""})
+    record = SimpleNamespace(check="pytest", passed=False, evidence=evidence)
+    outcome = DurableController._validation_outcome([record])[0]
+    assert outcome["check"] == "pytest" and outcome["passed"] is False
+    assert outcome["returncode"] == 1
+    assert outcome["stdout"].endswith("1 failed") and len(outcome["stdout"]) == 1200
+    assert "stderr" not in outcome
 
 
 def test_receipt_reports_the_budget_remaining_in_this_plan_revision():
