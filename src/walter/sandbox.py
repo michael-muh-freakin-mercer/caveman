@@ -878,12 +878,58 @@ class WorkspaceManager:
                         "bubblewrap isolation backend failed; verify user namespaces/outer sandbox: " + stderr.strip())
                 return CommandResult(proc.returncode, stdout, stderr)
 
+    def _retire_candidate(self, grant: WorkspaceGrant) -> dict[str, object]:
+        """Remove one candidate's worktree and branch and close its grants.
+
+        Every step is conditional so retirement is idempotent and survives a
+        worktree that was removed out of band: such a candidate still leaves a
+        branch and a prunable worktree registration behind. Only
+        ``walter-candidate/<candidate_id>`` branches and worktrees under this
+        manager's own state root are ever touched; the live checkout is not
+        reachable from here.
+        """
+        root = Path(grant.root)
+        record: dict[str, object] = {
+            "candidate_id": grant.candidate_id, "branch": grant.branch,
+            "worktree_removed": False, "branch_deleted": False,
+        }
+        if root.is_dir():
+            self._git("-C", str(self.repository), "worktree", "remove", "--force", grant.root)
+            record["worktree_removed"] = True
+        # Drop administrative entries for worktrees whose directory is already
+        # gone. Repository-wide, but it can only forget absent directories.
+        self._git_result("-C", str(self.repository), "worktree", "prune")
+        if self._git_result("-C", str(self.repository), "rev-parse", "--verify",
+                            "refs/heads/" + grant.branch).returncode == 0:
+            self._git("-C", str(self.repository), "branch", "-D", grant.branch)
+            record["branch_deleted"] = True
+        for ident, other in list(self._grants.items()):
+            if other.candidate_id == grant.candidate_id:
+                self._grants[ident] = replace(other, lifecycle="closed")
+        return record
+
     def cleanup(self, workspace_id: str):
         with self._lock:
             grant = self._get(workspace_id)
-            self._git("-C", str(self.repository), "worktree", "remove", "--force", grant.root)
-            self._git("-C", str(self.repository), "branch", "-D", grant.branch)
-            for ident, other in list(self._grants.items()):
-                if other.candidate_id == grant.candidate_id:
-                    self._grants[ident] = replace(other, lifecycle="closed")
+            self._retire_candidate(grant)
             self._save()
+
+    def retire_run(self, run_id: str) -> list[dict[str, object]]:
+        """Retire every candidate recorded for one run. Idempotent.
+
+        Covers candidates whose worktree is still present and ones already
+        reconciled to closed because their worktree vanished, which would
+        otherwise leave an orphan branch that no command reclaimed. A grant
+        whose signed binding no longer holds is refused rather than acted on.
+        """
+        with self._lock:
+            retired, seen = [], set()
+            for grant in sorted(self._grants.values(), key=lambda item: item.candidate_id):
+                if grant.run_id != run_id or grant.candidate_id in seen:
+                    continue
+                seen.add(grant.candidate_id)
+                self._verify_grant_shape(grant)
+                retired.append(self._retire_candidate(grant))
+            if retired:
+                self._save()
+            return retired

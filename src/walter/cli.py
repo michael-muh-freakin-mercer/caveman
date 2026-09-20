@@ -250,6 +250,39 @@ def _local_human_principal() -> str:
     return f"local-os:{getpass.getuser()}:uid:{uid}"
 
 
+def _cleanup(run_id: str) -> None:
+    """Retire candidate worktrees, branches and grants for one terminal run.
+
+    Durable operational state is never touched. The run snapshot and its
+    append-only event log are the record of what happened and stay fully
+    readable after cleanup; only reclaimable filesystem and grant state goes.
+    """
+    from .sandbox import SandboxViolation, WorkspaceManager
+
+    store = _store()
+    try:
+        run = store.load(run_id)
+        if run.status == "active":
+            raise ValueError(
+                f"run {run_id} is still active; cleanup only retires workspaces for a "
+                "terminal run. Finish or abandon it first.")
+        try:
+            workspaces = WorkspaceManager(Path.cwd())
+            retired = workspaces.retire_run(run_id)
+        except SandboxViolation as exc:
+            # SandboxViolation subclasses OSError, which main() does not
+            # translate, so it would otherwise surface as a traceback.
+            raise RuntimeError(f"workspace retirement refused: {exc}") from exc
+        print(json.dumps({
+            "run_id": run_id,
+            "run_status": run.status,
+            "candidates": retired,
+            "durable_state": "unchanged",
+        }, indent=2))
+    finally:
+        store.close()
+
+
 def _operations(argv):
     parser = argparse.ArgumentParser(prog="walter run")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -266,12 +299,19 @@ def _operations(argv):
     approval.add_argument("approval_id")
     approval.add_argument("--deny", action="store_true")
     approval.add_argument("--reason", required=True)
+    cleanup = commands.add_parser("cleanup", help=(
+        "Retire candidate worktrees, branches and workspace grants for a terminal run. "
+        "Durable run and event state is never modified."))
+    cleanup.add_argument("run_id")
     commands.add_parser("readiness-demo")
     args = parser.parse_args(argv)
     if args.command == "readiness-demo":
         from .readiness import run_readiness_demo
         report = run_readiness_demo(Path.cwd())
         print(report.model_dump_json(indent=2) if hasattr(report, "model_dump_json") else json.dumps(report, indent=2))
+        return
+    if args.command == "cleanup":
+        _cleanup(args.run_id)
         return
     if args.command == "resume":
         target = _resume_and_execute if args.execute else _resume

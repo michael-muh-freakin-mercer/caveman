@@ -1,5 +1,6 @@
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -319,3 +320,107 @@ def test_interactive_reports_usage_budget_exceeded_and_continues(monkeypatch, ca
     captured = capsys.readouterr()
     assert "Usage budget exceeded: Model-call budget exhausted" in captured.out
     assert observed["closed"] == 1
+
+
+def _terminal_run_with_candidate(tmp_path, monkeypatch):
+    """A completed run owning one real candidate worktree and branch.
+
+    chdir first: cli._store() resolves the operational database from the
+    current working directory, so building the run before chdir would write
+    into whatever store the developer happens to be sitting in.
+    """
+    from walter.models import Event
+    from walter.sandbox import WorkspaceManager
+
+    setup_repository(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    store = cli._store()
+    core = Orchestrator(store)
+    run = core.create_run("cleanup fixture", ["fixture accepted"])
+    workspaces = WorkspaceManager(tmp_path)
+    grant = workspaces.create_candidate(run.id, "task", "author")
+    snapshot = store.load(run.id)
+    snapshot.status = "completed"
+    snapshot.final_result = "fixture complete"
+    store.save(snapshot, [Event(run_id=run.id, kind="test.forced_terminal")], snapshot.version)
+    store.close()
+    return run.id, grant
+
+
+def _branches(tmp_path):
+    return subprocess.run(["git", "-C", str(tmp_path), "branch", "--list",
+                           "walter-candidate/*"], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_cleanup_refuses_an_active_run_and_leaves_its_workspace(tmp_path, monkeypatch):
+    from walter.sandbox import WorkspaceManager
+
+    setup_repository(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    store = cli._store()
+    core = Orchestrator(store)
+    run = core.create_run("active fixture", ["fixture accepted"])
+    store.close()
+    grant = WorkspaceManager(tmp_path).create_candidate(run.id, "task", "author")
+
+    with pytest.raises(ValueError, match="still active"):
+        cli._operations(["cleanup", run.id])
+    # Refusal must not destroy anything.
+    assert Path(grant.root).is_dir()
+    assert grant.branch in _branches(tmp_path)
+
+
+def test_cleanup_retires_a_terminal_run_without_touching_durable_state(tmp_path, monkeypatch, capsys):
+    run_id, grant = _terminal_run_with_candidate(tmp_path, monkeypatch)
+    before = cli._store()
+    durable, events = before.load(run_id).model_dump_json(), before.events(run_id)
+    before.close()
+
+    cli._operations(["cleanup", run_id])
+    report = json.loads(capsys.readouterr().out)
+    assert report["run_status"] == "completed"
+    assert report["durable_state"] == "unchanged"
+    assert report["candidates"] == [{
+        "candidate_id": grant.candidate_id, "branch": grant.branch,
+        "worktree_removed": True, "branch_deleted": True,
+    }]
+    assert not Path(grant.root).exists()
+    assert grant.branch not in _branches(tmp_path)
+
+    # The run snapshot and the whole event log must survive byte-for-byte.
+    after = cli._store()
+    assert after.load(run_id).model_dump_json() == durable
+    assert after.events(run_id) == events
+    after.close()
+
+
+def test_cleanup_reclaims_a_branch_left_by_an_out_of_band_worktree_removal(tmp_path, monkeypatch, capsys):
+    """WorkspaceManager reconciles a vanished worktree to closed on construction.
+
+    That left the candidate branch and a prunable worktree registration behind
+    with nothing to reclaim them, so cleanup reported success having done
+    nothing.
+    """
+    import shutil
+
+    run_id, grant = _terminal_run_with_candidate(tmp_path, monkeypatch)
+    shutil.rmtree(grant.root)
+    assert grant.branch in _branches(tmp_path)
+
+    cli._operations(["cleanup", run_id])
+    report = json.loads(capsys.readouterr().out)
+    assert report["candidates"] == [{
+        "candidate_id": grant.candidate_id, "branch": grant.branch,
+        "worktree_removed": False, "branch_deleted": True,
+    }]
+    assert grant.branch not in _branches(tmp_path)
+    worktrees = subprocess.run(["git", "-C", str(tmp_path), "worktree", "list"],
+                               capture_output=True, text=True, check=True).stdout
+    assert "prunable" not in worktrees and grant.candidate_id not in worktrees
+
+    # Idempotent: a second pass reports nothing further to reclaim.
+    cli._operations(["cleanup", run_id])
+    again = json.loads(capsys.readouterr().out)
+    assert again["candidates"][0]["worktree_removed"] is False
+    assert again["candidates"][0]["branch_deleted"] is False
