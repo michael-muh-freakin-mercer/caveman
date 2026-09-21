@@ -6,7 +6,6 @@ import pytest
 
 from walter import cli
 from walter.orchestration import Orchestrator
-from walter.store import SQLiteStore
 
 
 def setup_repository(tmp_path):

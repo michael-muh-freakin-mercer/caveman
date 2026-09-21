@@ -702,6 +702,45 @@ def test_invoke_passes_configured_budget_to_worker_model(monkeypatch):
     assert model.budget is budget
 
 
+def test_invoke_resolves_configuration_once_per_controller(monkeypatch):
+    from walter import runtime
+    from walter.usage import UsageBudget
+    from walter.usage_model import UsageRecordingModel
+
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    budget = UsageBudget(max_calls=5)
+    captured = {}
+    resolutions = []
+
+    def counting_from_env(cls):
+        resolutions.append(1)
+        return runtime.RuntimeConfig(
+            "openrouter", "key", "https://openrouter.ai/api/v1", "manager", "worker", budget
+        )
+
+    monkeypatch.setattr(runtime.RuntimeConfig, "from_env", classmethod(counting_from_env))
+    monkeypatch.setattr(runtime, "build_models", lambda config: (object(), object()))
+    monkeypatch.setattr(runtime, "_agent", lambda **kwargs: captured.update(kwargs) or kwargs)
+
+    class Result:
+        final_output = "ok"
+
+    async def fake_run(*args, **kwargs):
+        return Result()
+
+    monkeypatch.setattr("walter.adapter.Runner.run", fake_run)
+
+    for _ in range(2):
+        asyncio.run(controller._invoke(
+            name="Worker", instructions="do the task", output_type=str, tools=[],
+            input="payload", task_id="task", worker_id="worker-1", role="worker"))
+
+    assert len(resolutions) == 1
+    model = captured["model"]
+    assert isinstance(model, UsageRecordingModel)
+    assert model.budget is budget
+
+
 def test_validate_task_reports_the_actual_check_outcome():
     """A mutating tool result must say whether the check it just ran passed.
 

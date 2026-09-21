@@ -290,7 +290,6 @@ def test_path_aware_state_and_secret_policy(workspace):
 def test_symlinks_hardlinks_live_checkout_and_worker_identity(workspace):
     manager, grant, repo = workspace
     root = Path(grant.root)
-    before = manager.fingerprint(grant.id)
     (root / "escape").symlink_to("/etc", target_is_directory=True)
     (root / "link").symlink_to(repo / "hello.py")
     os.link(repo / "hello.py", root / "hard")

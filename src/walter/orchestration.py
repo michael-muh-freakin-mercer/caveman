@@ -9,7 +9,7 @@ import json
 from typing import Callable
 from .contracts import WorkerResult
 from .models import (AcceptanceDecision, ApprovalDecision, ApprovalGate, ApprovalRequest, ApprovalStatus, Artifact,
-    ArtifactValidation, BlockerReason, CapabilityProfile, CapabilityRequest, CapabilityRequestStatus, Decision, Event, FailureClass, ModelUsageRecord, RecoveryDecision,
+    ArtifactValidation, BlockerReason, CapabilityProfile, CapabilityRequest, CapabilityRequestStatus, Event, FailureClass, ModelUsageRecord, RecoveryDecision,
     ReplanProposal, Review, Run, TaskNode, TaskStatus, WorkerAssignment, WorkerFailure,
     WorkPlan, now)
 from .store import ConcurrentUpdate, SQLiteStore

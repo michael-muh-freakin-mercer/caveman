@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from . import runtime
 from .contracts import TaskPacket, WorkerResult
+from .orchestration import EXECUTABLE_DEVELOPER_CHECKS
 from .usage_model import UsageRecordingModel
 
 
@@ -102,10 +103,11 @@ def workspace_tools(manager, workspace_id: str, worker_id: str, *, writable: boo
 
 
 class DurableController:
-    def __init__(self, orchestrator, run_id: str, workspaces=None):
+    def __init__(self, orchestrator, run_id: str, workspaces=None, config=None):
         self.core = orchestrator
         self.run_id = run_id
         self.workspaces = workspaces
+        self._config = config
 
     def instructions(self):
         return load_system_prompt() + "\n" + DURABLE_INSTRUCTIONS + "\nRun ID: " + self.run_id
@@ -115,6 +117,12 @@ class DurableController:
 
     def close(self):
         self.core.store.close()
+
+    def configuration(self):
+        """Resolve provider configuration lazily once and reuse it for this controller."""
+        if self._config is None:
+            self._config = runtime.RuntimeConfig.from_env()
+        return self._config
 
     def _criteria_defined(self) -> bool:
         return self.inspect().plan.completion_criteria != [INITIAL_COMPLETION_CRITERION]
@@ -187,9 +195,9 @@ class DurableController:
             capability = CapabilityProfile(profile)
             if capability == CapabilityProfile.REVIEWER:
                 raise ValueError("Reviewer instances are commissioned only through review_task")
-            if not set(required) <= {"result_schema", "compile", "pytest"}:
+            if not set(required) <= {"result_schema"} | EXECUTABLE_DEVELOPER_CHECKS:
                 raise ValueError("Unknown trusted check")
-            if capability == CapabilityProfile.DEVELOPER_SANDBOX and not {"compile", "pytest"}.intersection(required):
+            if capability == CapabilityProfile.DEVELOPER_SANDBOX and not EXECUTABLE_DEVELOPER_CHECKS.intersection(required):
                 raise ValueError("Development requires a predeclared executable check")
             tasks.append(TaskNode(packet=packet, capability=capability,
                                   required_checks=required or ["result_schema"], review_required=True,
@@ -335,7 +343,7 @@ class DurableController:
             )
             raise ValueError("Capability request is not a permitted escalation")
         if (request.requested_capability == CapabilityProfile.DEVELOPER_SANDBOX
-                and not {"compile", "pytest"}.intersection(
+                and not EXECUTABLE_DEVELOPER_CHECKS.intersection(
                     run.tasks[request.task_id].required_checks)):
             self.core.deny_capability_request(
                 self.run_id, capability_request_id,
@@ -404,7 +412,7 @@ class DurableController:
 
     async def _invoke(self, *, name, instructions, output_type, tools, input,
                       task_id, worker_id, role, assignment_id=None):
-        config = runtime.RuntimeConfig.from_env()
+        config = self.configuration()
         _, model = runtime.build_models(config)
         model = UsageRecordingModel(model, self.core, self.run_id, provider=config.provider,
                                     model=config.worker_model, role=role, task_id=task_id,
