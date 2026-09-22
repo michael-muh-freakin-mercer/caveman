@@ -231,6 +231,8 @@ def _print_outcome(controller):
     print(f"Run ID: {run.id}\nDurable status: {run.status}")
     if run.status == "completed":
         print(run.final_result or "Completed through the kernel acceptance gate.")
+    elif run.status == "abandoned":
+        print("Run was abandoned offline. Durable tasks, decisions and events remain readable.")
     else:
         print("Run is not complete. Inspect durable tasks, blockers, and approvals with walter run inspect " + run.id)
 
@@ -299,6 +301,32 @@ def _cleanup(run_id: str) -> None:
         store.close()
 
 
+def _abandon(run_id: str, reason: str) -> None:
+    """Close a work-free active run offline, without invoking the Manager model.
+
+    Only durable status changes: no provider calls, no workspace mutation. This
+    is the offline exit for runs whose plan holds no in-flight work and no
+    pending gate, which otherwise stay `active` forever. Refusals name the exact
+    in-flight task or pending gate, so the operator knows what still needs a
+    decision.
+    """
+    store = _store()
+    try:
+        from .orchestration import Orchestrator
+
+        core = Orchestrator(store)
+        run = core.abandon(run_id, reason, actor_id=_local_human_principal())
+        print(json.dumps({
+            "run_id": run.id,
+            "run_status": run.status,
+            "plan_status": run.plan.status,
+            "reason": reason,
+            "durable_state": "preserved",
+        }, indent=2))
+    finally:
+        store.close()
+
+
 def _operations(argv):
     parser = argparse.ArgumentParser(prog="walter run")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -319,12 +347,20 @@ def _operations(argv):
         "Retire candidate worktrees, branches and workspace grants for a terminal run. "
         "Durable run and event state is never modified."))
     cleanup.add_argument("run_id")
+    abandon = commands.add_parser("abandon", help=(
+        "Close a work-free active run offline (no provider calls). Refused while the run "
+        "holds in-flight work, a pending approval, or a pending capability request."))
+    abandon.add_argument("run_id")
+    abandon.add_argument("--reason", required=True)
     commands.add_parser("readiness-demo")
     args = parser.parse_args(argv)
     if args.command == "readiness-demo":
         from .readiness import run_readiness_demo
         report = run_readiness_demo(Path.cwd())
         print(report.model_dump_json(indent=2) if hasattr(report, "model_dump_json") else json.dumps(report, indent=2))
+        return
+    if args.command == "abandon":
+        _abandon(args.run_id, args.reason)
         return
     if args.command == "cleanup":
         _cleanup(args.run_id)

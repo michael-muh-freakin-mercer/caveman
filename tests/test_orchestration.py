@@ -60,6 +60,26 @@ def test_dependency_requires_acceptance_and_completion_evidence(kernel):
         core.start(rid, "a")
 
 
+def test_completion_rejection_names_the_accepted_evidence_format(kernel):
+    """Prose evidence is refused, and the refusal states the accepted shape.
+
+    The Manager previously rejected the same call twice before discovering that
+    evidence must be accepted artifact IDs (pygtrie rehearsal finding), so the
+    message carries the required keys, the available artifact IDs and an example.
+    """
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    artifact = accepted(core, rid)
+    before = core.get_run(rid)
+    with pytest.raises(GateError) as excinfo:
+        core.complete(rid, "done", criterion_evidence={"accurate": ["tests pass in the candidate"]})
+    message = str(excinfo.value)
+    assert "artifact IDs" in message
+    assert artifact.id in message
+    assert '["accurate"]' in message
+    assert core.get_run(rid) == before
+
+
 def test_inputs_graph_and_atomic_failure(kernel):
     core, rid = kernel
     a = task()
@@ -150,19 +170,46 @@ def test_replan_is_atomic_and_bounded(kernel):
     core, rid = kernel
     core.add_tasks(rid, [task()])
     bad = ReplanProposal(base_revision=0, trigger="bad graph", evidence=["test"], dependencies={"a":["missing"]})
-    core.propose_replan(rid, bad)
     before = core.get_run(rid)
-    with pytest.raises(GateError):
-        core.apply_replan(rid, bad.id)
+    # Refused at authoring time -- before any approval gate could bind to it.
+    with pytest.raises(GateError, match="Unknown dependency"):
+        core.propose_replan(rid, bad)
     assert core.get_run(rid) == before
+    assert bad.id not in before.replans
     for revision in range(3):
         proposal = ReplanProposal(base_revision=revision, trigger="reopen", evidence=["new facts"], reopen=["a"])
         core.propose_replan(rid, proposal)
         core.apply_replan(rid, proposal.id)
-    proposal = ReplanProposal(base_revision=3, trigger="again", evidence=["new facts"], reopen=["a"])
+    exhausted = ReplanProposal(base_revision=3, trigger="again", evidence=["new facts"], reopen=["a"])
+    with pytest.raises(GateError, match="replan budget exhausted"):
+        core.propose_replan(rid, exhausted)
+
+
+def test_propose_replan_reports_every_defect_at_once(kernel):
+    """One rejection message, so one corrected proposal instead of many gates."""
+    core, rid = kernel
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    core.add_tasks(rid, [task()])
+    proposal = ReplanProposal(base_revision=0, trigger="multi-defect", evidence=["e"],
+        reopen=["ghost"], add=[task("calc.py")])
+    with pytest.raises(GateError) as excinfo:
+        core.propose_replan(rid, proposal)
+    message = str(excinfo.value)
+    assert "reopen references unknown task ghost" in message
+    assert "collides with a registered input name" in message
+
+
+def test_apply_replan_revalidates_state_that_drifted_after_proposal(kernel):
+    """A proposal valid at authoring time is re-checked against current state."""
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    proposal = ReplanProposal(base_revision=0, trigger="add lane", evidence=["gap"], add=[task("b")])
     core.propose_replan(rid, proposal)
-    with pytest.raises(GateError):
+    core.add_tasks(rid, [task("b")])
+    before = core.get_run(rid)
+    with pytest.raises(GateError, match="fresh unique task"):
         core.apply_replan(rid, proposal.id)
+    assert core.get_run(rid) == before
 
 
 def test_approvals_exact_scope_immutable_and_completion_gate(kernel):
@@ -220,10 +267,9 @@ def test_replan_rejects_schema_only_developer_addition_atomically(kernel):
     proposal = ReplanProposal(base_revision=0, trigger="Need implementation", evidence=["Gap"],
         add=[task("developer", capability=CapabilityProfile.DEVELOPER_SANDBOX,
             workspace_id="workspace", required_checks=["result_schema"])])
-    core.propose_replan(rid, proposal)
     before = core.get_run(rid)
     with pytest.raises(GateError, match="compile or pytest"):
-        core.apply_replan(rid, proposal.id)
+        core.propose_replan(rid, proposal)
     assert core.get_run(rid) == before
 
 
@@ -275,6 +321,46 @@ def test_resume_no_silent_rerun(kernel):
         core.delegate(rid, "a", "author")
     core.recover(rid, run.failures[-1].id, "Interrupted assignment inspected; safe to retry")
     core.delegate(rid, "a", "author")
+
+
+def test_abandon_closes_a_work_free_run_offline(kernel):
+    """The offline exit for runs that hold no in-flight work and no open gate."""
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    accepted(core, rid)
+    run = core.abandon(rid, "Superseded by a fresh run", actor_id="local-os:fixture")
+    assert run.status == "abandoned" and run.plan.status == "abandoned"
+    events = core.store.events(rid)
+    assert events[-1].kind == "run.abandoned"
+    assert events[-1].data["reason"] == "Superseded by a fresh run"
+    assert events[-1].data["actor_id"] == "local-os:fixture"
+    # Accepted history survives, and the run is terminal for every mutation.
+    assert run.tasks["a"].status == TaskStatus.ACCEPTED
+    assert run.artifacts[run.tasks["a"].artifact_ids[-1]].status == "accepted"
+    with pytest.raises(GateError, match="terminal"):
+        core.start(rid, "a")
+
+
+def test_abandon_refuses_runs_that_still_hold_work(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    core.delegate(rid, "a", "author")
+    with pytest.raises(GateError, match="in-flight work: a"):
+        core.abandon(rid, "close it anyway")
+    assert core.get_run(rid).status == "active"
+
+
+def test_abandon_refuses_pending_gates_and_empty_reasons(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    request = core.request_approval(rid, "promote", {"candidate": "one"}, "needs a decision")
+    with pytest.raises(GateError, match="pending approval gates"):
+        core.abandon(rid, "no open gates remain")
+    with pytest.raises(GateError, match="audit-worthy reason"):
+        core.abandon(rid, "   ")
+    assert core.get_run(rid).status == "active"
+    core.decide_approval(rid, request.id, True, "human", "scope checked")
+    assert core.abandon(rid, "gate decided and work retired").status == "abandoned"
 
 
 def test_task_approval_gate_is_typed_and_exact(kernel):
@@ -907,9 +993,8 @@ def test_replan_additions_cannot_preinflate_their_budget(kernel):
     inflated.attempt_baseline = 5
     proposal = ReplanProposal(base_revision=0, trigger="Add work", evidence=["e"],
         add=[inflated])
-    core.propose_replan(rid, proposal)
-    with pytest.raises(GateError, match="fresh unique tasks"):
-        core.apply_replan(rid, proposal.id)
+    with pytest.raises(GateError, match="fresh unique task"):
+        core.propose_replan(rid, proposal)
     with pytest.raises(GateError, match="fresh unique tasks"):
         core.add_tasks(rid, [inflated])
 
@@ -959,9 +1044,8 @@ def test_task_ids_cannot_shadow_registered_inputs_or_artifacts(kernel):
     producer = accepted(core, rid, "consumer")
     proposal = ReplanProposal(base_revision=0, trigger="Add colliding work",
         evidence=["e"], add=[task(producer.id)])
-    core.propose_replan(rid, proposal)
     with pytest.raises(GateError, match="collides with an artifact ID"):
-        core.apply_replan(rid, proposal.id)
+        core.propose_replan(rid, proposal)
     # register_input already guards the opposite direction.
     with pytest.raises(GateError, match="immutable"):
         core.register_input(rid, "consumer", "sha256:bbb")

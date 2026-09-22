@@ -27,7 +27,7 @@ where it is still incomplete.
 
 ## Verified evidence
 
-- Offline suite: `170 passed, 1 skipped`; the skip is the opt-in live provider smoke.
+- Offline suite: `211 passed, 1 skipped`; the skip is the opt-in live provider smoke.
 - Readiness demo passes against real Bubblewrap.
 - Live provider smoke passes (2026-09-20).
 - One live model-driven end-to-end run completed on 2026-09-20 (run
@@ -44,6 +44,12 @@ where it is still incomplete.
   Full findings in `docs/first-real-run-gap-report.md`.
 - Eval runner (`evals/runner.py`): EVAL-001/002/003 pass offline against the
   durable runtime (3/3).
+- 2026-09-22 rehearsal follow-ups landed offline: replan proposals are validated
+  at authoring time so a kernel-invalid proposal never binds an approval gate,
+  read-only (`repo_reader`) lanes are reviewable without a candidate diff, and
+  `finish_run` rejections name the accepted evidence shape. Eight zero-cost
+  zombie `active` runs in the main operational DB were closed with the new
+  offline `walter run abandon` transition.
 
 ## Known gaps and limitations
 
@@ -77,3 +83,10 @@ where it is still incomplete.
   deprecated compatibility fields (`WorkerResult.specialist_request`,
   `ApprovalRequest.reason` alias) are removed. The v1→v2 migration function is
   retained for now; its retirement is a separate later decision.
+- DEC-005 (2026-09-22): An active run that holds no in-flight task, no pending
+  approval, and no pending capability request may be closed offline with
+  `walter run abandon <run_id> --reason "<why>"` (run and plan status
+  `abandoned`, one `run.abandoned` event carrying the reason and the local
+  operator principal). Abandonment is narrow by design — any live work or open
+  gate refuses it with the blocker named — and it preserves accepted artifacts,
+  failures, decisions, and events as history rather than erasing them.

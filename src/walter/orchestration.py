@@ -39,6 +39,16 @@ REFRESHABLE_BLOCKERS = frozenset({
     BlockerReason.APPROVAL_PREREQUISITES_SATISFIED,
 })
 
+# Work that could still produce output or is holding a worker/gate. A run with
+# any task in these states is not abandonable offline: closing it would discard
+# live work instead of recording a decision about it.
+IN_FLIGHT_TASK_STATUSES = frozenset({
+    TaskStatus.DELEGATED,
+    TaskStatus.RUNNING,
+    TaskStatus.SUBMITTED,
+    TaskStatus.REVIEWING,
+})
+
 
 TRANSITIONS = {
     TaskStatus.PLANNED: {TaskStatus.READY, TaskStatus.BLOCKED},
@@ -331,6 +341,41 @@ class Orchestrator:
         self._mutate(run_id, operation)
         return self.get_run(run_id)
 
+    def abandon(self, run_id: str, reason: str, *, actor_id: str | None = None) -> Run:
+        """Close a work-free active run offline, without spending provider calls.
+
+        `resume` only converts interrupted DELEGATED/RUNNING work to FAILED, and
+        every other route to a terminal run either invokes the Manager model or
+        demands accepted artifacts. A run whose plan holds no in-flight work and
+        no pending gate therefore had no offline exit and stayed `active`
+        forever, polluting run listings and operator audits (2026-09-22 decision).
+
+        Abandonment is deliberately narrow. Any in-flight task, pending approval,
+        or pending capability request refuses it, because those need an explicit
+        decision rather than a silent close. Accepted work, failed tasks and
+        recorded unresolved issues are preserved as history, not erased; the run
+        and its append-only events stay fully readable.
+        """
+        if not reason.strip():
+            raise GateError("Abandonment requires an audit-worthy reason")
+        def operation(run, events):
+            in_flight = sorted(key for key, task in run.tasks.items() if task.status in IN_FLIGHT_TASK_STATUSES)
+            if in_flight:
+                raise GateError("Run still has in-flight work: " + ", ".join(in_flight))
+            pending = sorted(request.id for request in run.approvals.values()
+                             if request.status == ApprovalStatus.PENDING)
+            if pending:
+                raise GateError("Run still has pending approval gates: " + ", ".join(pending))
+            pending_capability = sorted(request.id for request in run.capability_requests.values()
+                                        if request.status == CapabilityRequestStatus.PENDING)
+            if pending_capability:
+                raise GateError("Run still has pending capability requests: " + ", ".join(pending_capability))
+            run.status, run.plan.status = "abandoned", "abandoned"
+            self._event(run, events, "run.abandoned", reason=reason, actor_id=actor_id,
+                        unresolved_issues=list(run.unresolved_issues))
+        self._mutate(run_id, operation)
+        return self.get_run(run_id)
+
     @staticmethod
     def _reject_identifier_collision(run, task_id: str):
         """Task IDs, input names and artifact IDs share one reference namespace.
@@ -347,15 +392,20 @@ class Orchestrator:
         if task_id in run.artifacts:
             raise GateError(f"Task ID collides with an artifact ID: {task_id}")
 
+    @staticmethod
+    def _is_fresh_task(run, task) -> bool:
+        """A task that carries no execution history and collides with no existing task."""
+        return not (task.id in run.tasks or task.status != TaskStatus.PLANNED or task.attempts
+                    or task.artifact_ids or task.assignment or task.attempt_baseline
+                    or task.revision_baseline)
+
     def add_tasks(self, run_id: str, tasks: list[TaskNode]):
         def operation(run, events):
             if run.plan.revision or any(t.attempts for t in run.tasks.values()):
                 raise GateError("Use explicit replan after execution begins")
             for source in tasks:
                 task = source.model_copy(deep=True)
-                if (task.id in run.tasks or task.status != TaskStatus.PLANNED or task.attempts or
-                        task.artifact_ids or task.assignment or task.attempt_baseline or
-                        task.revision_baseline):
+                if not Orchestrator._is_fresh_task(run, task):
                     raise GateError("Only fresh unique tasks can be added")
                 self._reject_identifier_collision(run, task.id)
                 self._validate_capability_checks(task)
@@ -715,8 +765,7 @@ class Orchestrator:
                 if not prior or prior.status == ApprovalStatus.SUPERSEDED:
                     raise GateError("Approval is missing or already superseded")
                 active = [task.id for task in run.tasks.values()
-                    if task.status in {TaskStatus.DELEGATED, TaskStatus.RUNNING,
-                        TaskStatus.SUBMITTED, TaskStatus.REVIEWING}
+                    if task.status in IN_FLIGHT_TASK_STATUSES
                     and any(gate.request_id == supersedes for gate in task.approval_gates)]
                 if active:
                     raise GateError("Cannot supersede approval while bound work is active; fail and recover the task first")
@@ -990,10 +1039,78 @@ class Orchestrator:
             self._refresh(run, events)
         self._mutate(run_id, operation)
 
+    def _replan_defects(self, run, proposal: ReplanProposal) -> list[str]:
+        """Every structural reason this exact proposal could not be applied.
+
+        Approval scope binds to the persisted proposal, so a proposal the kernel
+        would refuse at apply time costs a full human approval round-trip before
+        the Manager learns it is unworkable. Checking at authoring time removes
+        that round-trip, and returning every defect at once lets the Manager
+        write one corrected proposal instead of iterating through the gate.
+
+        This is a projection: it never mutates durable state, so callers can use
+        it to refuse a proposal before any approval request is recorded.
+        """
+        defects: list[str] = []
+        known = set(run.tasks)
+        for label, references in (("reopen", proposal.reopen), ("remove", proposal.remove),
+                                  ("dependencies", list(proposal.dependencies))):
+            for key in references:
+                if key not in known:
+                    defects.append(f"{label} references unknown task {key}")
+        for key in sorted(set(proposal.remove) & set(proposal.reopen)):
+            defects.append(f"task {key} is both removed and reopened")
+        added: set[str] = set()
+        for source in proposal.add:
+            if source.id in added:
+                defects.append(f"duplicate added task {source.id}")
+            added.add(source.id)
+            if not self._is_fresh_task(run, source):
+                defects.append(f"added task {source.id} must be a fresh unique task")
+                continue
+            for check in (lambda: self._reject_identifier_collision(run, source.id),
+                          lambda: self._validate_capability_checks(source)):
+                try:
+                    check()
+                except GateError as exc:
+                    defects.append(str(exc))
+        if run.plan.revision >= run.plan.max_replans:
+            defects.append(
+                f"replan budget exhausted ({run.plan.revision}/{run.plan.max_replans}); "
+                "the kernel cannot apply any further proposal to this plan")
+        if defects:
+            return defects
+        # The resulting plan is what the kernel will actually run, so validate the
+        # graph on a projection rather than on today's plan. _graph reads only
+        # tasks and artifact keys, so deep-copy the tasks the projection mutates
+        # and share the rest instead of copying every artifact's content.
+        projection = run.model_copy(update={
+            "tasks": {key: task.model_copy(deep=True) for key, task in run.tasks.items()}})
+        for key in proposal.remove:
+            projection.tasks[key].status = TaskStatus.CANCELLED
+        for key, dependencies in proposal.dependencies.items():
+            projection.tasks[key].packet.dependencies = list(dependencies)
+        for source in proposal.add:
+            projection.tasks[source.id] = source.model_copy(deep=True)
+        try:
+            self._graph(projection)
+        except GateError as exc:
+            defects.append(f"resulting plan is invalid: {exc}")
+        return defects
+
+    def validate_replan(self, run_id: str, proposal: ReplanProposal) -> None:
+        """Refuse an unworkable proposal before it can bind a human approval gate."""
+        defects = self._replan_defects(self.get_run(run_id), proposal)
+        if defects:
+            raise GateError("Invalid replan proposal: " + "; ".join(defects))
+
     def propose_replan(self, run_id: str, proposal: ReplanProposal) -> ReplanProposal:
         def operation(run, events):
             if proposal.base_revision != run.plan.revision or proposal.id in run.replans:
                 raise GateError("Stale or duplicate replan")
+            defects = self._replan_defects(run, proposal)
+            if defects:
+                raise GateError("Invalid replan proposal: " + "; ".join(defects))
             run.replans[proposal.id] = proposal.model_copy(deep=True)
             self._event(run, events, "plan.replan_proposed", proposal=proposal.model_dump(mode="json"))
             return proposal.model_copy(deep=True)
@@ -1002,13 +1119,19 @@ class Orchestrator:
     def apply_replan(self, run_id: str, proposal_id: str):
         def operation(run, events):
             proposal = run.replans[proposal_id]
-            if proposal.base_revision != run.plan.revision or run.plan.revision >= run.plan.max_replans:
-                raise GateError("Stale proposal or replan budget exhausted")
+            if proposal.base_revision != run.plan.revision:
+                raise GateError("Stale proposal")
+            # Re-check the shared structural rules against current state: the
+            # proposal was validated at authoring time, but upstream facts can
+            # move before the gate opens. This is the single enforcement point
+            # for unknown references, freshness, collisions, capability checks,
+            # budget, and graph validity; the mutations below rely on it.
+            defects = self._replan_defects(run, proposal)
+            if defects:
+                raise GateError("Invalid replan proposal: " + "; ".join(defects))
             if proposal.requires_approval:
                 self._approved(run, proposal.approval_id, "replan", {"proposal_id":proposal.id, "base_revision":proposal.base_revision})
             affected = set(proposal.reopen + proposal.remove + list(proposal.dependencies))
-            if not affected.issubset(run.tasks):
-                raise GateError("Unknown task in replan")
             changed = True
             while changed:
                 changed = False
@@ -1049,13 +1172,8 @@ class Orchestrator:
             for key, deps in proposal.dependencies.items():
                 run.tasks[key].packet.dependencies = list(deps)
             for source in proposal.add:
-                if (source.id in run.tasks or source.status != TaskStatus.PLANNED or source.attempts
-                        or source.assignment or source.artifact_ids or source.attempt_baseline
-                        or source.revision_baseline):
-                    raise GateError("Replan additions must be fresh unique tasks")
-                self._reject_identifier_collision(run, source.id)
-                self._validate_capability_checks(source)
                 run.tasks[source.id] = source.model_copy(deep=True)
+            # Validate the real mutated graph, not the projection _replan_defects used.
             self._graph(run)
             run.plan.task_ids = [key for key,t in run.tasks.items() if t.status != TaskStatus.CANCELLED]
             run.plan.revision += 1
@@ -1078,7 +1196,18 @@ class Orchestrator:
             if any(request.required and request.status == ApprovalStatus.PENDING for request in run.approvals.values()):
                 raise GateError("Outstanding required approval gate")
             if set(criterion_evidence) != set(run.plan.completion_criteria) or any(not ids or not set(ids).issubset(run.accepted_artifacts) for ids in criterion_evidence.values()):
-                raise GateError("Every completion criterion requires accepted artifact evidence")
+                # State the accepted shape explicitly: the kernel accepts IDs of
+                # already-accepted artifacts, never prose, and a Manager that has
+                # to guess the format burns turns discovering it (rehearsal finding).
+                accepted = sorted(run.accepted_artifacts)
+                criteria = sorted(run.plan.completion_criteria)
+                example = {criteria[0]: (accepted[:1] or ["<artifact-id>"])} if criteria else {}
+                raise GateError(
+                    "criterion_evidence must be a JSON object whose keys are exactly the "
+                    "completion criteria and whose values are nonempty arrays of accepted "
+                    "artifact IDs (no prose). Required keys: "
+                    f"{json.dumps(criteria)}. Accepted artifact IDs: {json.dumps(accepted)}. "
+                    f"Example: {json.dumps(example)}")
             for ids in criterion_evidence.values():
                 for artifact_id in ids:
                     self._validate_accepted_artifact(run, artifact_id, checked=checked)

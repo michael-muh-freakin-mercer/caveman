@@ -30,9 +30,13 @@ Every recovery decision records actor, failure, action, reason, affected IDs, an
 
 Reload never assumes an interrupted worker finished. `resume` changes persisted `DELEGATED` and `RUNNING` tasks to `FAILED` with `TIMEOUT` evidence. The Manager must inspect each failure and explicitly recover before delegation can continue.
 
+`abandon` is the operator's offline close for a run that holds no in-flight task, no pending approval, and no pending capability request. It marks the run and plan `abandoned` with an audited reason, changes nothing else, and is refused with the exact blocking task or gate named. Accepted artifacts, failures, decisions, and events are preserved as history; the run is terminal afterwards for every mutation, and `cleanup` will retire its workspaces.
+
 ## Replanning
 
 A replan records its base plan revision, trigger, evidence, additions/removals/reopens, dependency changes, risks, and approval reference when required. Application is atomic and bounded. Reopening accepted work supersedes its accepted artifacts and transitive consumer artifacts so stale evidence cannot remain canonical.
+
+Proposals are validated at authoring time against the same rules application enforces: unknown reopen/remove/dependency task references, additions that are not fresh and uniquely identified, capability or executable-check violations, a dependency map that breaks the resulting graph, and an exhausted replan budget are all refused before the proposal is persisted. Every defect is reported together so one corrected proposal suffices. Application re-validates against current state, because upstream facts can move between proposal and approval.
 
 Every model-facing runtime replan is marked approval-required and linked to exact scope `{proposal_id, base_revision}`. The core retains a lower-level no-approval route for trusted programmatic low-impact changes; model output cannot select that route.
 

@@ -50,6 +50,39 @@ def test_offline_run_list_inspect_events_resume_and_approval(tmp_path, monkeypat
     assert approved["approval_decisions"][request.id]["human_id"] == "local-os:fixture-user:uid:1234"
 
 
+def test_offline_abandon_closes_a_work_free_run_and_refuses_live_work(tmp_path, monkeypatch, capsys):
+    """`walter run abandon` is the offline, no-spend exit for stuck active runs."""
+    from walter.contracts import TaskPacket
+    from walter.models import TaskNode
+
+    setup_repository(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    store = cli._store()
+    core = Orchestrator(store)
+    run = core.create_run("offline abandon fixture", ["fixture accepted"])
+    live = core.create_run("still running", ["fixture accepted"])
+    core.add_tasks(live.id, [TaskNode(packet=TaskPacket(
+        task_id="a", role="writer", objective="Write", deliverable="report",
+        acceptance_criteria=["accurate"], stop_condition="deliver"))])
+    core.delegate(live.id, "a", "author")
+    store.close()
+
+    monkeypatch.setattr(cli.getpass, "getuser", lambda: "fixture-user")
+    monkeypatch.setattr(cli.os, "getuid", lambda: 1234)
+    with pytest.raises(ValueError, match="in-flight work: a"):
+        cli._operations(["abandon", live.id, "--reason", "close it anyway"])
+    assert capsys.readouterr().out == ""
+
+    cli._operations(["abandon", run.id, "--reason", "Superseded by a fresh run"])
+    closed = json.loads(capsys.readouterr().out)
+    assert closed["run_status"] == "abandoned"
+    assert closed["durable_state"] == "preserved"
+
+    cli._operations(["list"])
+    statuses = {item["id"]: item["status"] for item in json.loads(capsys.readouterr().out)}
+    assert statuses[run.id] == "abandoned" and statuses[live.id] == "active"
+
+
 def test_one_shot_builds_manager_around_new_durable_run(monkeypatch, capsys):
     class Run:
         id = "durable-run"

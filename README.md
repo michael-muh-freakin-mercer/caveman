@@ -75,6 +75,8 @@ walter run resume RUN_ID
 walter run resume RUN_ID --execute
 walter run approve RUN_ID APPROVAL_ID --reason "Reviewed exact scope"
 walter run approve RUN_ID APPROVAL_ID --deny --reason "Scope rejected"
+walter run abandon RUN_ID --reason "Superseded by a fresh run"
+walter run cleanup RUN_ID
 walter run readiness-demo
 ```
 

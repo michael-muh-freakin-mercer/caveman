@@ -10,7 +10,7 @@ Worker output is always provisional. Acceptance requires evidence bound to the e
 4. The Manager records an acceptance decision only after all gates pass.
 5. Only the accepted artifact may enter canonical state or unlock dependents.
 
-The author cannot validate or review its own artifact. The reviewer must differ from the author, receives read-only access, and cannot alter or accept the candidate. A development reviewer must actually inspect candidate files. Changed candidate identity makes earlier evidence stale.
+The author cannot validate or review its own artifact. The reviewer must differ from the author, receives read-only access, and cannot alter or accept the candidate. A development reviewer must actually inspect candidate files. A read-only investigation lane (`repo_reader`) declares no file changes, so an empty diff is expected there: its reported content is reviewed against the repository, and inspecting no file is not by itself a defect. Changed candidate identity makes earlier evidence stale.
 
 Submission is assignment-bound: task, assignment ID, and worker ID must match the current persisted assignment. Candidate action approval is constructed and later rechecked from trusted current workspace/artifact state; model-supplied branch, base, or diff identity is insufficient.
 

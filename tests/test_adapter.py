@@ -62,15 +62,20 @@ class RecordingWorkspaceManager(WorkspaceManager):
         return CommandResult(0, "1 passed\n", "")
 
 
+def _git_fixture(repository):
+    """Initialize the fixture repository and commit its current contents."""
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
+                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+
+
 def _developer_pytest_controller(tmp_path):
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
     (repository / "tests").mkdir()
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     core = Orchestrator(SQLiteStore())
     run = core.create_run("scoped pytest", ["A candidate test file passes"])
     core.add_tasks(run.id, [TaskNode(
@@ -255,12 +260,7 @@ def test_developer_revision_gets_fresh_workspace_and_cleans_old_candidate(tmp_pa
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run([
-        "git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-        "user.email=fixture@example.invalid", "commit", "-qm", "fixture",
-    ], check=True)
+    _git_fixture(repository)
     core = Orchestrator(SQLiteStore())
     run = core.create_run("developer revision", ["A revised candidate is submitted"])
     core.add_tasks(run.id, [TaskNode(
@@ -321,11 +321,7 @@ def test_candidate_and_regression_pytest_checks_run_separate_scopes(tmp_path, mo
     (repository / "tests").mkdir(parents=True)
     (repository / "README.md").write_text("# Fixture\n")
     (repository / "tests" / "test_existing.py").write_text("def test_old():\n    assert True\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"],
-                   check=True)
+    _git_fixture(repository)
     core = Orchestrator(SQLiteStore())
     run = core.create_run("split pytest", ["Candidate and regression suites pass"])
     core.add_tasks(run.id, [TaskNode(
@@ -363,11 +359,7 @@ def test_regression_check_fails_honestly_without_preexisting_tests(tmp_path, mon
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"],
-                   check=True)
+    _git_fixture(repository)
     core = Orchestrator(SQLiteStore())
     run = core.create_run("regression scope", ["Regression suite passes"])
     core.add_tasks(run.id, [TaskNode(
@@ -516,6 +508,130 @@ def test_material_replan_waits_for_exact_approval_and_rejection_cannot_apply():
         controller.apply_replan(proposal.id)
 
 
+def test_invalid_replan_proposal_binds_no_approval_gate():
+    """Validation runs before the approval request, so a bad proposal costs no review.
+
+    The pygtrie rehearsal burned all three replans on kernel-invalid proposals
+    (task-id collision, bad dependency map) and paid a human approval round-trip
+    for each, because the gate binds to the exact proposal.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    before = controller.inspect()
+    with pytest.raises(ValueError, match="Invalid replan proposal"):
+        controller.propose_replan(
+            trigger="collide with the live plan", evidence=["gap"],
+            add=[packet("task")], remove=[], reopen=[],
+            dependencies={}, risks=[],
+        )
+    with pytest.raises(ValueError, match="Invalid replan proposal"):
+        controller.propose_replan(
+            trigger="depend on nothing", evidence=["gap"], add=[], remove=[], reopen=[],
+            dependencies={"task": ["ghost"]}, risks=[],
+        )
+    after = controller.inspect()
+    assert after.plan.revision == before.plan.revision
+    assert after.approvals == {} and after.replans == {}
+    # The same lane proposed correctly still gets exactly one gate.
+    proposal, approval = controller.propose_replan(
+        trigger="add an independent lane", evidence=["coverage gap"],
+        add=[packet("valid")], remove=[], reopen=[], dependencies={}, risks=[],
+    )
+    assert approval is not None
+    assert len(controller.inspect().approvals) == 1
+
+
+def test_replan_tool_refuses_an_invalid_proposal_without_recording_a_gate():
+    """The Manager-facing tool boundary refuses before any approval exists.
+
+    The SDK turns a tool exception into an error string for the model rather
+    than raising, so assert on the returned refusal text and prove the durable
+    state is untouched: no approval gate, no persisted proposal.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    tools = {item.name: item for item in controller.tools()}
+
+    async def scenario():
+        refusal = await _call_tool(tools["replan_tasks"], trigger="collide with the live plan",
+                                   evidence=["gap"], add=[packet("task").model_dump()],
+                                   remove=[], reopen=[], dependencies_json="{}", risks=[])
+        assert "Invalid replan proposal" in refusal and "fresh unique task" in refusal
+        assert controller.inspect().approvals == {} and controller.inspect().replans == {}
+        return json.loads(await _call_tool(
+            tools["replan_tasks"], trigger="add an independent lane", evidence=["coverage gap"],
+            add=[packet("valid").model_dump()], remove=[], reopen=[],
+            dependencies_json="{}", risks=[]))
+    payload = asyncio.run(scenario())
+    assert payload["approval"]["status"] == "pending"
+    state = controller.inspect()
+    assert len(state.approvals) == 1
+    assert list(state.replans) == [payload["proposal"]["id"]]
+
+
+def test_read_only_lane_review_does_not_require_candidate_inspection(tmp_path, monkeypatch):
+    """A scout lane's empty diff is expected: its reported content is reviewed.
+
+    Demanding an inspected candidate file failed every read-only lane in the
+    pygtrie rehearsal, because a read-only grant can never produce a diff.
+    """
+    repository = tmp_path / "fixture"
+    repository.mkdir()
+    (repository / "README.md").write_text("# Fixture\n")
+    _git_fixture(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("scout the layout", ["A cited layout report exists"])
+    core.add_tasks(run.id, [TaskNode(packet=packet(), capability=CapabilityProfile.REPO_READER,
+                                     required_checks=["result_schema"])])
+    workspaces = RecordingWorkspaceManager(repository)
+    controller = DurableController(core, run.id, workspaces)
+
+    async def scout(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="layout report",
+                            deliverable="Top-level: README.md, tests/; tests run via pytest")
+
+    monkeypatch.setattr(controller, "_invoke", scout)
+    asyncio.run(controller.delegate("task"))
+    assert controller.inspect().tasks["task"].workspace_id
+    controller.validate("task")
+
+    observed = {}
+
+    async def reviewer(**kwargs):
+        observed.update(kwargs)
+        return ReviewResult(passed=True, evidence=["report names files this repo contains"],
+                            reason="content reviewed against the repository")
+
+    monkeypatch.setattr(controller, "_invoke", reviewer)
+    asyncio.run(controller.review("task"))
+    state = controller.inspect()
+    review = state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1]
+    assert review.passed
+    assert "did not inspect" not in review.evidence
+    assert "read-only investigation report" in observed["instructions"]
+
+
+def test_developer_lane_review_still_requires_candidate_inspection(tmp_path, monkeypatch):
+    """The inspection requirement survives for lanes that can change files."""
+    controller, _ = _developer_pytest_controller(tmp_path)
+
+    async def candidate(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="candidate",
+                            deliverable="bounded candidate")
+
+    monkeypatch.setattr(controller, "_invoke", candidate)
+    asyncio.run(controller.delegate("task"))
+    controller.validate("task")
+
+    async def uninspected(**kwargs):
+        return ReviewResult(passed=True, evidence=["looks fine"], reason="no files read")
+
+    monkeypatch.setattr(controller, "_invoke", uninspected)
+    asyncio.run(controller.review("task"))
+    state = controller.inspect()
+    review = state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1]
+    assert not review.passed
+    assert "did not inspect any candidate file" in review.evidence
+
+
 def test_exact_approved_material_replan_applies_and_stale_one_fails():
     controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
     stale, stale_approval = controller.propose_replan(
@@ -601,10 +717,7 @@ def test_capability_escalation_pending_and_denied_never_grants_tools(tmp_path, m
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, observed = _controller_with_capability_request(monkeypatch, repository)
     assert observed["tools"] == []
     run = controller.inspect()
@@ -632,10 +745,7 @@ def test_developer_escalation_without_executable_check_is_denied_before_allocati
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(
         monkeypatch, repository, checks=["result_schema"]
     )
@@ -653,10 +763,7 @@ def test_exact_approved_capability_request_applies_persisted_profile(tmp_path, m
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(monkeypatch, repository)
     _, approval = controller.request_capability_change(request.id, "Review exact sandbox grant")
     controller.core.decide_approval(controller.run_id, approval.id, True,
@@ -693,10 +800,7 @@ def test_repo_reader_escalation_reuses_exact_workspace_with_read_only_tools(tmp_
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(
         monkeypatch, repository, requested="repo_reader"
     )
@@ -922,11 +1026,7 @@ def test_failed_attempt_workspace_is_dirty_and_retry_gets_a_fresh_one(tmp_path, 
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"],
-                   check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(monkeypatch, repository)
     _, approval = controller.request_capability_change(request.id, "Review exact sandbox grant")
     controller.core.decide_approval(controller.run_id, approval.id, True,

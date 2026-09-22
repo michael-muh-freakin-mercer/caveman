@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — 2026-09-22 rehearsal follow-ups
+
+### Added
+- **Offline run abandonment:** `walter run abandon <run_id> --reason "<why>"` (kernel `Orchestrator.abandon`) closes an active run that holds no in-flight task, no pending approval, and no pending capability request, without any provider call. Every other terminal route needs the Manager model or demands accepted artifacts, so such runs previously stayed `active` forever. The transition records `run.abandoned` with the reason and local operator principal, preserves all durable history, and is refused with the exact blocking task or gate named.
+
+### Changed
+- **Replan proposals are validated before they bind an approval gate (follow-up 1):** `Orchestrator.validate_replan` runs the same structural rules application enforces — unknown reopen/remove/dependency references, non-fresh or id-colliding additions, capability/executable-check violations, a dependency map that breaks the resulting plan graph, and an exhausted replan budget — and reports every defect in one message. `DurableController.propose_replan` validates before `request_approval`, so a kernel-invalid proposal no longer consumes a human review round-trip, and `apply_replan` re-validates against current state because upstream facts can move while the gate is open.
+- **`finish_run` rejection names the accepted evidence shape (follow-up 3):** the completion gate now states that `criterion_evidence` maps each completion criterion verbatim to nonempty arrays of accepted artifact IDs, and echoes the required keys, the available accepted artifact IDs, and an example instead of failing once per mis-formatted attempt.
+- **Read-only lanes are reviewable (follow-up 2):** `repo_reader` candidates cannot change files, so their diff is empty by construction and the "reviewer inspected no candidate file" rule failed every scout lane. That rule now applies only to lanes that can change files; a read-only lane is reviewed on its reported content, verified against the repository with the same read-only tools, and the reviewer's instructions say so.
+
 ## Unreleased — 2026-09-21 decisions
 
 ### Changed
