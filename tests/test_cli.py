@@ -295,6 +295,8 @@ def test_interactive_reports_usage_budget_exceeded_and_continues(monkeypatch, ca
             pass
 
     class Controller:
+        run_id = "durable-run"
+
         def inspect(self):
             raise AssertionError("inspect should not run after budget failure")
 
@@ -319,6 +321,64 @@ def test_interactive_reports_usage_budget_exceeded_and_continues(monkeypatch, ca
     captured = capsys.readouterr()
     assert "Usage budget exceeded: Model-call budget exhausted" in captured.out
     assert observed["closed"] == 1
+
+
+def test_interactive_followups_continue_the_current_run(monkeypatch, capsys):
+    """Interactive mode keeps one durable run open across follow-ups until it
+    completes or the operator asks for a new one (2026-09-21 decision)."""
+    observed = {"created": 0, "closed": 0}
+
+    class Session:
+        def __init__(self, session_id, db):
+            pass
+
+        async def clear_session(self):
+            pass
+
+        def close(self):
+            pass
+
+    class Run:
+        id = "durable-run"
+        status = "active"
+        final_result = None
+
+    class Controller:
+        run_id = "durable-run"
+
+        def inspect(self):
+            return Run()
+
+        def close(self):
+            observed["closed"] += 1
+
+    def make_controller(goal):
+        observed["created"] += 1
+        return Controller()
+
+    executed = []
+
+    async def execute(walter, goal, **kwargs):
+        executed.append(goal)
+        return object(), "trace"
+
+    monkeypatch.setattr(cli, "SQLiteSession", Session)
+    monkeypatch.setattr(cli, "_controller", make_controller)
+    monkeypatch.setattr(cli.RuntimeConfig, "from_env", classmethod(lambda cls: object()))
+    monkeypatch.setattr(cli, "build_walter", lambda value: object())
+    monkeypatch.setattr(cli, "_execute", execute)
+
+    responses = iter(["first goal", "keep going", ":new", "fresh goal", ":quit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(responses))
+
+    import asyncio
+    asyncio.run(cli._run_interactive("fixture-session", 3))
+
+    assert executed == ["first goal", "keep going", "fresh goal"]
+    assert observed["created"] == 2   # "keep going" reused the open run
+    assert observed["closed"] == 2    # :new retired the first; exit retired the second
+    output = capsys.readouterr().out
+    assert ":new starts a fresh run" in output
 
 
 def _terminal_run_with_candidate(tmp_path, monkeypatch):

@@ -20,7 +20,11 @@ class GateError(ValueError):
     pass
 
 
-EXECUTABLE_DEVELOPER_CHECKS = frozenset({"compile", "pytest"})
+# pytest = candidate-scoped alias of pytest_candidate (legacy name). The two
+# named forms exist so a task can require the candidate's own tests, the
+# pre-existing suite, or both (2026-09-21 decision).
+EXECUTABLE_DEVELOPER_CHECKS = frozenset(
+    {"compile", "pytest", "pytest_candidate", "pytest_regression"})
 
 # Bounded retries for append-only usage accounting when another process commits
 # to the same run between this load and save.
@@ -569,21 +573,19 @@ class Orchestrator:
                 raise GateError("Author cannot accept own output")
             if any(v.content_digest != artifact.content_digest for v in [*artifact.validations, *artifact.reviews]):
                 raise GateError("Evidence does not match candidate content")
-            # Last record per check wins: an independent re-run after an
-            # environment correction supersedes an earlier failure on the same
-            # bytes (see test_validation_failure_cannot_self_certify). The
-            # superseded records stay durable on the artifact.
-            latest: dict[str, ArtifactValidation] = {}
-            for validation in artifact.validations:
-                latest[validation.check] = validation
-            failed = sorted(check for check, v in latest.items() if not v.passed)
-            missing = sorted(set(task.required_checks) - set(latest))
+            # Strict evidence rule: a recorded failure on the current content
+            # bytes permanently blocks that candidate. A genuine environment
+            # problem raises SandboxUnavailable rather than recording a
+            # failure, so every recorded failure is a real or flaky result —
+            # and flaky tolerance is not worth the evidence-laundering risk of
+            # letting a later pass supersede it (DECISION 2026-09-21). The fix
+            # for a failed check is a revised candidate, not a re-run.
+            failed = sorted({v.check for v in artifact.validations if not v.passed})
+            missing = sorted(set(task.required_checks) - {v.check for v in artifact.validations})
             if failed or missing:
                 raise GateError("Validation gates failed"
                     + (f"; failed: {', '.join(failed)}" if failed else "")
                     + (f"; missing: {', '.join(missing)}" if missing else ""))
-            superseded = sorted({v.check for v in artifact.validations
-                                 if not v.passed and latest[v.check].passed})
             if (task.review_required or task.high_risk or task.capability == CapabilityProfile.DEVELOPER_SANDBOX) and (not artifact.reviews or not artifact.reviews[-1].passed):
                 raise GateError("Independent review required")
             if not task.required_checks and not artifact.reviews:
@@ -594,9 +596,7 @@ class Orchestrator:
             decision = AcceptanceDecision(action="ACCEPT", reason=reason, actor_id=self.manager_id,
                 context=f"Acceptance of artifact {artifact.id} for task {task_id}",
                 options_considered=["ACCEPT", "REVISE", "REJECT", "REPLACE"],
-                consequences=["Artifact enters canonical state", "Accepted dependencies may become ready"]
-                    + ([f"Accepted over an earlier failed run of: {', '.join(superseded)}"]
-                       if superseded else []),
+                consequences=["Artifact enters canonical state", "Accepted dependencies may become ready"],
                 artifact_id=artifact.id, affected_ids=[task_id], evidence=[v.id for v in artifact.validations]+[r.id for r in artifact.reviews])
             run.acceptances.append(decision)
             run.decisions.append(decision)
@@ -604,7 +604,7 @@ class Orchestrator:
             run.accepted_artifacts.append(artifact.id)
             self._transition(run, events, task, TaskStatus.ACCEPTED, reason)
             self._event(run, events, "artifact.accepted", artifact_id=artifact.id,
-                decision_id=decision.id, superseded_failed_checks=superseded)
+                decision_id=decision.id, superseded_failed_checks=[])
             self._refresh(run, events)
             return decision
         return self._mutate(run_id, operation)

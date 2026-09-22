@@ -16,7 +16,7 @@ Submission is assignment-bound: task, assignment ID, and worker ID must match th
 
 ## Trusted checks
 
-The current adapter supports `result_schema`, `compile`, and `pytest`. `result_schema` verifies structured completion and a nonempty deliverable; it is not a claim of substantive quality. `compile` is Python syntax validation over candidate sources. Executable checks run through the isolated sandbox and record argv, return code, stdout, and stderr. A developer candidate must add or modify at least one `test_*.py`/`*_test.py` file; `pytest` validates only the candidate's changed test files inside the isolated sandbox and fails if none are present.
+The current adapter supports `result_schema`, `compile`, `pytest` (legacy alias of `pytest_candidate`), `pytest_candidate`, and `pytest_regression`. `result_schema` verifies structured completion and a nonempty deliverable; it is not a claim of substantive quality. `compile` is Python syntax validation over candidate sources. Executable checks run through the isolated sandbox and record argv, return code, stdout, and stderr. A developer candidate must add or modify at least one `test_*.py`/`*_test.py` file; `pytest`/`pytest_candidate` validates only the candidate's changed test files inside the isolated sandbox and fails if none are present. `pytest_regression` runs the pre-existing suite (every test file the candidate did not touch) so a change that breaks existing tests cannot pass on its own new tests alone. A recorded validation failure on the current content bytes is final for that candidate (strict evidence rule, 2026-09-21): it cannot be re-run to green; correction requires a revised candidate.
 
 ## Review policy
 

@@ -77,6 +77,11 @@ class WorkspaceGrant:
     safety_operation: str | None = None
     read_only: bool = False
     lifecycle: str = "active"
+    # Whether an attempt has actually executed against this workspace. An
+    # approved-but-never-delegated escalation candidate is unused (safe to
+    # hand to its first attempt); a workspace from a failed attempt is used
+    # (dirty — a retry must get a fresh one). 2026-09-21 decision.
+    used: bool = False
 
 
 @dataclass(frozen=True)
@@ -121,9 +126,12 @@ SAFETY_PATHS = frozenset({
     "src/walter/__init__.py", "pyproject.toml",
 })
 
-MAX_FILE_BYTES = 2_000_000
-MAX_FILES = 10_000
-MAX_SNAPSHOT_BYTES = 64_000_000
+# Inventory limits raised 2026-09-21 so ordinary repositories fit: the old
+# 2 MB / 10k-file bounds capped Walter at toy projects. Symlinks remain
+# forbidden — making them safe is a separate security design decision.
+MAX_FILE_BYTES = 50_000_000
+MAX_FILES = 100_000
+MAX_SNAPSHOT_BYTES = 256_000_000
 MAX_SCRATCH_BYTES = 32_000_000
 MAX_PROCESSES = 32
 MAX_AGGREGATE_RSS = 1_073_741_824
@@ -358,7 +366,15 @@ class WorkspaceManager:
                                 approval_id: str, allowed_paths: tuple[str, ...],
                                 intended_operation: str,
                                 command_categories: tuple[str, ...] | None = None) -> WorkspaceGrant:
-        """Consume one exact core-approved request and create its bounded candidate."""
+        """Consume one exact core-approved request and create its bounded candidate.
+
+        RESERVED FACILITY (2026-09-21 decision): no Manager tool, CLI command, or
+        construction site injects an approval_verifier, so in the shipped runtime
+        this method can only deny. Candidates therefore cannot mutate SAFETY_PATHS
+        at all — a deliberately stricter posture than the designed flow. Do not
+        wire this to a Manager tool without a fresh security design review; when
+        that review happens, TOOLS.md and this note must be updated together.
+        """
         with self._lock:
             if self._approval_verifier is None:
                 raise SandboxViolation("Safety changes require a Manager approval verifier")
@@ -444,6 +460,19 @@ class WorkspaceManager:
                 self._save()
                 self._verify_worktree(grant)
             return grant
+
+    def mark_used(self, workspace_id: str) -> None:
+        """Record that an attempt has begun against this workspace. Idempotent.
+
+        Called by trusted adapter code when a delegation starts, never by the
+        worker. A used workspace can no longer be mistaken for the exact,
+        untouched candidate a capability escalation approved.
+        """
+        with self._lock:
+            grant = self._get(workspace_id)
+            if not grant.used:
+                self._grants[grant.id] = replace(grant, used=True)
+                self._save()
 
     def reviewer_grant(self, workspace_id: str, worker_id: str) -> WorkspaceGrant:
         with self._lock:
@@ -551,7 +580,15 @@ class WorkspaceManager:
     def read_file(self, workspace_id: str, path: str, *, worker_id: str | None = None) -> str:
         return self._read_bytes(workspace_id, path, worker_id=worker_id).decode()
 
-    def _inventory(self, grant: WorkspaceGrant) -> dict[str, tuple[str, int, bytes]]:
+    def _inventory(self, grant: WorkspaceGrant, *, contents: bool = True) -> dict[str, tuple[str, int, bytes]]:
+        """Walk the candidate, enforcing object policy and optionally reading bytes.
+
+        Identity, diff, and snapshot need file bytes; listing and status only
+        need names and policy checks. Reading every byte of a large repository
+        to answer "what files exist" wasted memory and time, so callers that do
+        not need contents pass contents=False and get empty payloads with the
+        same safety validation (2026-09-21 decision).
+        """
         inventory: dict[str, tuple[str, int, bytes]] = {}
         for base, dirs, files in os.walk(grant.root, followlinks=False):
             relative_base = Path(base).relative_to(grant.root)
@@ -574,7 +611,7 @@ class WorkspaceManager:
                 elif stat.S_ISREG(info.st_mode):
                     if info.st_nlink != 1 or info.st_size > MAX_FILE_BYTES:
                         raise SandboxViolation(f"Unsafe candidate file: {relative}")
-                    inventory[relative] = ("file", mode, item.read_bytes())
+                    inventory[relative] = ("file", mode, item.read_bytes() if contents else b"")
                 else:
                     raise SandboxViolation(f"Unsupported candidate object: {relative}")
                 if len(inventory) > MAX_FILES:
@@ -645,7 +682,8 @@ class WorkspaceManager:
 
     def list_files(self, workspace_id: str, *, worker_id: str | None = None) -> list[str]:
         grant = self._get(workspace_id, worker_id)
-        return sorted(name for name, (kind, _, _) in self._inventory(grant).items() if kind == "file")
+        return sorted(name for name, (kind, _, _) in self._inventory(grant, contents=False).items()
+                      if kind == "file")
 
     def changed_paths(self, workspace_id: str, *, worker_id: str | None = None) -> list[str]:
         """Return the candidate's added/modified relative paths after grant validation.
@@ -656,7 +694,7 @@ class WorkspaceManager:
         """
         with self._lock:
             grant = self._get(workspace_id, worker_id)
-            inventory = self._inventory(grant)
+            inventory = self._inventory(grant, contents=False)
             baseline = {path for path in self._git(
                 "-C", grant.root, "ls-tree", "-r", "--name-only",
                 grant.base_revision).splitlines() if not _excluded(path)}
@@ -675,7 +713,7 @@ class WorkspaceManager:
 
     def status(self, workspace_id: str, *, worker_id: str | None = None) -> str:
         grant = self._get(workspace_id, worker_id)
-        self._inventory(grant)
+        self._inventory(grant, contents=False)
         lines = self._git("-C", grant.root, "status", "--short", "--untracked-files=all").splitlines()
         return "\n".join(line for line in lines if len(line) >= 4 and not _excluded(line[3:]))
 

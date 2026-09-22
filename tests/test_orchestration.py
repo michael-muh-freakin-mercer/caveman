@@ -77,7 +77,12 @@ def test_inputs_graph_and_atomic_failure(kernel):
         core.register_input(rid, "source", "changed")
 
 
-def test_validation_failure_cannot_self_certify(kernel):
+def test_validation_failure_cannot_be_revalidated_to_green(kernel):
+    """Strict evidence rule (2026-09-21 decision): a recorded failure on the
+    current content bytes permanently blocks that candidate. Environment
+    problems raise SandboxUnavailable instead of recording a failure, so a
+    recorded failure is real or flaky — never re-runnable to green. The route
+    forward is a revised candidate, not another roll of the dice."""
     core, rid = kernel
     core.add_tasks(rid, [task(required_checks=["tests"], review_required=False)])
     artifact = candidate(core, rid)
@@ -86,8 +91,10 @@ def test_validation_failure_cannot_self_certify(kernel):
     core.validate(rid, artifact.id, "tests", False, "exit 1", "executor")
     with pytest.raises(GateError):
         core.accept(rid, "a", "manager", "ignore failed tests")
-    core.validate(rid, artifact.id, "tests", True, "exit 0 after environment correction", "executor")
-    core.accept(rid, "a", "manager", "Tests pass")
+    core.validate(rid, artifact.id, "tests", True, "exit 0 on re-run", "executor")
+    with pytest.raises(GateError, match="failed: tests"):
+        core.accept(rid, "a", "manager", "second run passed")
+    assert core.get_run(rid).artifacts[artifact.id].validations[0].passed is False
 
 
 def test_revision_lineage_limits_and_failure_routing(kernel):
@@ -196,7 +203,10 @@ def test_capability_approval_and_fingerprint(kernel):
 
 def test_developer_sandbox_requires_executable_check_on_initial_plan(kernel):
     core, rid = kernel
-    assert EXECUTABLE_DEVELOPER_CHECKS == frozenset({"compile", "pytest"})
+    # pytest is the legacy alias of pytest_candidate; the regression scope
+    # (2026-09-21 decision) is a distinct named check.
+    assert {"compile", "pytest", "pytest_candidate", "pytest_regression"} == set(
+        EXECUTABLE_DEVELOPER_CHECKS)
     assert "unittest" not in EXECUTABLE_DEVELOPER_CHECKS
     with pytest.raises(GateError, match="compile or pytest"):
         core.add_tasks(rid, [task(capability=CapabilityProfile.DEVELOPER_SANDBOX,
@@ -921,10 +931,11 @@ def test_acceptance_names_the_unsatisfied_validation_gates(kernel):
     core.validate(rid, artifact.id, "compile", True, "exit 0", "executor")
     with pytest.raises(GateError, match="failed: pytest"):
         core.accept(rid, "a", "manager", "ignore the failure")
-    core.validate(rid, artifact.id, "pytest", True, "exit 0 after environment fix", "executor")
-    decision = core.accept(rid, "a", "manager", "Evidence complete")
-    # Superseding an earlier failure is permitted but must never be silent.
-    assert any("earlier failed run of: pytest" in item for item in decision.consequences)
+    # Strict evidence rule: a later pass never supersedes a recorded failure
+    # on the same bytes; the failure stays durable and decisive.
+    core.validate(rid, artifact.id, "pytest", True, "exit 0 on re-run", "executor")
+    with pytest.raises(GateError, match="failed: pytest"):
+        core.accept(rid, "a", "manager", "second run passed")
     assert core.get_run(rid).artifacts[artifact.id].validations[0].passed is False
 
 

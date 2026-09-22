@@ -143,9 +143,16 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
     session = SQLiteSession(session_id, _session_db())
 
     print(f"Walter ready. Session: {session_id}")
-    print("Commands: :clear resets this conversation, :quit exits.")
+    print("Commands: :new starts a fresh run, :clear resets this conversation, :quit exits.")
+    print("Follow-up messages continue the current run until it completes.")
     print("Operational state is durable. Provider trace export is disabled.")
 
+    # Interactive runs are a conversation, not a sequence of orphans: one
+    # durable run stays open across follow-ups ("keep going", "now fix the
+    # tests") until it completes or the operator explicitly starts a new one
+    # (2026-09-21 decision). A fresh run per input line used to strand empty
+    # sentinel-criterion runs in the durable ledger.
+    controller = None
     try:
         while True:
             try:
@@ -162,11 +169,18 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
                 await session.clear_session()
                 print("Session cleared.")
                 continue
+            if goal == ":new":
+                if controller is not None:
+                    controller.close()
+                    controller = None
+                print("Next message starts a fresh run.")
+                continue
 
-            controller = None
             try:
                 RuntimeConfig.from_env()  # Never orphan a run on missing provider configuration.
-                controller = _controller(goal)
+                if controller is None:
+                    controller = _controller(goal)
+                    print(f"Run ID: {controller.run_id}")
                 result, trace_id = await _execute(
                     build_walter(controller), goal, session=session,
                     session_id=session_id, max_turns=max_turns,
@@ -174,16 +188,18 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
                 _print_outcome(controller)
                 _print_manager_output(result)
                 print(f"\nLocal trace ID (provider export disabled): {trace_id}")
+                if controller.inspect().status != "active":
+                    controller.close()
+                    controller = None
             except KeyboardInterrupt:
                 print("\nRun interrupted.")
             except RuntimeConfigurationError as exc:
                 print(f"Walter configuration error: {exc}")
             except UsageBudgetExceeded as exc:
                 _report_usage_budget_exceeded(exc)
-            finally:
-                if controller is not None:
-                    controller.close()
     finally:
+        if controller is not None:
+            controller.close()
         await _close_session(session)
 
 
