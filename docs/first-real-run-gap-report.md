@@ -107,3 +107,117 @@ honest. No evidence was manufactured at any point.
   failures; the total-token budget stopped the run cleanly at the cap.
 - Manager doctrine: honest status, no manufactured evidence, correct
   escalation when autonomous routes were exhausted.
+
+---
+
+# Two-lane dependency run — accepted upstream artifacts are not materialized
+into dependents' candidate worktrees
+
+Date: 2026-09-23. Run `113f7ef20f824b31acd24492f64bcbf2`, fixture repo
+`~/Projects/walter-fixture` (one `units.py`, one `test_units.py`, one commit).
+Manager `deepseek/deepseek-v4.1-flash`; workers/reviewer `moonshotai/kimi-k3`.
+Objective: Task A creates `temperature.py` (`celsius_to_fahrenheit`,
+`fahrenheit_to_celsius`) with tests; Task B depends on A and creates `report.py`
+(`format_temperature`) that calls A's converter. Both tasks predeclare `pytest`.
+
+Purpose: this is the smallest project that exercises what a single-lane run
+cannot — sentinel criteria replacement, accepted-only dependency gating, two
+independent validations/reviews, and completion-criteria evidence mapping.
+
+## Outcome
+
+Phase 1 stopped at its usage budget (57 calls, 632,602 tokens,
+`WALTER_MAX_TOTAL_TOKENS=600000`, $0.3178). The replan probe was then run on an
+approved larger budget and stopped deliberately once it had answered the seeding
+question, at a clean point (no in-flight assignment, no pending gate): final
+totals for the run, 71 model calls, 858,447 tokens, $0.4442. The run is left
+`active` with `task_b_report_v2` in `REVISION_REQUIRED`, resumable.
+
+- `task_a_temperature` **ACCEPTED**. Candidate worktree
+  `candidate-5aa1a966a3ac4ced975bb3b57cd4a36f` holds correct `temperature.py`
+  and `test_temperature.py`; the trusted `pytest` check passed and a local rerun
+  gives `5 passed`. Artifact `fcec69020f994a269c541a9f957260ed`, workspace
+  `5aa1a966a3ac4ced975bb3b57cd4a36f`.
+- `task_b_report` **REVISION_REQUIRED** after two identical failures —
+  `MISSING_EVIDENCE`, then REVISE recovery, then the same blocker again.
+
+Cost per role: Manager 20 calls / 486,508 tokens (77% of all tokens), workers 34
+calls / 138,078, reviewer 3 calls / 8,016.
+
+## Gap 7 — no upstream artifact handoff into a dependent lane (blocking)
+
+A task that depends on an accepted upstream task is gated on the upstream's
+*status*, never on its *content*. Task B's candidate worktree was created from
+HEAD and contained only `.gitignore`, `README.md`, `test_units.py`, `units.py` —
+`temperature.py` was absent, so `report.py` fails at collection with
+`ModuleNotFoundError: No module named 'temperature'`. Task A's files exist only
+in Task A's own worktree (branch `walter-candidate/5aa1a966…`).
+
+Source level: `WorkspaceManager._create_candidate` runs
+`git worktree add -b walter-candidate/<id> <root> <base>` with
+`base = base_revision or rev-parse HEAD`, and nothing afterwards writes accepted
+artifact content into that tree. The kernel side
+(`orchestration.py` `_validate_accepted_artifact`, the readiness gate at
+`Input task is not accepted: <name> (<status>)`) validates provenance and status
+only. So multi-lane work is composable in the plan graph but not in the
+filesystem: a second lane can never build on the first lane's accepted output.
+
+This is the concrete reproduction of the "handoff / result-packet mechanisms are
+not implemented" line in `docs/IMPLEMENTATION_STATE.md`.
+
+Worker behavior was correct throughout: it refused to create `temperature.py`
+(declared out of its scope), reported `blocked` with the exact cause, and stated
+that its `report.py` was spec-compliant and would pass once the upstream file
+was present — which local inspection confirms. The Manager also diagnosed the
+blocker correctly and classified it `MISSING_EVIDENCE` rather than blaming the
+worker. Attempts used: 2 of 3 on `task_b_report`.
+
+### Replan probe (operator-approved, plan revision 1)
+
+The Manager's replan proposal was approved and applied (`plan.replan_applied`,
+revision 1): `task_b_report` was invalidated/CANCELLED and replaced by
+`task_b_report_v2`, whose packet describes it as a "Bounded Python developer in
+an isolated candidate worktree seeded with the accepted Task A artifact". The
+kernel has no such seeding step, so the replacement failed on its first attempt
+with the identical blocker, now stated in its own words:
+
+> Accepted Task A artifact `fcec69020f994a269c541a9f957260ed` (temperature.py
+> with celsius_to_fahrenheit) was not seeded into the candidate worktree; only
+> units.py, test_units.py, README.md, and .gitignore are present.
+
+A replan cannot route around this gap: durable state can name an upstream
+artifact as a dependency, but nothing materializes its content into a
+dependent's worktree, and no model-authored packet text changes that. The
+Manager's own risk note on the proposal anticipated exactly this failure, and the
+run went on spending against a blocker no autonomous route can clear.
+
+Candidate fix directions (not implemented): seed a dependent candidate worktree
+from the accepted upstream artifact (apply the upstream diff to `base` before
+delegation, recording the seeding in the workspace grant), or refuse at plan
+time to create a dependency edge the runtime cannot materialize, so the Manager
+learns immediately instead of burning a lane and two worker attempts.
+
+## Gap 8 — Manager token dominance on a two-task objective
+
+20 Manager calls / 486,508 tokens to plan and supervise two small tasks, 77% of
+the run's token budget, against 138k tokens for the workers that actually wrote
+the code. Gap 5's compact receipts helped call count on a single lane (13 calls
+there, 20 here for two tasks) but Manager-side prompt/tool-result volume still
+sets the run's cost. A second delegation against a structurally impossible lane
+should also be refused by the kernel rather than rediscovered at full price.
+
+## What worked
+
+- Sentinel completion criteria were replaced with two measurable criteria before
+  planning (`plan.criteria_defined`); the completion gate was never satisfiable
+  by the sentinel.
+- Dependency ordering was honored: `task_b_report` stayed `PLANNED` through A's
+  RUNNING/SUBMITTED/REVIEWING and only became READY after `task.accepted`
+  (event 52), so "accepted-only" gating is real at the state level.
+- Fail-closed Bubblewrap candidate worktrees, trusted `pytest` validation,
+  fresh independent review, and typed acceptance all behaved as designed.
+- The failure was classified honestly with durable evidence, and the Manager
+  authored a well-formed replan proposal (`70d4ca6fbbdb494c80093a15c7435eb9`)
+  that named the structural cause and its own risk — a pending
+  `runtime_replan` approval, never an autonomous bypass.
+- Budget enforcement fired cleanly at the cap with an explicit message.
