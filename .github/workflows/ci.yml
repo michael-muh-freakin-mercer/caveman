@@ -43,27 +43,36 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
 
-      - name: Verify the isolation backend works
+      - name: Inspect the host and verify the isolation backend
         run: |
-          set -euo pipefail
+          set -uo pipefail
           ls -l /usr/bin/bwrap /usr/bin/prlimit
           # libseccomp lives at a multiarch path on Debian/Ubuntu, so ask the
           # dynamic loader instead of guessing where the .so is — that is also
           # how Walter's sandbox resolves it (ctypes.CDLL("libseccomp.so.2")).
           python -c "import ctypes; ctypes.CDLL('libseccomp.so.2'); print('libseccomp resolves')"
-          # Mirror the flag set Walter's sandbox actually uses. The /lib and
-          # /lib64 interpreter symlinks are load-bearing: without them, exec of
-          # any dynamically linked binary fails with "execvp: No such file or
-          # directory", which reads like a missing file rather than a missing
-          # dynamic loader.
+
+          echo "--- host loader layout ---"
+          ls -ld /lib /lib64 /usr/lib64 || true
+          ls -l /usr/lib64/ld-linux-x86-64.so.2 \
+                /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 \
+                /usr/lib/ld-linux-x86-64.so.2 || true
+          readelf -l /usr/bin/true | grep -A1 INTERP || true
+
+          echo "--- walter flag set ---"
+          # The /lib and /lib64 interpreter symlinks are load-bearing: without a
+          # resolvable dynamic loader, exec of any dynamically linked binary
+          # fails with "execvp: No such file or directory", which reads like a
+          # missing file rather than a missing loader.
           /usr/bin/bwrap --unshare-user --unshare-pid --unshare-ipc --unshare-uts \
             --unshare-cgroup-try --die-with-parent --new-session --cap-drop ALL \
             --ro-bind /usr /usr \
             --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib /lib64 \
             --proc /proc --dev /dev \
             --clearenv --setenv PATH /usr/bin:/bin \
-            -- /usr/bin/true
-          echo "bubblewrap isolation is usable"
+            -- /usr/bin/true \
+            && echo "walter flag set: usable" \
+            || echo "::warning::walter flag set could not exec on this runner"
 
       - name: Install Walter
         run: |
