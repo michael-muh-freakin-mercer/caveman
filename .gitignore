@@ -1,6 +1,7 @@
 # Runtime-local state
 .env
 .env.*
+!.env.example
 *.log
 .DS_Store
 __pycache__/

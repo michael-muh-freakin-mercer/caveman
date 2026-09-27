@@ -122,9 +122,10 @@ def _provider_status() -> dict:
 
 
 def _sandbox_status() -> dict:
-    bwrap = Path("/usr/bin/bwrap").exists()
-    prlimit = Path("/usr/bin/prlimit").exists()
-    return {"available": bwrap and prlimit, "bubblewrap": bwrap, "prlimit": prlimit}
+    from .sandbox_probe import probe
+    usable, detail = probe()
+    return {"available": usable, "detail": detail,
+            "bubblewrap": Path("/usr/bin/bwrap").exists(), "prlimit": Path("/usr/bin/prlimit").exists()}
 
 
 def principal(request: Request, authorization: Annotated[str | None, Header()] = None,

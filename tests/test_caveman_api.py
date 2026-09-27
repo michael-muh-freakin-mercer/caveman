@@ -309,3 +309,19 @@ def test_stopping_a_running_build_records_interruption_honestly(settings):
     assert detail["state"] == "paused" and detail["jobs"][-1]["outcome"] == "cancelled"
     assert detail["status"] == "active"
     assert not any(t["status"] in {"DELEGATED", "RUNNING"} for t in detail["tasks"])
+
+
+@needs_sandbox
+def test_sandbox_probe_reports_real_usability(client):
+    from caveman.sandbox_probe import probe
+    usable, detail = probe(max_age=0)
+    assert usable, detail
+    assert client.get("/api/system", headers=ALICE).json()["sandbox"]["available"] is True
+
+
+def test_worker_refuses_to_start_without_isolation(settings, monkeypatch):
+    import caveman.sandbox_probe as sandbox_probe
+    from caveman import worker as worker_module
+    monkeypatch.setattr(sandbox_probe, "probe", lambda **_: (False, "no namespaces"))
+    with pytest.raises(SystemExit, match="refuses to start: no namespaces"):
+        worker_module.main(settings)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-27 — Caveman product layer
+
+- Product identity is now Caveman; `walter` remains the internal core package and a compatibility CLI.
+- Added `src/caveman/`: private FastAPI control plane, owner-scoped platform store, leased durable job queue, worker with interruption recovery, exact-scope approval decisions (bound to the displayed scope digest), SSE streaming, honest projections, verified delivery archives, and a scripted test executor refused in production.
+- Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
+- Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
+- Workers refuse to start when Bubblewrap isolation is unusable.
+
+
 ## Unreleased — 2026-09-27
 
 ### Fixed

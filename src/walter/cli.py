@@ -30,12 +30,12 @@ def _session_db() -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="walter",
-        description="Run Walter, the general-purpose orchestration Manager.",
+        description="Caveman orchestration core: operator CLI (the `walter` command is kept for compatibility).",
     )
     parser.add_argument(
         "goal",
         nargs="*",
-        help="Optional one-shot goal. Omit it to start an interactive Walter session.",
+        help="Optional one-shot goal. Omit it to start an interactive Caveman session.",
     )
     parser.add_argument(
         "--session",
@@ -142,7 +142,7 @@ async def _run_once(goal: str, session_id: str | None, max_turns: int) -> None:
 async def _run_interactive(session_id: str, max_turns: int) -> None:
     session = SQLiteSession(session_id, _session_db())
 
-    print(f"Walter ready. Session: {session_id}")
+    print(f"Caveman ready. Session: {session_id}")
     print("Commands: :new starts a fresh run, :clear resets this conversation, :quit exits.")
     print("Follow-up messages continue the current run until it completes.")
     print("Operational state is durable. Provider trace export is disabled.")
@@ -194,7 +194,7 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
             except KeyboardInterrupt:
                 print("\nRun interrupted.")
             except RuntimeConfigurationError as exc:
-                print(f"Walter configuration error: {exc}")
+                print(f"Caveman configuration error: {exc}")
             except UsageBudgetExceeded as exc:
                 _report_usage_budget_exceeded(exc)
     finally:
@@ -393,7 +393,7 @@ def main() -> None:
         try:
             _operations(sys.argv[2:])
         except (KeyError, ValueError, RuntimeError) as exc:
-            raise SystemExit(f"Walter operation error: {exc}") from exc
+            raise SystemExit(f"Caveman operation error: {exc}") from exc
         return
     args = _parser().parse_args()
     _configure_trace_privacy(args.trace_sensitive)
@@ -408,7 +408,7 @@ def main() -> None:
             return
         asyncio.run(_run_interactive(args.session or DEFAULT_SESSION, args.max_turns))
     except RuntimeConfigurationError as exc:
-        raise SystemExit(f"Walter configuration error: {exc}") from exc
+        raise SystemExit(f"Caveman configuration error: {exc}") from exc
 
 
 if __name__ == "__main__":

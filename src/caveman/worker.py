@@ -203,6 +203,13 @@ def main(settings: Settings | None = None) -> None:
     logging.basicConfig(level=os.getenv("CAVEMAN_LOG_LEVEL", "INFO"),
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = settings or Settings.from_env()
+    from .sandbox_probe import probe
+    usable, detail = probe()
+    if not usable:
+        # Fail closed: without isolation every executable check would fail, and
+        # there is no host fallback. See deploy/README.md for container options.
+        raise SystemExit(f"Caveman worker refuses to start: {detail}")
+    logger.info(detail)
     worker = Worker(settings)
 
     async def runner():
