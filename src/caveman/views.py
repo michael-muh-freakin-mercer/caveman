@@ -35,6 +35,8 @@ FAILURE_EXPLANATIONS = {
     FailureClass.CAPABILITY_UNAVAILABLE: "The task needs a capability it was not granted.",
     FailureClass.UNSUPPORTED_CAPABILITY: "The task needs a capability Caveman does not support yet.",
     FailureClass.REPEATED_BAD_OUTPUT: "The specialist repeatedly produced unacceptable output.",
+    FailureClass.STALE_BASE: ("Other accepted work was merged into the project after this candidate was "
+                              "built, so it is rebuilt on the latest code before it can be accepted."),
 }
 
 RECOVERY_LABELS = {
@@ -225,6 +227,7 @@ class Projector:
             "content_digest": artifact.content_digest,
             "workspace_fingerprint": artifact.workspace_fingerprint,
             "workspace_id": manifest.get("workspace_id") if manifest else None,
+            "integrated_commit": artifact.integrated_commit,
             "changed_files": files,
             "validation_state": validation_state,
             "review_state": review_state,
@@ -490,6 +493,11 @@ class Projector:
             artifact = run.artifacts.get(data.get("artifact_id", ""))
             owner = run.tasks.get(artifact.task_id) if artifact else None
             title, detail, level = "Accepted", _title(owner) if owner else None, "success"
+        elif kind == "artifact.integrated":
+            artifact = run.artifacts.get(data.get("artifact_id", ""))
+            owner = run.tasks.get(artifact.task_id) if artifact else None
+            title = f"Merged into the project ({str(data.get('commit', ''))[:7]})"
+            detail, level = (_title(owner) if owner else None), "success"
         elif kind == "artifact.rejected":
             title, level = "Candidate rejected", "warning"
         elif kind == "failure.classified":

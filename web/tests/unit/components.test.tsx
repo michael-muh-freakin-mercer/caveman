@@ -82,11 +82,12 @@ describe("CompletionPanel", () => {
     expect(screen.getByText(/Assembling your download/)).toBeInTheDocument();
     rerender(
       <CompletionPanel
-        run={runDetail({ delivery: { status: "ready", created_at: "", error: null, files: ["booking.py"], documents: [], deleted: [], total_files: 4, report: "CAVEMAN_BUILD_REPORT.md", downloadable: true } })}
+        run={runDetail({ delivery: { status: "ready", created_at: "", error: null, files: ["booking.py"], documents: [], deleted: [], total_files: 4, commit: "c".repeat(40), report: "CAVEMAN_BUILD_REPORT.md", downloadable: true } })}
       />,
     );
     expect(screen.getByText("Download project").closest("a")).toHaveAttribute("href", `/api/caveman/runs/${"r".repeat(32)}/delivery/download`);
     expect(screen.getByText("1 of 1 passed")).toBeInTheDocument();
+    expect(screen.getByText("ccccccc")).toBeInTheDocument();
   });
 });
 

@@ -123,3 +123,16 @@ test("the API is unreachable from the browser without a session", async ({ reque
   });
   expect(crossSite.status()).toBe(403);
 });
+
+test("dependent code tasks build on merged work and deliver one integrated project", async ({ page }) => {
+  await signUp(page);
+  const runId = await startBuild(page, "Booking API #dependent");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  await expect(page.locator("#activity").getByText(/^Merged into the project/)).toHaveCount(2);
+  await expect(page.locator("#artifacts").getByText(/^merged [0-9a-f]{7}$/)).toHaveCount(2);
+  await expect(page.locator("#build-report")).toContainText("api.py");
+  await expect(page.locator("#build-report")).toContainText("booking.py");
+  const run = await runJson(page, runId);
+  const api = run.artifacts.find((a: { task_id: string }) => a.task_id === "api");
+  expect(run.delivery.commit).toBe(api.integrated_commit);
+});

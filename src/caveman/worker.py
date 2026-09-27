@@ -159,7 +159,7 @@ class Worker:
         try:
             controller = DurableController(Orchestrator(store), job.run_id,
                                            WorkspaceManager(self.engine.project_repo(project_id)),
-                                           config=config)
+                                           config=config, integration=True)
             agent = runtime.build_walter(controller)
             task = asyncio.create_task(Runner.run(
                 agent, message, session=session, max_turns=self.settings.manager_max_turns,

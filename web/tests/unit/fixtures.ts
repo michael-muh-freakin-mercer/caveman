@@ -45,6 +45,7 @@ export function artifact(overrides: Partial<ArtifactView> = {}): ArtifactView {
     content_digest: "d".repeat(64),
     workspace_fingerprint: "f".repeat(64),
     workspace_id: "w1",
+    integrated_commit: null,
     changed_files: ["booking.py"],
     validation_state: "partial",
     review_state: "not_reviewed",

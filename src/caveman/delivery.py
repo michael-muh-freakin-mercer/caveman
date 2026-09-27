@@ -1,10 +1,15 @@
 """Assemble a completed run's deliverable from exactly the accepted bytes.
 
-Assembly runs trusted platform code only; no generated code executes. Each
-accepted code change is re-fingerprinted and must match the fingerprint recorded
-when the kernel accepted it, so the archive contains what was validated and
-reviewed, never a later edit. The project's own repository is not modified:
-merging or pushing is a promotion that stays behind explicit human action.
+Assembly runs trusted platform code only; no generated code executes.
+
+Runs that integrate accepted code deliver the tree at the project's integration
+head, after checking that the head is the last commit the kernel recorded and
+that every recorded integration is in its history: each of those commits holds
+exactly the bytes that were validated and reviewed.
+
+Older runs without integration fall back to re-fingerprinting each accepted
+workspace. Nothing here pushes or promotes anything; that stays behind explicit
+human action.
 """
 from __future__ import annotations
 
@@ -56,11 +61,87 @@ def _report(run: Run, project_name: str, files: dict[str, dict], documents: list
     return "\n".join(lines)
 
 
+def _documents(run: Run) -> tuple[dict[str, bytes], list[dict]]:
+    contents: dict[str, bytes] = {}
+    documents: list[dict] = []
+    for index, artifact_id in enumerate(run.accepted_artifacts, 1):
+        artifact = run.artifacts[artifact_id]
+        if artifact.workspace_fingerprint:
+            continue
+        body, _ = _manifest(artifact.content)
+        path = f"docs/caveman/{index:02d}-{re.sub(r'[^A-Za-z0-9_-]+', '-', artifact.task_id)}.md"
+        data = body.strip().encode() + b"\n"
+        contents[path] = data
+        documents.append({"path": path, "task_id": artifact.task_id, "artifact_id": artifact_id,
+                          "sha256": hashlib.sha256(data).hexdigest()})
+    return contents, documents
+
+
+def _write_archive(tree: dict[str, bytes], out_dir: Path, run_id: str, slug: str) -> str:
+    archive_name = f"{run_id}.tar.gz"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    temporary = out_dir / (archive_name + ".tmp")
+    with tarfile.open(temporary, "w:gz") as archive:
+        for path in sorted(tree):
+            info = tarfile.TarInfo(f"{slug}/{path}")
+            info.size = len(tree[path])
+            info.mode = 0o644
+            info.mtime = 0
+            archive.addfile(info, io.BytesIO(tree[path]))
+    temporary.replace(out_dir / archive_name)
+    return archive_name
+
+
+def _tree_at(repo: Path, revision: str) -> dict[str, bytes]:
+    names = git("-C", str(repo), "ls-tree", "-r", "-z", "--name-only", revision).split("\0")
+    return {name: _git_show(repo, name, revision) for name in names if name and not _excluded(name)}
+
+
+def _assemble_integrated(run: Run, repo: Path, out_dir: Path, project_name: str, code: list,
+                         cost_usd: float, cost_complete: bool) -> tuple[dict, str]:
+    from walter.sandbox import INTEGRATION_REF
+
+    commits = {artifact.integrated_commit: artifact for artifact in code}
+    head = git("-C", str(repo), "rev-parse", "--verify", INTEGRATION_REF + "^{commit}").strip()
+    if head not in commits:
+        raise DeliveryError("The integration branch moved outside Caveman; refusing to deliver it.")
+    for commit in commits:
+        if subprocess.run(["/usr/bin/git", "-C", str(repo), "merge-base", "--is-ancestor", commit, head],
+                          env=_GIT_ENV, capture_output=True, timeout=30).returncode:
+            raise DeliveryError("An accepted change is missing from the integration branch.")
+    tree = _tree_at(repo, head)
+    base = git("-C", str(repo), "rev-parse", "HEAD").strip()
+    changed = [name for name in git("-C", str(repo), "diff", "-z", "--name-only", base, head).split("\0")
+               if name and not _excluded(name)]
+    files: dict[str, dict] = {}
+    for path in changed:
+        if path not in tree:
+            continue
+        last = git("-C", str(repo), "log", "-1", "--format=%H", head, "--", path).strip()
+        owner = commits.get(last)
+        files[path] = {"task_id": owner.task_id if owner else None,
+                       "artifact_id": owner.id if owner else None,
+                       "sha256": hashlib.sha256(tree[path]).hexdigest(), "bytes": len(tree[path])}
+    deleted = sorted(set(_tree_at(repo, base)) - set(tree))
+    doc_contents, documents = _documents(run)
+    tree.update(doc_contents)
+    tree["CAVEMAN_BUILD_REPORT.md"] = _report(run, project_name, files, documents, cost_usd,
+                                              cost_complete).encode()
+    slug = _slug(project_name)
+    archive = _write_archive(tree, out_dir, run.id, slug)
+    return ({"archive": archive, "root": slug, "commit": head, "files": files, "documents": documents,
+             "deleted": deleted, "total_files": len(tree), "report": "CAVEMAN_BUILD_REPORT.md"}, archive)
+
+
 def assemble(run: Run, repo: Path, out_dir: Path, project_name: str, *,
              cost_usd: float, cost_complete: bool) -> tuple[dict, str]:
     """Return (manifest, archive file name). Raises DeliveryError on any refusal."""
     if run.status != "completed":
         raise DeliveryError("Only a completed run can be delivered.")
+    code = [run.artifacts[a] for a in run.accepted_artifacts if run.artifacts[a].workspace_fingerprint]
+    if code and all(artifact.integrated_commit for artifact in code):
+        return _assemble_integrated(run, repo, out_dir, project_name, code, cost_usd, cost_complete)
+    # Runs without integration (and documents-only runs) use the workspace path.
     workspaces = WorkspaceManager(repo)
     files: dict[str, dict] = {}
     contents: dict[str, bytes] = {}
@@ -131,8 +212,8 @@ def assemble(run: Run, repo: Path, out_dir: Path, project_name: str, *,
     return manifest, archive_name
 
 
-def _git_show(repo: Path, path: str) -> bytes:
-    result = subprocess.run(["/usr/bin/git", "-C", str(repo), "show", f"HEAD:{path}"],
+def _git_show(repo: Path, path: str, revision: str = "HEAD") -> bytes:
+    result = subprocess.run(["/usr/bin/git", "-C", str(repo), "show", f"{revision}:{path}"],
                             env=_GIT_ENV, capture_output=True, timeout=30)
     if result.returncode:
         raise DeliveryError(f"Could not read base file {path}")

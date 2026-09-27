@@ -58,7 +58,7 @@ describe("live timeline", () => {
 
   it("keeps streaming until a completed run has its delivery", () => {
     expect(streamFinished(runDetail({ delivery: null }))).toBe(false);
-    expect(streamFinished(runDetail({ delivery: { status: "ready", created_at: "", error: null, files: [], documents: [], deleted: [], total_files: 1, report: null, downloadable: true } }))).toBe(true);
+    expect(streamFinished(runDetail({ delivery: { status: "ready", created_at: "", error: null, files: [], documents: [], deleted: [], total_files: 1, commit: null, report: null, downloadable: true } }))).toBe(true);
     expect(streamFinished(runDetail({ status: "active", state: "running" }))).toBe(false);
     expect(streamFinished(runDetail({ status: "abandoned", state: "cancelled" }))).toBe(true);
   });

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — Acceptance integration
+
+- Decision: for Caveman project repositories, accepting a developer candidate fast-forwards an internal `walter-integration` staging ref to exactly its validated bytes (fingerprint re-verified). New candidates start from that ref, so dependent tasks build on accepted upstream code. Integration is fast-forward only; a candidate on a stale base fails as the new `STALE_BASE` class (routed to RETRY) and the retry replays the previous attempt onto the new head. finish_run requires all accepted code to be integrated. Merging into user branches, pushing and deploying remain human-approved promotion. Off for the operator CLI.
+- Kernel: `Artifact.integrated_commit`, `Orchestrator.record_integration`, `FailureClass.STALE_BASE`.
+- Sandbox: `integration_head`, `integrate` (compare-and-swap ref update), `carry_over`, `create_candidate(base_revision=...)`.
+- Delivery archives the integration head after verifying it against the kernel's recorded commits.
+
 ## 2026-09-27 — Caveman product layer
 
 - Product identity is now Caveman; `walter` remains the internal core package and a compatibility CLI.

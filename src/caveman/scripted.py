@@ -15,6 +15,9 @@ Scenarios are selected by a tag in the build request:
 - default          plan, build and verify two tasks, then finish
 - ``#approval``    finish a task, then wait for a human approval before completing
 - ``#fail-validation``  first candidate fails its tests; recovery revises it
+- ``#dependent``   a second code task imports the first task's accepted code
+- ``#parallel``    two independent code tasks; the second is rebuilt on the
+                   integrated first (stale base, carried-over retry)
 """
 from __future__ import annotations
 
@@ -123,6 +126,74 @@ def _review(passed: bool, reason: str) -> dict:
     return _message(json.dumps({"passed": passed, "evidence": [reason], "reason": reason}))
 
 
+API_MODULE = '''"""Booking endpoint logic built on the accepted booking core."""
+from booking import Calendar, Slot
+
+
+def book(calendar: Calendar, day: str, hour: int, client: str) -> dict:
+    try:
+        calendar.book(Slot(day, hour), client)
+    except ValueError as error:
+        return {"ok": False, "error": str(error)}
+    return {"ok": True}
+'''
+
+API_TESTS = '''from api import book
+from booking import Calendar
+
+
+def test_book_reports_conflicts():
+    calendar = Calendar()
+    assert book(calendar, "tue", 11, "Ada") == {"ok": True}
+    assert book(calendar, "tue", 11, "Grace")["ok"] is False
+'''
+
+NOTIFY_MODULE = '''"""Reminder text for upcoming appointments."""
+
+
+def reminder(client: str, day: str, hour: int) -> str:
+    return f"Hi {client}, see you {day} at {hour}:00."
+'''
+
+NOTIFY_TESTS = '''from notify import reminder
+
+
+def test_reminder_mentions_time():
+    assert reminder("Ada", "mon", 11) == "Hi Ada, see you mon at 11:00."
+'''
+
+_API_PACKET = {
+    "task_id": "api",
+    "role": "API specialist",
+    "objective": "Add booking endpoint logic on top of the booking core",
+    "deliverable": "api.py with a book() function using the Calendar, plus tests",
+    "acceptance_criteria": ["Conflicting bookings are reported, not raised"],
+    "stop_condition": "Module and tests written and self-checked, or genuinely blocked",
+}
+
+_NOTIFY_PACKET = {
+    "task_id": "notify",
+    "role": "Messaging specialist",
+    "objective": "Write appointment reminder text",
+    "deliverable": "notify.py with a reminder() function, plus tests",
+    "acceptance_criteria": ["Reminder names the client, day and hour"],
+    "stop_condition": "Module and tests written and self-checked, or genuinely blocked",
+}
+
+
+def _write(task_id: str, prefix: str, files: dict[str, str], summary: str) -> list[dict]:
+    steps = [_tool("write_file", {"path": path, "content": content}, f"{prefix}-{index}")
+             for index, (path, content) in enumerate(files.items())]
+    return steps + [_worker_result(task_id, "Wrote " + ", ".join(files) + ".", summary)]
+
+
+def _cycle(task_id: str, suffix: str = "") -> list[dict]:
+    return [_tool("validate_task", {"task_id": task_id}, f"validate-{task_id}{suffix}"),
+            _tool("review_task", {"task_id": task_id}, f"review-{task_id}{suffix}"),
+            _tool("accept_task", {"task_id": task_id, "reason": "Trusted checks and review passed"},
+                  f"accept-{task_id}{suffix}")]
+
+
 def _write_code(prefix: str, module: str) -> list[dict]:
     return [
         _tool("write_file", {"path": "booking.py", "content": module}, f"{prefix}-module"),
@@ -137,6 +208,10 @@ def scenario_for(objective: str) -> str:
         return "approval"
     if "#fail-validation" in text:
         return "fail-validation"
+    if "#dependent" in text:
+        return "dependent"
+    if "#parallel" in text:
+        return "parallel"
     return "complete"
 
 
@@ -260,6 +335,60 @@ def build_scripts(scenario: str, kind: str, load_run: Callable) -> tuple[list, l
         ]
         worker = [*_write_code("v1", BROKEN_MODULE), *_write_code("v2", BOOKING_MODULE),
                   _tool("read_file", {"path": "booking.py"}, "review-read"), review_pass]
+        return manager, worker
+    if scenario == "dependent":
+        api_criterion = "Booking endpoint logic builds on the accepted core with passing tests"
+        criteria = [CORE_CRITERION, api_criterion]
+        manager = [
+            _tool("set_completion_criteria", {"criteria": criteria}, "criteria"),
+            _tool("plan_tasks", {"packets": [_CORE_PACKET, {**_API_PACKET, "dependencies": ["core"]}],
+                                 "capabilities": ["developer_sandbox", "developer_sandbox"],
+                                 "checks": [["pytest"], ["pytest", "pytest_regression"]]}, "plan"),
+            _tool("delegate_task", {"task_id": "core"}, "delegate-core"),
+            *_cycle("core"),
+            _tool("delegate_task", {"task_id": "api"}, "delegate-api"),
+            *_cycle("api"),
+            _finish(load_run, criteria, {CORE_CRITERION: "core", api_criterion: "api"},
+                    "Booking core and endpoint logic delivered, integrated and tested together."),
+            _message("Build complete. The endpoint logic was built and tested on top of the accepted core."),
+        ]
+        worker = [
+            *_write_code("core", BOOKING_MODULE),
+            _tool("read_file", {"path": "booking.py"}, "review-core-read"), review_pass,
+            *_write("api", "api", {"api.py": API_MODULE, "test_api.py": API_TESTS}, "Endpoint logic written"),
+            _tool("read_file", {"path": "api.py"}, "review-api-read"), review_pass,
+        ]
+        return manager, worker
+    if scenario == "parallel":
+        notify_criterion = "Reminder text implemented with passing sandboxed tests"
+        criteria = [CORE_CRITERION, notify_criterion]
+        manager = [
+            _tool("set_completion_criteria", {"criteria": criteria}, "criteria"),
+            _tool("plan_tasks", {"packets": [_CORE_PACKET, _NOTIFY_PACKET],
+                                 "capabilities": ["developer_sandbox", "developer_sandbox"],
+                                 "checks": [["pytest"], ["pytest"]]}, "plan"),
+            _tool("delegate_task", {"task_id": "core"}, "delegate-core"),
+            _tool("delegate_task", {"task_id": "notify"}, "delegate-notify"),
+            *_cycle("core"),
+            *_cycle("notify"),  # accept finds a stale base and schedules a retry
+            _tool("delegate_task", {"task_id": "notify"}, "delegate-notify-2"),
+            *_cycle("notify", "-2"),
+            _finish(load_run, criteria, {CORE_CRITERION: "core", notify_criterion: "notify"},
+                    "Booking core and reminders delivered on one integrated codebase."),
+            _message("Build complete. The reminder task was rebuilt on the integrated booking core."),
+        ]
+        worker = [
+            *_write_code("core", BOOKING_MODULE),
+            *_write("notify", "notify", {"notify.py": NOTIFY_MODULE, "test_notify.py": NOTIFY_TESTS},
+                    "Reminder text written"),
+            _tool("read_file", {"path": "booking.py"}, "review-core-read"), review_pass,
+            _tool("read_file", {"path": "notify.py"}, "review-notify-read"), review_pass,
+            # Retry: the previous attempt was carried over onto the new base.
+            _tool("inspect_diff", {}, "notify-retry-diff"),
+            _worker_result("notify", "Verified the carried-over reminder module on the latest code.",
+                           "Reminder text rebased"),
+            _tool("read_file", {"path": "notify.py"}, "review-notify-read-2"), review_pass,
+        ]
         return manager, worker
     raise ValueError(f"Unknown scripted scenario {scenario}")
 

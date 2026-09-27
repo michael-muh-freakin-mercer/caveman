@@ -325,3 +325,71 @@ def test_worker_refuses_to_start_without_isolation(settings, monkeypatch):
     monkeypatch.setattr(sandbox_probe, "probe", lambda **_: (False, "no namespaces"))
     with pytest.raises(SystemExit, match="refuses to start: no namespaces"):
         worker_module.main(settings)
+
+
+@needs_sandbox
+def test_dependent_code_tasks_build_on_integrated_work(client, settings):
+    run_id = build(client, prompt="Booking API #dependent")["run_id"]
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["state"] == "complete"
+    api = next(a for a in detail["artifacts"] if a["task_id"] == "api")
+    # The regression check ran the core's tests inside the api workspace: the
+    # api candidate was built on the integrated core, not on an empty repo.
+    regression = next(v for v in api["validations"] if v["check"] == "pytest_regression")
+    assert regression["status"] == "passed" and "test_booking.py" in regression["command"]
+    commits = [a["integrated_commit"] for a in detail["artifacts"]]
+    assert all(commits) and len(set(commits)) == 2
+    assert detail["delivery"]["commit"] == api["integrated_commit"]
+    assert detail["delivery"]["files"] == ["api.py", "booking.py", "test_api.py", "test_booking.py"]
+    assert sum(e["title"].startswith("Merged into the project") for e in detail["timeline"]) == 2
+
+
+@needs_sandbox
+def test_parallel_task_on_stale_base_is_rebuilt_with_its_work_carried_over(client, settings):
+    run_id = build(client, prompt="Booking #parallel")["run_id"]
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["state"] == "complete"
+    [failure] = detail["failure_details"]
+    assert failure["classification"] == "STALE_BASE" and failure["recovery"]["action"] == "RETRY"
+    first, second = [a for a in detail["artifacts"] if a["task_id"] == "notify"]
+    assert first["status"] == "rejected" and first["integrated_commit"] is None
+    assert second["status"] == "accepted" and second["changed_files"] == ["notify.py", "test_notify.py"]
+    assert detail["delivery"]["files"] == ["booking.py", "notify.py", "test_booking.py", "test_notify.py"]
+
+
+@needs_sandbox
+def test_failed_integration_blocks_completion(client, settings, monkeypatch):
+    from walter.sandbox import SandboxViolation, WorkspaceManager
+
+    def refuse(self, *args, **kwargs):
+        raise SandboxViolation("integration storage unavailable")
+    monkeypatch.setattr(WorkspaceManager, "integrate", refuse)
+    run_id = build(client, prompt="Booking core #approval")["run_id"]
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["status"] == "active"
+    core = next(t for t in detail["tasks"] if t["id"] == "core")
+    assert core["state"] == "Accepted"
+    assert all(a["integrated_commit"] is None for a in detail["artifacts"])
+    assert detail["delivery"] is None
+
+
+@needs_sandbox
+def test_delivery_refuses_an_integration_branch_moved_outside_caveman(client, settings):
+    import subprocess
+    from caveman.delivery import DeliveryError, assemble
+    from caveman.engine import Engine
+    from caveman.platform_store import PlatformStore
+
+    run_id = build(client, prompt="Booking core")["run_id"]
+    drain(settings)
+    platform = PlatformStore(settings.platform_db)
+    record = platform.run_by_id(run_id)
+    platform.close()
+    engine = Engine(settings)
+    repo = engine.project_repo(record.project_id)
+    subprocess.run(["git", "-C", str(repo), "update-ref", "refs/heads/walter-integration", "HEAD"], check=True)
+    with pytest.raises(DeliveryError, match="moved outside Caveman"):
+        assemble(engine.load(run_id), repo, settings.deliveries_dir, "x", cost_usd=0, cost_complete=True)

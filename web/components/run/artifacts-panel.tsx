@@ -47,7 +47,14 @@ export function ArtifactsPanel({ runId, artifacts }: { runId: string; artifacts:
                   {relativeTime(artifact.created_at)} · <span className="font-mono">{shortId(artifact.content_digest, 10)}</span>
                 </span>
               </span>
-              <StatusPill tone={STATUS_TONE[artifact.status]}>{artifact.status[0].toUpperCase() + artifact.status.slice(1)}</StatusPill>
+              <span className="flex shrink-0 flex-col items-end gap-1">
+                <StatusPill tone={STATUS_TONE[artifact.status]}>{artifact.status[0].toUpperCase() + artifact.status.slice(1)}</StatusPill>
+                {artifact.integrated_commit ? (
+                  <span className="font-mono text-[0.68rem] text-ok" title="Merged into the project's integration branch">
+                    merged {shortId(artifact.integrated_commit, 7)}
+                  </span>
+                ) : null}
+              </span>
             </button>
           </li>
         ))}
@@ -76,6 +83,9 @@ export function ArtifactsPanel({ runId, artifacts }: { runId: string; artifacts:
                 <div><dt className="text-muted">Content digest</dt><dd className="break-all font-mono text-fg-soft">{open.content_digest}</dd></div>
                 {open.workspace_fingerprint ? (
                   <div><dt className="text-muted">Workspace fingerprint</dt><dd className="break-all font-mono text-fg-soft">{open.workspace_fingerprint}</dd></div>
+                ) : null}
+                {open.integrated_commit ? (
+                  <div><dt className="text-muted">Merged into the project at</dt><dd className="break-all font-mono text-fg-soft">{open.integrated_commit}</dd></div>
                 ) : null}
                 {open.workspace_id ? (
                   <div><dt className="text-muted">Candidate workspace</dt><dd className="font-mono text-fg-soft">{open.workspace_id}</dd></div>

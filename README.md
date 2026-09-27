@@ -133,7 +133,9 @@ The E2E suite starts the real API, a real worker and the production web build.
 The worker uses the **scripted test executor** (`CAVEMAN_EXECUTOR=scripted`):
 the Manager's *model* is scripted, but every state change still goes through the
 kernel and every check really runs in the sandbox. Tags in the prompt choose a
-scenario: none (plan, build, verify, deliver), `#approval`, `#fail-validation`.
+scenario: none (plan, build, verify, deliver), `#approval`, `#fail-validation`,
+`#dependent` (a code task building on another's merged code) and `#parallel`
+(a stale-base rebuild with carry-over).
 Scripted runs are labelled in the UI, and the executor is refused when
 `CAVEMAN_ENV=production`. The browser used by Playwright must match the pinned
 `@playwright/test` version (`npx playwright install chromium`).
@@ -160,9 +162,14 @@ end-to-end journeys.
   must be shown again.
 - Budgets on by default: a USD ceiling on provider-reported cost plus a
   model-call ceiling, with a warning at 80% and a safe pause at the limit.
-- Delivery: when the kernel completes a run, Caveman assembles a downloadable
-  archive from exactly the accepted, fingerprint-verified files, plus a build
-  report. Nothing is pushed or deployed on anyone's behalf.
+- Integrated builds: each accepted code change is fast-forwarded onto the
+  project's internal integration branch with exactly its validated bytes, and
+  later tasks start from that branch, so dependent work builds and is tested on
+  top of accepted work. A task built on an outdated base is rebuilt on the new
+  one with its previous attempt carried over.
+- Delivery: when the kernel completes a run, Caveman archives the integration
+  head (verified against the kernel's recorded commits) plus a build report.
+  Nothing is pushed or deployed on anyone's behalf.
 
 ## Security model
 

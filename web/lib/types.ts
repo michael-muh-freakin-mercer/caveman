@@ -125,6 +125,7 @@ export interface ArtifactView {
   content_digest: string;
   workspace_fingerprint: string | null;
   workspace_id: string | null;
+  integrated_commit: string | null;
   changed_files: string[];
   validation_state: "passed" | "failed" | "partial" | "not_run";
   review_state: "passed" | "changes_requested" | "not_reviewed";
@@ -219,6 +220,7 @@ export interface DeliveryView {
   documents: string[];
   deleted: string[];
   total_files: number | null;
+  commit: string | null;
   report: string | null;
   downloadable: boolean;
 }

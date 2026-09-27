@@ -189,6 +189,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "documents": [d["path"] for d in manifest.get("documents", [])],
                 "deleted": manifest.get("deleted", []),
                 "total_files": manifest.get("total_files"),
+                "commit": manifest.get("commit"),
                 "report": manifest.get("report"),
                 "downloadable": delivery.status == "ready" and bool(delivery.archive_name)}
 

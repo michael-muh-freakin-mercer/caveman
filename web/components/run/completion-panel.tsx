@@ -51,7 +51,9 @@ export function CompletionPanel({ run }: { run: RunDetail }) {
           <div><dt className="text-xs text-muted">Accepted work</dt><dd className="text-fg">{accepted.length} artifact{accepted.length === 1 ? "" : "s"}</dd></div>
           <div><dt className="text-xs text-muted">Total cost</dt><dd className="tabular-nums text-fg">{formatUsd(run.usage.cost_usd, { complete: run.usage.cost_complete })}</dd></div>
           <div><dt className="text-xs text-muted">Elapsed</dt><dd className="tabular-nums text-fg">{duration(run.created_at, finishedAt)}</dd></div>
-          <div className="col-span-2"><dt className="text-xs text-muted">Repository</dt><dd className="text-fg-soft">Local project repository · not published</dd></div>
+          <div className="col-span-2"><dt className="text-xs text-muted">Repository</dt><dd className="text-fg-soft">
+                Local project repository{delivery?.commit ? <> · commit <span className="font-mono">{delivery.commit.slice(0, 7)}</span></> : null} · not published
+              </dd></div>
           <div className="col-span-2"><dt className="text-xs text-muted">Preview</dt><dd className="text-fg-soft">Not available — Caveman does not run generated apps on this site.</dd></div>
         </dl>
       </div>

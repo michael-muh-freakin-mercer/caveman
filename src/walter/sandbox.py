@@ -35,6 +35,10 @@ class SandboxViolation(PermissionError):
 logger = logging.getLogger(__name__)
 
 
+class IntegrationStale(SandboxViolation):
+    """The candidate was built on a base the integration branch has moved past."""
+
+
 class SandboxUnavailable(RuntimeError):
     pass
 
@@ -137,6 +141,13 @@ MAX_PROCESSES = 32
 MAX_AGGREGATE_RSS = 1_073_741_824
 MAX_OUTPUT_BYTES = 1_000_000
 
+
+# Internal staging ref holding exactly the accepted, validated candidate bytes of
+# a project, one fast-forward commit per accepted developer candidate. It is
+# never the user's checked-out branch and is never pushed; promotion beyond it
+# remains a human-approved act (see PERMISSIONS.md, 2026-09-28 decision).
+INTEGRATION_BRANCH = "walter-integration"
+INTEGRATION_REF = "refs/heads/" + INTEGRATION_BRANCH
 
 AST_CHECK_SNIPPETS = frozenset({
     "import ast,pathlib; files=list(pathlib.Path('.').rglob('*.py')); assert files, 'No Python sources'; [ast.parse(p.read_text(), filename=str(p)) for p in files]",
@@ -380,11 +391,121 @@ class WorkspaceManager:
         return result.stdout
 
     def create_candidate(self, run_id: str, task_id: str, worker_id: str,
-                         command_categories: tuple[str, ...] | None = None) -> WorkspaceGrant:
+                         command_categories: tuple[str, ...] | None = None, *,
+                         base_revision: str | None = None) -> WorkspaceGrant:
+        if base_revision is not None and self._git(
+                "-C", str(self.repository), "cat-file", "-t", base_revision).strip() != "commit":
+            raise SandboxViolation("Candidate base must be a commit")
         return self._create_candidate(run_id, task_id, worker_id, command_categories,
                                       allow_safety_changes=False, safety_approval_id=None,
                                       safety_approval_digest=None, safety_allowed_paths=(),
-                                      safety_operation=None)
+                                      safety_operation=None, base_revision=base_revision)
+
+    # Integration ---------------------------------------------------------
+
+    def integration_head(self, *, create: bool = False) -> str | None:
+        """Current integration commit; optionally start the branch at HEAD."""
+        with self._lock:
+            found = self._git_result("-C", str(self.repository), "rev-parse", "--verify",
+                                     "--quiet", INTEGRATION_REF + "^{commit}")
+            if found.returncode == 0:
+                return found.stdout.strip()
+            if not create:
+                return None
+            head = self._git("-C", str(self.repository), "rev-parse", "HEAD").strip()
+            # Empty old value: create only if the ref does not exist yet.
+            self._git("-C", str(self.repository), "update-ref", INTEGRATION_REF, head, "")
+            return head
+
+    def _commit_candidate(self, grant: WorkspaceGrant, message: str) -> str:
+        """Commit exactly the candidate's policy-visible inventory onto its base.
+
+        Idempotent: a candidate already committed on its base is reused after
+        checking that nothing outside that commit is pending.
+        """
+        root = grant.root
+        inventory = self._inventory(grant, contents=False)
+        baseline = {path for path in self._git("-C", root, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only",
+                                               grant.base_revision).splitlines() if not _excluded(path)}
+        current = self._git("-C", root, "rev-parse", "HEAD").strip()
+        if current == grant.base_revision:
+            modified = {path for path in self._git("-C", root, "-c", "core.quotePath=false", "diff", "--name-only",
+                                                   grant.base_revision).splitlines() if not _excluded(path)}
+            changed = sorted({name for name in inventory if name not in baseline} |
+                             {name for name in modified if name in inventory})
+            deleted = sorted(baseline - set(inventory))
+            if not changed and not deleted:
+                return current
+            for start in range(0, len(changed), 200):
+                self._git("-C", root, "add", "--force", "--", *changed[start:start + 200])
+            for start in range(0, len(deleted), 200):
+                self._git("-C", root, "rm", "-q", "--cached", "--ignore-unmatch", "--",
+                          *deleted[start:start + 200])
+            self._git("-C", root, "-c", "user.name=Caveman", "-c", "user.email=caveman@localhost",
+                      "commit", "-q", "--no-verify", "--no-gpg-sign", "-m", message)
+            current = self._git("-C", root, "rev-parse", "HEAD").strip()
+        parents = self._git("-C", root, "rev-list", "--parents", "-n", "1", current).split()
+        if parents[1:] != [grant.base_revision]:
+            raise SandboxViolation("Candidate history does not sit directly on its base")
+        committed = {path for path in self._git("-C", root, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only",
+                                                current).splitlines() if not _excluded(path)}
+        pending = [line for line in self._git("-C", root, "-c", "core.quotePath=false", "status", "--porcelain",
+                                              "--untracked-files=all").splitlines()
+                   if len(line) >= 4 and not _excluded(line[3:])]
+        if committed != set(inventory) or pending:
+            raise SandboxViolation("Candidate commit does not match the candidate inventory")
+        return current
+
+    def integrate(self, workspace_id: str, expected_fingerprint: str, message: str) -> str:
+        """Fast-forward the integration branch to exactly the accepted candidate.
+
+        The candidate must have been built on the current integration head, so
+        the integrated tree is byte-for-byte the tree that was validated and
+        reviewed. A moved head raises IntegrationStale instead of merging.
+        """
+        with self._lock:
+            grant = self._get(workspace_id)
+            if self.fingerprint(workspace_id) != expected_fingerprint:
+                raise SandboxViolation("Candidate changed after acceptance; refusing to integrate")
+            head = self.integration_head(create=True)
+            if grant.base_revision != head:
+                raise IntegrationStale("Integration moved since this candidate was created")
+            commit = self._commit_candidate(grant, message)
+            if commit == head:
+                raise SandboxViolation("Candidate has no changes to integrate")
+            # Compare-and-swap: never overwrite a concurrent integration.
+            self._git("-C", str(self.repository), "update-ref", INTEGRATION_REF, commit, head)
+            return commit
+
+    def carry_over(self, source_workspace_id: str, target_workspace_id: str) -> bool:
+        """Replay a previous attempt's changes onto a fresh candidate, uncommitted.
+
+        Returns False, leaving the target clean, when there was nothing to carry
+        or the changes conflict with the target's newer base.
+        """
+        with self._lock:
+            source = self._grants.get(source_workspace_id)
+            if not source or source.lifecycle != "active":
+                return False
+            self._verify_worktree(source)
+            target = self._get(target_workspace_id)
+            if target.read_only:
+                raise SandboxViolation("Cannot carry changes into a read-only grant")
+            commit = self._commit_candidate(source, "Previous attempt (carried over)")
+            if commit == source.base_revision:
+                return False
+            applied = self._git_result("-C", target.root, "-c", "user.name=Caveman",
+                                       "-c", "user.email=caveman@localhost",
+                                       "cherry-pick", "--no-commit", commit)
+            if applied.returncode:
+                self._git_result("-C", target.root, "cherry-pick", "--abort")
+                self._git("-C", target.root, "reset", "-q", "--hard", target.base_revision)
+                self._git("-C", target.root, "clean", "-fdq")
+                return False
+            # Leave the replay as working-tree changes, like any fresh edit.
+            self._git("-C", target.root, "reset", "-q", "--mixed", target.base_revision)
+            self._inventory(target, contents=False)  # re-validate object policy
+            return True
 
     def create_safety_candidate(self, run_id: str, task_id: str, worker_id: str,
                                 approval_id: str, allowed_paths: tuple[str, ...],
