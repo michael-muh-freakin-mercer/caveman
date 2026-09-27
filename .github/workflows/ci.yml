@@ -46,7 +46,11 @@ jobs:
       - name: Verify the isolation backend works
         run: |
           set -euo pipefail
-          ls -l /usr/bin/bwrap /usr/bin/prlimit /usr/lib/libseccomp.so.2
+          ls -l /usr/bin/bwrap /usr/bin/prlimit
+          # libseccomp lives at a multiarch path on Debian/Ubuntu, so ask the
+          # dynamic loader instead of guessing where the .so is — that is also
+          # how Walter's sandbox resolves it (ctypes.CDLL("libseccomp.so.2")).
+          python -c "import ctypes; ctypes.CDLL('libseccomp.so.2'); print('libseccomp resolves')"
           # Mirror the flag set Walter's sandbox actually uses. The /lib and
           # /lib64 interpreter symlinks are load-bearing: without them, exec of
           # any dynamically linked binary fails with "execvp: No such file or
