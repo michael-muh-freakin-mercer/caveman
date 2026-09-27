@@ -26,7 +26,7 @@ Runtime config comes from a gitignored `.env` (see `.env.example`): `OPENROUTER_
 
 ## Architecture
 
-The product is **Caveman**; `walter` is the historical internal name of the orchestration core. `src/caveman/` is the product layer (FastAPI API, durable leased-job worker, delivery, scripted test executor) and `web/` is the Next.js app. Neither may record validation, review, acceptance or completion: only the kernel does.
+The product is **Caveman**; `walter` is the historical internal name of the orchestration core. `src/caveman/` is the product layer (FastAPI API, durable leased-job worker, the default deterministic workflow driver, delivery, scripted test executor) and `web/` is the Next.js app. Neither may record validation, review, acceptance or completion: only the kernel does.
 
 
 - `src/walter/orchestration.py` — deterministic kernel: lifecycle, acceptance, approvals, authority. The model proposes; the kernel authorizes.

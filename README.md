@@ -52,8 +52,14 @@ Generated Project      per-project git repo → verified delivery archive
   honest user-facing views, and binds approval decisions to the exact scope
   digest the user was shown. It has no endpoint that can record a check, a
   review, an acceptance or a completion.
-- **Worker** claims jobs, runs the Manager outside any HTTP request, heartbeats,
-  and recovers orphaned jobs through the core's own interruption recovery.
+- **Worker** claims jobs and runs them outside any HTTP request, heartbeats,
+  and recovers orphaned jobs through the core's own interruption recovery. By
+  default it runs the **workflow driver** (`src/caveman/workflow.py`): plain code
+  drives plan → delegate → validate → review → accept/integrate → recover, and
+  models are used only to plan, do the work and review, so no model calls are
+  spent on bookkeeping. Every step still goes through the kernel.
+  `CAVEMAN_ORCHESTRATION=manager` restores the original mode, in which the
+  Manager model drives each step through tool calls.
 - **Web (`web/`)** renders real state over server-sent events. The browser only
   observes and decides; closing it never affects a run.
 

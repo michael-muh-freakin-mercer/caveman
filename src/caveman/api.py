@@ -214,7 +214,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def system(_user: User):
         provider = _provider_status() if settings.executor == EXECUTOR_PROVIDER else {
             "configured": True, "provider": "scripted test executor"}
-        return {"version": __version__, "executor": settings.executor, "provider": provider,
+        return {"version": __version__, "executor": settings.executor,
+                "orchestration": settings.orchestration, "provider": provider,
                 "sandbox": _sandbox_status(),
                 "budget": {"default_usd": settings.default_budget_usd, "max_usd": settings.max_budget_usd,
                            "default_max_model_calls": settings.default_max_model_calls,
@@ -404,6 +405,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(409, "This run has finished; start a new build instead.")
         if settings.executor == EXECUTOR_PROVIDER and not _provider_status()["configured"]:
             raise HTTPException(503, "Caveman's model provider is not configured on the server.")
+        if body.message.strip() and settings.orchestration != "manager":
+            raise HTTPException(422, "Follow-up instructions are not supported by this server yet. "
+                                     "Continue without an instruction, or start a new build.")
         job, created = platform.enqueue(record.id, "continue", body.message.strip())
         if not created:
             raise HTTPException(409, "This run is already executing.")

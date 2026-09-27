@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-28 — Workflow driver
+
+- Decision: Caveman runs default to a deterministic workflow driver (`src/caveman/workflow.py`) instead of the Manager model's tool loop. Code drives plan → delegate → validate → review → accept/integrate → recover; a planner model produces criteria and a task graph that is validated (uniqueness, dependency order, criterion coverage, kernel task rules) before anything is recorded, with one corrected retry. Failures are classified by trusted code and routed by the kernel's recovery table; replan-blocked work is reopened only when the kernel judges the reopen non-material; capability requests become exact human approvals. The default scripted build dropped from 19 model calls to 8. `CAVEMAN_ORCHESTRATION=manager` keeps the original mode.
+- Adapter: worker errors are classified (budget interruption → TIMEOUT, malformed structured output or exhausted turns → BAD_OUTPUT, provider transport errors → PROVIDER_FAILURE); anything unrecognised stays TOOL_FAILURE. `_invoke` can call the manager model (used by the planner).
+
 ## 2026-09-28 — Acceptance integration
 
 - Decision: for Caveman project repositories, accepting a developer candidate fast-forwards an internal `walter-integration` staging ref to exactly its validated bytes (fingerprint re-verified). New candidates start from that ref, so dependent tasks build on accepted upstream code. Integration is fast-forward only; a candidate on a stale base fails as the new `STALE_BASE` class (routed to RETRY) and the retry replays the previous attempt onto the new head. finish_run requires all accepted code to be integrated. Merging into user branches, pushing and deploying remain human-approved promotion. Off for the operator CLI.

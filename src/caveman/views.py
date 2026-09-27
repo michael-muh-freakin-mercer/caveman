@@ -643,6 +643,7 @@ class Projector:
             "project_name": project_name,
             "prompt": self.redact(record.prompt, limit=4000),
             "executor": record.executor,
+            "orchestration": self.settings.orchestration,
             "status": run.status,
             **self.run_state(run, jobs),
             "stage": self.stage(run),

@@ -353,9 +353,11 @@ def test_parallel_task_on_stale_base_is_rebuilt_with_its_work_carried_over(clien
     assert detail["state"] == "complete"
     [failure] = detail["failure_details"]
     assert failure["classification"] == "STALE_BASE" and failure["recovery"]["action"] == "RETRY"
-    first, second = [a for a in detail["artifacts"] if a["task_id"] == "notify"]
+    # Whichever task was accepted second was rebuilt on the integrated first.
+    first, second = [a for a in detail["artifacts"] if a["task_id"] == failure["task_id"]]
     assert first["status"] == "rejected" and first["integrated_commit"] is None
-    assert second["status"] == "accepted" and second["changed_files"] == ["notify.py", "test_notify.py"]
+    assert second["status"] == "accepted" and second["integrated_commit"]
+    assert len(second["changed_files"]) == 2
     assert detail["delivery"]["files"] == ["booking.py", "notify.py", "test_booking.py", "test_notify.py"]
 
 
@@ -366,7 +368,7 @@ def test_failed_integration_blocks_completion(client, settings, monkeypatch):
     def refuse(self, *args, **kwargs):
         raise SandboxViolation("integration storage unavailable")
     monkeypatch.setattr(WorkspaceManager, "integrate", refuse)
-    run_id = build(client, prompt="Booking core #approval")["run_id"]
+    run_id = build(client, prompt="Booking core")["run_id"]
     drain(settings)
     detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
     assert detail["status"] == "active"
@@ -393,3 +395,56 @@ def test_delivery_refuses_an_integration_branch_moved_outside_caveman(client, se
     subprocess.run(["git", "-C", str(repo), "update-ref", "refs/heads/walter-integration", "HEAD"], check=True)
     with pytest.raises(DeliveryError, match="moved outside Caveman"):
         assemble(engine.load(run_id), repo, settings.deliveries_dir, "x", cost_usd=0, cost_complete=True)
+
+
+
+@needs_sandbox
+@pytest.mark.parametrize("prompt", ["Booking app", "Booking #parallel", "Booking #approval"])
+def test_manager_orchestration_mode_still_completes(settings, prompt):
+    from dataclasses import replace
+    manager_mode = replace(settings, orchestration="manager")
+    with TestClient(create_app(manager_mode)) as client:
+        run_id = build(client, prompt=prompt)["run_id"]
+        drain(manager_mode)
+        detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+        if detail["state"] == "approval_needed":
+            approval = detail["approvals"][0]
+            client.post(f"/api/runs/{run_id}/approvals/{approval['id']}",
+                        json={"decision": "approve", "scope_digest": approval["scope_digest"]}, headers=ALICE)
+            drain(manager_mode)
+            detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["state"] == "complete" and detail["orchestration"] == "manager"
+    assert detail["usage"]["by_role"]["manager"]["calls"] > 1
+
+
+@needs_sandbox
+def test_workflow_mode_spends_one_planning_call_and_no_manager_calls(client, settings):
+    run_id = build(client)["run_id"]
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["state"] == "complete" and detail["orchestration"] == "workflow"
+    assert detail["usage"]["by_role"]["planner"]["calls"] == 1
+    assert "manager" not in detail["usage"]["by_role"]
+
+
+@needs_sandbox
+def test_rejected_capability_leaves_the_task_blocked(client, settings):
+    run_id = build(client, prompt="Booking core #approval")["run_id"]
+    drain(settings)
+    approval = client.get(f"/api/runs/{run_id}", headers=ALICE).json()["approvals"][0]
+    assert approval["action"] == "change_capability" and approval["title"] == "Grant a capability"
+    client.post(f"/api/runs/{run_id}/approvals/{approval['id']}",
+                json={"decision": "reject", "scope_digest": approval["scope_digest"]}, headers=ALICE)
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["status"] == "active" and detail["state"] in {"blocked", "waiting"}
+    assert detail["approvals"][0]["status"] == "rejected"
+    assert detail["capability_requests"][0]["status"] == "denied"
+    assert next(t for t in detail["tasks"] if t["id"] == "core")["state"] == "Blocked"
+
+
+def test_workflow_mode_refuses_follow_up_instructions(client):
+    run_id = build(client)["run_id"]
+    client.post(f"/api/runs/{run_id}/stop", headers=ALICE)
+    response = client.post(f"/api/runs/{run_id}/continue", json={"message": "add dark mode"}, headers=ALICE)
+    assert response.status_code == 422

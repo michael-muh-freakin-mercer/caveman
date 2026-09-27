@@ -57,8 +57,9 @@ test("journey 4: an approval is shown and the exact-scoped decision reaches the 
   await signUp(page);
   const runId = await startBuild(page, "Booking core #approval");
   const card = page.locator("#approvals");
-  await expect(card.getByRole("heading", { name: "Approve: publish to main" })).toBeVisible();
-  await expect(card.getByText("Action affects canonical project state")).toBeVisible();
+  await expect(card.getByRole("heading", { name: "Grant a capability" })).toBeVisible();
+  await expect(card.getByText("Executes candidate code inside the isolated sandbox")).toBeVisible();
+  await expect(card.getByText(/Sandboxed development/).first()).toBeVisible();
   const pending = await runJson(page, runId);
   expect(pending.state).toBe("approval_needed");
   expect(pending.approvals[0].status).toBe("pending");
@@ -72,7 +73,7 @@ test("journey 4: an approval is shown and the exact-scoped decision reaches the 
   expect(decided.approvals[0].decision.decided_by).toMatch(/^caveman-user:/);
 });
 
-test("journey 4b: rejecting records a rejection, and the browser cannot forge scope", async ({ page }) => {
+test("journey 4b: rejecting is recorded and leaves the work honestly blocked; scope cannot be forged", async ({ page }) => {
   await signUp(page);
   const runId = await startBuild(page, "Booking core #approval");
   await expect(page.locator("#approvals").getByRole("button", { name: "Reject" })).toBeVisible();
@@ -84,9 +85,12 @@ test("journey 4b: rejecting records a rejection, and the browser cannot forge sc
   });
   expect(forged.status()).toBe(409);
   await page.locator("#approvals").getByRole("button", { name: "Reject" }).click();
-  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Blocked" })).toBeVisible();
+  await expect(page.locator("#tasks").getByText("Blocked", { exact: true })).toBeVisible();
   const decided = await runJson(page, runId);
   expect(decided.approvals[0].status).toBe("rejected");
+  expect(decided.status).toBe("active");
+  expect(decided.capability_requests[0].status).toBe("denied");
 });
 
 test("journey 5: a failed validation is shown honestly with its recovery", async ({ page }) => {

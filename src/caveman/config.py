@@ -12,6 +12,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+ORCHESTRATION_WORKFLOW = "workflow"
+ORCHESTRATION_MANAGER = "manager"
+
 EXECUTOR_PROVIDER = "provider"
 EXECUTOR_SCRIPTED = "scripted"
 
@@ -54,6 +57,9 @@ class Settings:
     api_token: str
     environment: str = "development"
     executor: str = EXECUTOR_PROVIDER
+    # workflow: plain code drives plan/delegate/validate/review/accept; models
+    # plan, work and review. manager: the Manager model drives every step.
+    orchestration: str = ORCHESTRATION_WORKFLOW
     # Spending is bounded by default: every run gets a USD ceiling (enforced on
     # provider-reported cost) and a model-call ceiling (which also bounds calls
     # whose cost the provider did not report).
@@ -108,6 +114,11 @@ class Settings:
             raise SettingsError(
                 "The scripted test executor drives runs with scripted models and is refused "
                 "when CAVEMAN_ENV=production.")
+        orchestration = values.get("CAVEMAN_ORCHESTRATION", ORCHESTRATION_WORKFLOW).strip().lower()
+        if orchestration not in {ORCHESTRATION_WORKFLOW, ORCHESTRATION_MANAGER}:
+            raise SettingsError(
+                f"CAVEMAN_ORCHESTRATION must be '{ORCHESTRATION_WORKFLOW}' or '{ORCHESTRATION_MANAGER}'; "
+                f"got {orchestration!r}.")
         data_dir = Path(values.get("CAVEMAN_DATA_DIR", ".local/caveman")).expanduser().resolve()
         default_budget = _float(values, "CAVEMAN_DEFAULT_BUDGET_USD", 5.0, minimum=0.01)
         max_budget = _float(values, "CAVEMAN_MAX_BUDGET_USD", 100.0, minimum=0.01)
@@ -118,6 +129,7 @@ class Settings:
             api_token=token,
             environment=environment,
             executor=executor,
+            orchestration=orchestration,
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,
             default_max_model_calls=_int(values, "CAVEMAN_DEFAULT_MAX_MODEL_CALLS", 300),

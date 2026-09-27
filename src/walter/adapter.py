@@ -87,6 +87,35 @@ def _excerpt(evidence: str) -> str:
     return f"[...{omitted} earlier characters omitted...]" + evidence[-MAX_EVIDENCE_EXCERPT_CHARS:]
 
 
+def _worker_exception_class(exc: BaseException):
+    """Classify a worker invocation error by what actually went wrong.
+
+    Only recognised causes get a specific class; anything else stays
+    TOOL_FAILURE, which escalates rather than retrying blindly.
+    """
+    from .models import FailureClass
+    from .usage import UsageBudgetExceeded
+
+    if isinstance(exc, UsageBudgetExceeded):
+        return FailureClass.TIMEOUT  # interrupted by the run's budget before submission
+    if isinstance(exc, TypeError) and "unexpected structured output" in str(exc):
+        return FailureClass.BAD_OUTPUT
+    try:
+        import openai
+        if isinstance(exc, (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError,
+                            openai.InternalServerError)):
+            return FailureClass.PROVIDER_FAILURE
+    except ImportError:  # pragma: no cover - the SDK always ships openai
+        pass
+    try:
+        from agents.exceptions import MaxTurnsExceeded
+        if isinstance(exc, MaxTurnsExceeded):
+            return FailureClass.BAD_OUTPUT
+    except ImportError:  # pragma: no cover
+        pass
+    return FailureClass.TOOL_FAILURE
+
+
 def workspace_tools(manager, workspace_id: str, worker_id: str, *, writable: bool, reads=None):
     """Closures bind authority; no model-controlled workspace or worker identifiers."""
     @tool
@@ -723,11 +752,14 @@ class DurableController:
         return self.inspect()
 
     async def _invoke(self, *, name, instructions, output_type, tools, input,
-                      task_id, worker_id, role, assignment_id=None):
+                      task_id, worker_id, role, assignment_id=None, use_manager_model=False):
         config = self.configuration()
-        _, model = runtime.build_models(config)
+        manager_model, model = runtime.build_models(config)
+        model_name = config.worker_model
+        if use_manager_model:
+            model, model_name = manager_model, config.manager_model
         model = UsageRecordingModel(model, self.core, self.run_id, provider=config.provider,
-                                    model=config.worker_model, role=role, task_id=task_id,
+                                    model=model_name, role=role, task_id=task_id,
                                     assignment_id=assignment_id, worker_id=worker_id,
                                     budget=config.budget)
         structured = hasattr(output_type, "model_validate_json")
@@ -1098,7 +1130,7 @@ class DurableController:
             try:
                 self.core.fail_assignment(
                     self.run_id, task_id, assignment.id, worker_id,
-                    FailureClass.TOOL_FAILURE,
+                    _worker_exception_class(exc),
                     f"Worker execution failed: {type(exc).__name__}: {exc}",
                 )
             except Exception:

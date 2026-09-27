@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 from collections.abc import Callable
 
+from agents.models.interface import Model
 from agents.testing import ScriptedModel, assistant_message, function_call
 from agents.usage import Usage
 
@@ -393,12 +395,114 @@ def build_scripts(scenario: str, kind: str, load_run: Callable) -> tuple[list, l
     raise ValueError(f"Unknown scripted scenario {scenario}")
 
 
+# Workflow-mode scripts -------------------------------------------------------
+#
+# In workflow mode the "manager" model only plans, and specialists for
+# independent tasks run concurrently, so one ordered script cannot describe
+# them. Specialist steps are therefore keyed by (task_id, role) and routed by
+# the task named in each call's input.
+
+_TASK_ID = re.compile(r'\\?"task_id\\?":\s*\\?"([A-Za-z0-9_.:-]+)')
+
+
+class _RoutedModel(Model):
+    def __init__(self, scripts: dict[tuple[str, str], list], delay: float):
+        self._models = {key: _PacedModel(steps, delay) for key, steps in scripts.items()}
+
+    def _route(self, system_instructions, input) -> _PacedModel:
+        role = "reviewer" if (system_instructions or "").startswith("You are a fresh independent reviewer") else "worker"
+        match = _TASK_ID.search(input if isinstance(input, str) else json.dumps(input, default=str))
+        key = (match.group(1) if match else "", role)
+        if key not in self._models:
+            raise RuntimeError(f"No scripted steps for {key}")
+        return self._models[key]
+
+    async def get_response(self, system_instructions, input, *args, **kwargs):
+        return await self._route(system_instructions, input).get_response(system_instructions, input, *args, **kwargs)
+
+    async def stream_response(self, *args, **kwargs):
+        raise NotImplementedError("Scripted workflow models do not stream")
+        yield  # pragma: no cover
+
+    def get_retry_advice(self, request):
+        return None
+
+    async def close(self):
+        return None
+
+
+def _plan(criteria: list[str], tasks: list[tuple[dict, str, list[str], list[int]]]) -> dict:
+    return _message(json.dumps({"criteria": criteria, "tasks": [
+        {"packet": packet, "capability": capability, "checks": checks, "covers": covers}
+        for packet, capability, checks, covers in tasks]}))
+
+
+def build_workflow_scripts(scenario: str, kind: str) -> tuple[list, dict]:
+    """Return (planner_steps, {(task_id, role): steps}) for one job of a scenario."""
+    review_pass = _review(True, "Candidate satisfies every acceptance criterion")
+    reviewer = [_tool("read_file", {"path": "booking.py"}, "review-read"), review_pass]
+    retry = lambda task_id: [_tool("inspect_diff", {}, f"{task_id}-retry-diff"),  # noqa: E731
+                             _worker_result(task_id, "Verified the carried-over work on the latest code.",
+                                            "Rebased onto integrated code")]
+    if scenario == "complete":
+        return [_plan([SPEC_CRITERION, CORE_CRITERION], [
+            (_SPEC_PACKET, "model_only", ["result_schema"], [0]),
+            ({**_CORE_PACKET, "dependencies": ["spec"]}, "developer_sandbox", ["compile", "pytest"], [1])])], {
+            ("spec", "worker"): [_worker_result(
+                "spec", "Specification: clients pick an open hourly slot between 10:00 and 18:00; a slot can "
+                "be booked once; double booking is refused.", "Specification written")],
+            ("spec", "reviewer"): [review_pass],
+            ("core", "worker"): _write_code("core", BOOKING_MODULE),
+            ("core", "reviewer"): list(reviewer)}
+    if scenario == "fail-validation":
+        return [_plan([CORE_CRITERION], [(_CORE_PACKET, "developer_sandbox", ["pytest"], [0])])], {
+            ("core", "worker"): [*_write_code("v1", BROKEN_MODULE), *_write_code("v2", BOOKING_MODULE)],
+            ("core", "reviewer"): list(reviewer)}
+    if scenario == "dependent":
+        api_criterion = "Booking endpoint logic builds on the accepted core with passing tests"
+        return [_plan([CORE_CRITERION, api_criterion], [
+            (_CORE_PACKET, "developer_sandbox", ["pytest"], [0]),
+            ({**_API_PACKET, "dependencies": ["core"]}, "developer_sandbox", ["pytest", "pytest_regression"], [1])])], {
+            ("core", "worker"): _write_code("core", BOOKING_MODULE),
+            ("core", "reviewer"): list(reviewer),
+            ("api", "worker"): _write("api", "api", {"api.py": API_MODULE, "test_api.py": API_TESTS},
+                                      "Endpoint logic written"),
+            ("api", "reviewer"): [_tool("read_file", {"path": "api.py"}, "review-api"), review_pass]}
+    if scenario == "parallel":
+        notify_criterion = "Reminder text implemented with passing sandboxed tests"
+        # Both tasks run at once; whichever is accepted second is rebuilt on the
+        # integrated first, so both carry optional retry steps.
+        return [_plan([CORE_CRITERION, notify_criterion], [
+            (_CORE_PACKET, "developer_sandbox", ["pytest"], [0]),
+            (_NOTIFY_PACKET, "developer_sandbox", ["pytest"], [1])])], {
+            ("core", "worker"): [*_write_code("core", BOOKING_MODULE), *retry("core")],
+            ("core", "reviewer"): reviewer + reviewer,
+            ("notify", "worker"): [*_write("notify", "notify", {"notify.py": NOTIFY_MODULE,
+                                                                 "test_notify.py": NOTIFY_TESTS},
+                                           "Reminder text written"), *retry("notify")],
+            ("notify", "reviewer"): [_tool("read_file", {"path": "notify.py"}, "r1"), review_pass,
+                                     _tool("read_file", {"path": "notify.py"}, "r2"), review_pass]}
+    if scenario == "approval":
+        if kind == "start":
+            # The plan under-provisions the task; its specialist asks for a sandbox.
+            return [_plan([CORE_CRITERION], [(_CORE_PACKET, "model_only", ["pytest"], [0])])], {
+                ("core", "worker"): [_message(json.dumps({
+                    "task_id": "core", "status": "blocked", "summary": "Needs a sandbox to write and test code",
+                    "deliverable": "", "blocker": "No write or test tools were granted",
+                    "capability_request": {"requested_capability": "developer_sandbox",
+                                           "reason": "Writing booking.py and running its tests needs a sandbox",
+                                           "risk": "Executes candidate code inside the isolated sandbox"}}))]}
+        return [], {("core", "worker"): _write_code("core", BOOKING_MODULE), ("core", "reviewer"): list(reviewer)}
+    raise ValueError(f"Unknown scripted scenario {scenario}")
+
+
 class ScriptedProvider:
     """Registered with the runtime's provider seam; one model pair per job."""
 
-    def __init__(self, load_run_for: Callable[[str], Callable], delay: float):
+    def __init__(self, load_run_for: Callable[[str], Callable], delay: float, *, workflow: bool = False):
         self._load_run_for = load_run_for
         self._delay = delay
+        self._workflow = workflow
         self._pairs: dict[str, tuple] = {}
         self._jobs: dict[str, tuple[str, str]] = {}
         self._lock = threading.Lock()
@@ -419,8 +523,13 @@ class ScriptedProvider:
                 run_id, kind = self._jobs[job_key]
                 load_run = self._load_run_for(run_id)
                 scenario = scenario_for(load_run().objective)
-                manager, worker = build_scripts(scenario, kind, load_run)
-                self._pairs[job_key] = (_PacedModel(manager, self._delay), _PacedModel(worker, self._delay))
+                if self._workflow:
+                    planner, specialists = build_workflow_scripts(scenario, kind)
+                    self._pairs[job_key] = (_PacedModel(planner, self._delay),
+                                            _RoutedModel(specialists, self._delay))
+                else:
+                    manager, worker = build_scripts(scenario, kind, load_run)
+                    self._pairs[job_key] = (_PacedModel(manager, self._delay), _PacedModel(worker, self._delay))
             return self._pairs[job_key]
 
 

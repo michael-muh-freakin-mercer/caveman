@@ -63,6 +63,11 @@ CREATE TABLE IF NOT EXISTS jobs(
 );
 CREATE INDEX IF NOT EXISTS jobs_run ON jobs(run_id, created_at);
 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
+CREATE TABLE IF NOT EXISTS workflow_state(
+  run_id TEXT PRIMARY KEY REFERENCES runs(id),
+  state_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS deliveries(
   run_id TEXT PRIMARY KEY REFERENCES runs(id),
   status TEXT NOT NULL,
@@ -346,6 +351,17 @@ class PlatformStore:
             else:
                 db.execute("UPDATE jobs SET cancel_requested=1 WHERE id=?", (row["id"],))
             return self._job(db.execute("SELECT * FROM jobs WHERE id=?", (row["id"],)).fetchone())
+
+    # Workflow state -------------------------------------------------------
+
+    def workflow_state(self, run_id: str) -> dict | None:
+        rows = self._query("SELECT state_json FROM workflow_state WHERE run_id=?", (run_id,))
+        return json.loads(rows[0]["state_json"]) if rows else None
+
+    def save_workflow_state(self, run_id: str, state: dict) -> None:
+        with self._write() as db:
+            db.execute("INSERT OR REPLACE INTO workflow_state VALUES(?,?,?)",
+                       (run_id, json.dumps(state, sort_keys=True), _now()))
 
     # Deliveries ---------------------------------------------------------
 

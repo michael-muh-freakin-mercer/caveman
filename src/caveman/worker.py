@@ -41,13 +41,16 @@ MESSAGES = {
 }
 
 
+PLATFORM_NOTES = ("Executable sandbox checks currently support Python only (compile, pytest). "
+                  "Deliver other stacks as reviewed documents or source files with Python-checkable "
+                  "components where possible, and say so honestly in the final result.")
+
+
 def build_objective_message(prompt: str, constraints: list[str]) -> str:
     lines = [prompt.strip()]
     if constraints:
         lines += ["", "Constraints from the user:"] + [f"- {c}" for c in constraints]
-    lines += ["", "Caveman platform notes: executable sandbox checks currently support Python only "
-              "(compile, pytest). Deliver other stacks as reviewed documents or source files with "
-              "Python-checkable components where possible, and say so honestly in the final result."]
+    lines += ["", "Caveman platform notes: " + PLATFORM_NOTES]
     return "\n".join(lines)
 
 
@@ -74,7 +77,8 @@ class Worker:
 
             def loader(run_id):
                 return lambda: self.engine.load(run_id)
-            self._scripted = ScriptedProvider(loader, settings.scripted_step_delay)
+            self._scripted = ScriptedProvider(loader, settings.scripted_step_delay,
+                                              workflow=settings.orchestration == "workflow")
             runtime.register_provider(PROVIDER, self._scripted)
 
     def close(self) -> None:
@@ -153,6 +157,9 @@ class Worker:
         from agents import RunConfig, Runner, SQLiteSession
         from agents.exceptions import MaxTurnsExceeded
 
+        from .config import ORCHESTRATION_WORKFLOW
+        from .workflow import WorkflowDriver
+
         store = SQLiteStore(self.settings.operations_db)
         session = SQLiteSession(job.run_id, str(self.settings.sessions_db))
         cancelled_by_user = False
@@ -160,10 +167,17 @@ class Worker:
             controller = DurableController(Orchestrator(store), job.run_id,
                                            WorkspaceManager(self.engine.project_repo(project_id)),
                                            config=config, integration=True)
-            agent = runtime.build_walter(controller)
-            task = asyncio.create_task(Runner.run(
-                agent, message, session=session, max_turns=self.settings.manager_max_turns,
-                run_config=RunConfig(trace_include_sensitive_data=False)))
+            if self.settings.orchestration == ORCHESTRATION_WORKFLOW:
+                driver = WorkflowDriver(
+                    controller, platform_notes=PLATFORM_NOTES,
+                    load_state=lambda: self.platform.workflow_state(job.run_id),
+                    save_state=lambda state: self.platform.save_workflow_state(job.run_id, state))
+                task = asyncio.create_task(driver.run())
+            else:
+                agent = runtime.build_walter(controller)
+                task = asyncio.create_task(Runner.run(
+                    agent, message, session=session, max_turns=self.settings.manager_max_turns,
+                    run_config=RunConfig(trace_include_sensitive_data=False)))
             while not task.done():
                 done, _ = await asyncio.wait({task}, timeout=self.settings.heartbeat_seconds)
                 if done:
@@ -177,7 +191,8 @@ class Worker:
                 if not cancelled_by_user:
                     raise
                 return "cancelled", "cancelled", "Stopped at your request. Continue the run to resume."
-            output = result.final_output if isinstance(result.final_output, str) else ""
+            output = result if isinstance(result, str) else (
+                result.final_output if isinstance(result.final_output, str) else "")
             return "succeeded", "succeeded", self.engine.redact(output, MAX_DETAIL_CHARS)
         except UsageBudgetExceeded as exc:
             return "failed", "budget_exceeded", self.engine.redact(str(exc), MAX_DETAIL_CHARS)
