@@ -75,6 +75,8 @@ class Settings:
     heartbeat_seconds: float = 5.0
     max_recoveries: int = 3
     scripted_step_delay: float = 0.25
+    # Prometheus scrape token; the metrics endpoint is disabled when unset.
+    metrics_token: str | None = None
     # Event streams end after this long; EventSource reconnects with Last-Event-ID.
     stream_max_seconds: float = 300.0
     stream_poll_seconds: float = 1.0
@@ -133,6 +135,7 @@ class Settings:
             environment=environment,
             executor=executor,
             orchestration=orchestration,
+            metrics_token=(values.get("CAVEMAN_METRICS_TOKEN") or "").strip() or None,
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,
             default_max_model_calls=_int(values, "CAVEMAN_DEFAULT_MAX_MODEL_CALLS", 300),

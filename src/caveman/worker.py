@@ -233,8 +233,8 @@ class Worker:
 
 
 def main(settings: Settings | None = None) -> None:
-    logging.basicConfig(level=os.getenv("CAVEMAN_LOG_LEVEL", "INFO"),
-                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    from .logs import configure_logging
+    configure_logging()
     settings = settings or Settings.from_env()
     from .sandbox_probe import probe
     usable, detail = probe()

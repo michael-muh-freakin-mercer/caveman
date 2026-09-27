@@ -352,6 +352,30 @@ class PlatformStore:
                 db.execute("UPDATE jobs SET cancel_requested=1 WHERE id=?", (row["id"],))
             return self._job(db.execute("SELECT * FROM jobs WHERE id=?", (row["id"],)).fetchone())
 
+    # Operations -----------------------------------------------------------
+
+    def job_counts(self) -> dict[tuple[str, str], int]:
+        rows = self._query("SELECT status, COALESCE(outcome, '') AS outcome, COUNT(*) AS n FROM jobs "
+                           "GROUP BY status, outcome")
+        return {(row["status"], row["outcome"]): row["n"] for row in rows}
+
+    def queue_stats(self, now: float | None = None) -> dict:
+        now = time.time() if now is None else now
+        queued = self._query("SELECT created_at FROM jobs WHERE status='queued' ORDER BY created_at LIMIT 1")
+        oldest = 0.0
+        if queued:
+            oldest = max(0.0, now - datetime.fromisoformat(queued[0]["created_at"]).timestamp())
+        expired = self._query("SELECT COUNT(*) AS n FROM jobs WHERE status='running' AND lease_expires < ?", (now,))
+        return {"oldest_queued_seconds": oldest, "expired_leases": expired[0]["n"]}
+
+    def all_runs(self) -> list[RunRecord]:
+        """Operator view across every owner; never reachable from a user request."""
+        return [self._run(row) for row in self._query("SELECT * FROM runs ORDER BY created_at DESC")]
+
+    def delivery_counts(self) -> dict[str, int]:
+        return {row["status"]: row["n"] for row in self._query(
+            "SELECT status, COUNT(*) AS n FROM deliveries GROUP BY status")}
+
     # Workflow state -------------------------------------------------------
 
     def workflow_state(self, run_id: str) -> dict | None:

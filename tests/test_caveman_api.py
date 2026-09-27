@@ -483,3 +483,45 @@ def test_account_monthly_call_cap_blocks_new_work_and_tightens_runs(settings):
         assert client.post(f"/api/runs/{first}/continue", json={}, headers=ALICE).status_code == 402
         # Other accounts are unaffected.
         assert client.post("/api/builds", json={"prompt": "Mallory's build"}, headers=MALLORY).status_code == 201
+
+
+def test_metrics_are_disabled_by_default_and_token_protected(settings):
+    from dataclasses import replace
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/metrics").status_code == 404
+    metered = replace(settings, metrics_token="m" * 32)
+    with TestClient(create_app(metered)) as client:
+        build(client)
+        assert client.get("/api/metrics").status_code == 401
+        assert client.get("/api/metrics", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
+        body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
+    assert 'caveman_jobs{status="queued",outcome=""} 1' in body
+    assert "caveman_runs 1" in body and "caveman_sandbox_available" in body
+
+
+def test_operator_commands_list_requeue_and_abandon(settings, capsys):
+    import argparse
+    from caveman.ops import run_ops
+    with TestClient(create_app(settings)) as client:
+        run_id = build(client)["run_id"]
+        client.post(f"/api/runs/{run_id}/stop", headers=ALICE)
+    assert run_ops(settings, argparse.Namespace(ops_command="list", attention=True)) == 0
+    [row] = json.loads(capsys.readouterr().out)
+    assert row["run_id"] == run_id and row["state"] == "paused" and row["owner"] == "alice"
+    assert run_ops(settings, argparse.Namespace(ops_command="requeue", run_id=run_id)) == 0
+    capsys.readouterr()
+    assert run_ops(settings, argparse.Namespace(ops_command="abandon", run_id=run_id, reason="cleanup")) == 1
+    platform = PlatformStore(settings.platform_db)
+    platform.request_cancel(run_id)
+    platform.close()
+    assert run_ops(settings, argparse.Namespace(ops_command="abandon", run_id=run_id, reason="cleanup")) == 0
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["status"] == "abandoned"
+
+
+def test_json_log_format_is_one_object_per_line():
+    import logging
+    from caveman.logs import JsonFormatter
+    record = logging.LogRecord("caveman.worker", logging.INFO, __file__, 1, "Job %s done", ("j1",), None)
+    record.run_id = "r1"
+    payload = json.loads(JsonFormatter().format(record))
+    assert payload["message"] == "Job j1 done" and payload["run_id"] == "r1" and payload["level"] == "INFO"

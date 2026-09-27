@@ -214,6 +214,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def health():
         return {"status": "ok", "service": "caveman-api", "version": __version__}
 
+    @app.get("/api/metrics")
+    def metrics(authorization: Annotated[str | None, Header()] = None):
+        from fastapi.responses import PlainTextResponse
+        if not settings.metrics_token:
+            raise HTTPException(404, "Not found.")
+        if not authorization or not hmac.compare_digest(authorization.encode(),
+                                                        f"Bearer {settings.metrics_token}".encode()):
+            raise HTTPException(401, "Missing or invalid metrics credentials.")
+        lines = ["# HELP caveman_jobs Jobs by status and outcome.", "# TYPE caveman_jobs gauge"]
+        for (status, outcome), count in sorted(platform.job_counts().items()):
+            lines.append(f'caveman_jobs{{status="{status}",outcome="{outcome}"}} {count}')
+        queue = platform.queue_stats()
+        lines += ["# HELP caveman_queue_oldest_seconds Age of the oldest queued job.",
+                  "# TYPE caveman_queue_oldest_seconds gauge",
+                  f"caveman_queue_oldest_seconds {queue['oldest_queued_seconds']:.1f}",
+                  "# HELP caveman_expired_leases Running jobs whose worker stopped heartbeating.",
+                  "# TYPE caveman_expired_leases gauge",
+                  f"caveman_expired_leases {queue['expired_leases']}",
+                  "# HELP caveman_runs Runs recorded on this server.", "# TYPE caveman_runs gauge",
+                  f"caveman_runs {len(platform.all_runs())}",
+                  "# HELP caveman_deliveries Delivery archives by status.", "# TYPE caveman_deliveries gauge"]
+        for status, count in sorted(platform.delivery_counts().items()):
+            lines.append(f'caveman_deliveries{{status="{status}"}} {count}')
+        sandbox = _sandbox_status()
+        lines += ["# HELP caveman_sandbox_available Whether isolation works on the API host.",
+                  "# TYPE caveman_sandbox_available gauge",
+                  f"caveman_sandbox_available {1 if sandbox['available'] else 0}"]
+        return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
+
     # System -----------------------------------------------------------
 
     @app.get("/api/system")

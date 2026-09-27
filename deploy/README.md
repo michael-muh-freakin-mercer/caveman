@@ -65,6 +65,16 @@ Never set up a worker without isolation. There is no host-execution fallback.
   store is SQLite. API and workers therefore need a shared POSIX volume
   (single host, or a volume with reliable file locking).
 
+## Operations
+
+- `GET /api/metrics` (Prometheus text) is enabled by `CAVEMAN_METRICS_TOKEN` and
+  requires it as a bearer token: jobs by status and outcome, age of the oldest
+  queued job, expired leases, runs, deliveries and sandbox availability.
+- `CAVEMAN_LOG_FORMAT=json` writes one JSON object per log line.
+- `caveman ops list [--attention]`, `caveman ops requeue RUN_ID` and
+  `caveman ops abandon RUN_ID --reason ...` act on durable state across all
+  accounts without spending credits; abandon uses the kernel's rules.
+
 ## Secrets
 
 - `OPENROUTER_API_KEY` belongs to workers only. Sandboxed commands run with a

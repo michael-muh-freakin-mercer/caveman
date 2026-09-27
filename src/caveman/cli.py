@@ -17,6 +17,15 @@ def main(argv: list[str] | None = None) -> None:
     api.add_argument("--host", default="127.0.0.1")
     api.add_argument("--port", type=int, default=8000)
     commands.add_parser("worker", help="Run a durable execution worker.")
+    ops = commands.add_parser("ops", help="Operator commands for runs across all accounts.")
+    ops_commands = ops.add_subparsers(dest="ops_command", required=True)
+    stuck = ops_commands.add_parser("list", help="List runs with their state (newest first).")
+    stuck.add_argument("--attention", action="store_true", help="Only runs that need an operator or user")
+    requeue = ops_commands.add_parser("requeue", help="Queue a recovery job for a run with no active job.")
+    requeue.add_argument("run_id")
+    abandon = ops_commands.add_parser("abandon", help="Close a run through the kernel's abandon rules.")
+    abandon.add_argument("run_id")
+    abandon.add_argument("--reason", required=True)
     args = parser.parse_args(argv)
     try:
         settings = Settings.from_env()
@@ -31,6 +40,9 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "worker":
         from .worker import main as worker_main
         worker_main(settings)
+    elif args.command == "ops":
+        from .ops import run_ops
+        raise SystemExit(run_ops(settings, args))
 
 
 if __name__ == "__main__":
