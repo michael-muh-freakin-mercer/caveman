@@ -1,0 +1,217 @@
+"""Durable run execution, decoupled from any HTTP request or browser connection.
+
+A worker claims one queued job at a time under a lease, heartbeats while the
+Manager runs, and records a plain outcome when it stops. Closing the browser
+does nothing to a run; killing the worker leaves an expired lease that the next
+worker converts into an explicit recovery job.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import signal
+import socket
+from dataclasses import replace
+from uuid import uuid4
+
+from walter import runtime
+from walter.adapter import DurableController
+from walter.orchestration import Orchestrator
+from walter.sandbox import WorkspaceManager
+from walter.store import SQLiteStore
+from walter.usage import UsageBudget, UsageBudgetExceeded
+
+from .config import EXECUTOR_SCRIPTED, Settings
+from .delivery import deliver_run
+from .engine import Engine
+from .platform_store import Job, PlatformStore
+from .views import Projector
+
+logger = logging.getLogger("caveman.worker")
+
+MAX_DETAIL_CHARS = 4000
+
+MESSAGES = {
+    "continue": ("Continue this durable run from its persisted state. Inspect it first. Human decisions "
+                 "on approvals may have changed since your last turn."),
+    "recover": ("Continue this durable run after an interruption. Inspect it first; interrupted "
+                "assignments were recorded as failed with TIMEOUT evidence and need an explicit "
+                "recovery decision."),
+}
+
+
+def build_objective_message(prompt: str, constraints: list[str]) -> str:
+    lines = [prompt.strip()]
+    if constraints:
+        lines += ["", "Constraints from the user:"] + [f"- {c}" for c in constraints]
+    lines += ["", "Caveman platform notes: executable sandbox checks currently support Python only "
+              "(compile, pytest). Deliver other stacks as reviewed documents or source files with "
+              "Python-checkable components where possible, and say so honestly in the final result."]
+    return "\n".join(lines)
+
+
+def _merge_budget(env_budget: UsageBudget | None, budget_usd: float, max_calls: int) -> UsageBudget:
+    """The stricter of the environment budget and the run's own ceiling wins."""
+    def stricter(a, b):
+        return b if a is None else a if b is None else min(a, b)
+    env_budget = env_budget or UsageBudget()
+    return replace(env_budget, max_calls=stricter(env_budget.max_calls, max_calls),
+                   max_cost_usd=stricter(env_budget.max_cost_usd, budget_usd))
+
+
+class Worker:
+    def __init__(self, settings: Settings, *, worker_id: str | None = None):
+        self.settings = settings
+        self.engine = Engine(settings)
+        self.platform = PlatformStore(settings.platform_db)
+        self.projector = Projector(self.engine.redact, settings)
+        self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{uuid4().hex[:8]}"
+        self._stopping = asyncio.Event()
+        self._scripted = None
+        if settings.executor == EXECUTOR_SCRIPTED:
+            from .scripted import PROVIDER, ScriptedProvider
+
+            def loader(run_id):
+                return lambda: self.engine.load(run_id)
+            self._scripted = ScriptedProvider(loader, settings.scripted_step_delay)
+            runtime.register_provider(PROVIDER, self._scripted)
+
+    def close(self) -> None:
+        self.platform.close()
+
+    def stop(self) -> None:
+        self._stopping.set()
+
+    async def run_forever(self, poll_seconds: float = 1.0) -> None:
+        logger.info("Caveman worker %s started (executor: %s)", self.worker_id, self.settings.executor)
+        while not self._stopping.is_set():
+            ran = await self.run_once()
+            if not ran:
+                try:
+                    await asyncio.wait_for(self._stopping.wait(), timeout=poll_seconds)
+                except asyncio.TimeoutError:
+                    pass
+
+    async def run_once(self) -> bool:
+        self.platform.reap_expired(self.settings.max_recoveries)
+        job = self.platform.claim(self.worker_id, self.settings.lease_seconds)
+        if job is None:
+            return False
+        await self.execute(job)
+        return True
+
+    def _config(self, job: Job, record):
+        if self.settings.executor == EXECUTOR_SCRIPTED:
+            from .scripted import scripted_config
+            key = f"scripted:{job.id}"
+            self._scripted.prepare(key, job.run_id, job.kind)
+            return scripted_config(key, _merge_budget(None, record.budget_usd, record.max_model_calls)), key
+        config = runtime.RuntimeConfig.from_env()
+        return replace(config, budget=_merge_budget(config.budget, record.budget_usd,
+                                                    record.max_model_calls)), None
+
+    async def execute(self, job: Job) -> None:
+        record = self.platform.run_by_id(job.run_id)
+        if record is None:
+            self.platform.finish(job.id, self.worker_id, "failed", "error", "Run record is missing.")
+            return
+        try:
+            run = self.engine.load(job.run_id)
+        except Exception as exc:  # corrupt or missing operational state
+            self.platform.finish(job.id, self.worker_id, "failed", "error",
+                                 self.engine.redact(f"Run state could not be loaded: {exc}", MAX_DETAIL_CHARS))
+            return
+        if run.status != "active":
+            self.platform.finish(job.id, self.worker_id, "succeeded", "terminal", "")
+            return
+        if job.kind == "recover":
+            self.engine.recover_interrupted(job.run_id)
+        scripted_key = None
+        try:
+            config, scripted_key = self._config(job, record)
+        except runtime.RuntimeConfigurationError as exc:
+            self.platform.finish(job.id, self.worker_id, "failed", "config_error",
+                                 self.engine.redact(str(exc), MAX_DETAIL_CHARS))
+            return
+        message = job.message or (build_objective_message(record.prompt, run.constraints)
+                                  if job.kind == "start" else MESSAGES[job.kind])
+        status, outcome, detail = await self._drive(job, record.project_id, config, message)
+        if scripted_key:
+            self._scripted.release(scripted_key)
+        if outcome == "cancelled" or outcome == "interrupted":
+            # The Manager was stopped mid-step; convert in-flight work to explicit
+            # TIMEOUT failures so the next Manager turn must decide recovery.
+            try:
+                self.engine.recover_interrupted(job.run_id)
+            except Exception:
+                logger.exception("Interruption recovery failed for run %s", job.run_id)
+        self.platform.finish(job.id, self.worker_id, status, outcome, detail)
+        self.deliver_if_complete(job.run_id)
+
+    async def _drive(self, job: Job, project_id: str, config, message: str) -> tuple[str, str, str]:
+        from agents import RunConfig, Runner, SQLiteSession
+        from agents.exceptions import MaxTurnsExceeded
+
+        store = SQLiteStore(self.settings.operations_db)
+        session = SQLiteSession(job.run_id, str(self.settings.sessions_db))
+        cancelled_by_user = False
+        try:
+            controller = DurableController(Orchestrator(store), job.run_id,
+                                           WorkspaceManager(self.engine.project_repo(project_id)),
+                                           config=config)
+            agent = runtime.build_walter(controller)
+            task = asyncio.create_task(Runner.run(
+                agent, message, session=session, max_turns=self.settings.manager_max_turns,
+                run_config=RunConfig(trace_include_sensitive_data=False)))
+            while not task.done():
+                done, _ = await asyncio.wait({task}, timeout=self.settings.heartbeat_seconds)
+                if done:
+                    break
+                if self.platform.heartbeat(job.id, self.worker_id, self.settings.lease_seconds):
+                    cancelled_by_user = True
+                    task.cancel()
+            try:
+                result = await task
+            except asyncio.CancelledError:
+                if not cancelled_by_user:
+                    raise
+                return "cancelled", "cancelled", "Stopped at your request. Continue the run to resume."
+            output = result.final_output if isinstance(result.final_output, str) else ""
+            return "succeeded", "succeeded", self.engine.redact(output, MAX_DETAIL_CHARS)
+        except UsageBudgetExceeded as exc:
+            return "failed", "budget_exceeded", self.engine.redact(str(exc), MAX_DETAIL_CHARS)
+        except MaxTurnsExceeded:
+            return "failed", "turn_limit", "The Manager used its turn allowance for this session."
+        except runtime.RuntimeConfigurationError as exc:
+            return "failed", "config_error", self.engine.redact(str(exc), MAX_DETAIL_CHARS)
+        except Exception as exc:
+            logger.exception("Job %s failed", job.id)
+            return "failed", "error", self.engine.redact(f"{type(exc).__name__}: {exc}", MAX_DETAIL_CHARS)
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+            store.close()
+
+    def deliver_if_complete(self, run_id: str) -> None:
+        deliver_run(self.engine, self.platform, self.projector, run_id)
+
+
+def main(settings: Settings | None = None) -> None:
+    logging.basicConfig(level=os.getenv("CAVEMAN_LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    settings = settings or Settings.from_env()
+    worker = Worker(settings)
+
+    async def runner():
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, worker.stop)
+        await worker.run_forever()
+
+    try:
+        asyncio.run(runner())
+    finally:
+        worker.close()

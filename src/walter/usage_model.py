@@ -6,7 +6,7 @@ import logging
 from agents.models.interface import Model
 
 from .models import ModelUsageRecord
-from .usage import UsageBudget
+from .usage import UsageBudget, usage_cost
 
 
 class UsageRecordingModel(Model):
@@ -40,6 +40,7 @@ class UsageRecordingModel(Model):
                 input_tokens_used=sum(r.input_tokens or 0 for r in records),
                 output_tokens_used=sum(r.output_tokens or 0 for r in records),
                 total_tokens_used=sum(r.total_tokens or 0 for r in records),
+                cost_used_usd=sum(usage_cost(r.raw_usage) or 0.0 for r in records),
             )
         # Preserve field presence before the SDK replaces absent provider usage
         # with zero counters. Do not mutate shared agent settings.

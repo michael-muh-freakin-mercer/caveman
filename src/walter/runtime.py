@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from urllib.parse import urlparse
@@ -108,6 +108,20 @@ class RuntimeConfig:
             "max_output_tokens": _optional_non_negative_int(values, "WALTER_MAX_OUTPUT_TOKENS"),
             "max_total_tokens": _optional_non_negative_int(values, "WALTER_MAX_TOTAL_TOKENS"),
         }
+        raw_cost = values.get("WALTER_MAX_COST_USD")
+        max_cost = None
+        if raw_cost is not None:
+            try:
+                max_cost = float(raw_cost.strip())
+            except ValueError:
+                raise RuntimeConfigurationError(
+                    f"WALTER_MAX_COST_USD must be a non-negative number; got {raw_cost!r}."
+                ) from None
+            if max_cost < 0 or max_cost != max_cost:
+                raise RuntimeConfigurationError(
+                    f"WALTER_MAX_COST_USD must be a non-negative number; got {raw_cost!r}."
+                )
+        budget_values["max_cost_usd"] = max_cost
         budget = (
             UsageBudget(**budget_values)
             if any(value is not None for value in budget_values.values())
@@ -163,11 +177,29 @@ def _openrouter_model(model_name: str, config: RuntimeConfig) -> OpenAIChatCompl
     )
 
 
+# Additional model providers, keyed by RuntimeConfig.provider. Each factory
+# returns (manager_model, worker_model) for a programmatically constructed
+# config. Environment configuration (RuntimeConfig.from_env) still accepts only
+# OpenRouter; registration is the seam for further providers and for the
+# offline scripted executor, never a way for model output to pick a provider.
+_PROVIDER_FACTORIES: dict[str, Callable[[RuntimeConfig], tuple]] = {}
+
+
+def register_provider(name: str, factory: Callable[[RuntimeConfig], tuple]) -> None:
+    if not name.strip() or name == "openrouter":
+        raise ValueError("Provider name must be substantive and must not replace openrouter")
+    _PROVIDER_FACTORIES[name] = factory
+
+
 def build_models(config: RuntimeConfig) -> tuple[OpenAIChatCompletionsModel, OpenAIChatCompletionsModel]:
     if config.provider != "openrouter":
-        raise RuntimeConfigurationError(
-            f"Unsupported WALTER_MODEL_PROVIDER={config.provider!r}; only 'openrouter' is supported."
-        )
+        factory = _PROVIDER_FACTORIES.get(config.provider)
+        if factory is None:
+            raise RuntimeConfigurationError(
+                f"Unsupported WALTER_MODEL_PROVIDER={config.provider!r}; only 'openrouter' is supported."
+            )
+        set_tracing_disabled(True)
+        return factory(config)
     set_tracing_disabled(True)
     return (
         _openrouter_model(config.manager_model, config),
@@ -210,7 +242,10 @@ def _trace_sensitive_enabled() -> bool:
 def build_walter(controller) -> Agent:
     """Build the Walter Manager using the repository doctrine plus the Agents SDK adapter."""
 
-    config = RuntimeConfig.from_env()
+    # A controller may carry a per-run configuration (for example a per-run
+    # spend ceiling set by the Caveman platform); otherwise use the environment.
+    configure = getattr(controller, "configuration", None)
+    config = configure() if callable(configure) else RuntimeConfig.from_env()
     manager_model, _ = build_models(config)
     from .usage_model import UsageRecordingModel
 

@@ -214,3 +214,38 @@ def test_manager_uses_durable_controller_when_supplied(monkeypatch):
     assert model.core is controller.core
     assert model.run_id == controller.run_id
     assert model.identity["role"] == "manager"
+
+
+def test_spend_ceiling_is_parsed_and_validated():
+    config = runtime.RuntimeConfig.from_env(
+        {"OPENROUTER_API_KEY": "test", "WALTER_MAX_COST_USD": "2.5"})
+    assert config.budget == UsageBudget(max_cost_usd=2.5)
+    for value in ("-1", "lots", "nan"):
+        with pytest.raises(runtime.RuntimeConfigurationError, match="WALTER_MAX_COST_USD"):
+            runtime.RuntimeConfig.from_env(
+                {"OPENROUTER_API_KEY": "test", "WALTER_MAX_COST_USD": value})
+
+
+def test_build_walter_prefers_controller_configuration(monkeypatch):
+    budget = UsageBudget(max_cost_usd=1.0)
+    per_run = runtime.RuntimeConfig(
+        "openrouter", "key", "https://openrouter.ai/api/v1", "manager", "worker", budget)
+
+    class Controller:
+        core = object()
+        run_id = "run-test"
+
+        def instructions(self):
+            return "durable instructions"
+
+        def tools(self):
+            return []
+
+        def configuration(self):
+            return per_run
+
+    monkeypatch.setattr(runtime.RuntimeConfig, "from_env",
+                        classmethod(lambda cls: pytest.fail("environment must not be consulted")))
+    monkeypatch.setattr(runtime, "build_models", lambda value: (object(), object()))
+    monkeypatch.setattr(runtime, "_agent", lambda **kwargs: kwargs)
+    assert runtime.build_walter(Controller())["model"].budget is budget

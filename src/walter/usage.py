@@ -22,11 +22,16 @@ class UsageBudget:
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
     max_total_tokens: int | None = None
+    # Provider-reported spend ceiling in USD. Only calls whose provider response
+    # reported a cost count toward it, so a ceiling should always be paired with
+    # a call or token ceiling that bounds calls of unknown cost.
+    max_cost_usd: float | None = None
 
     def check(self, *, calls_used: int, input_tokens_used: int,
             output_tokens_used: int, total_tokens_used: int,
             requested_input_tokens: int | None = None,
-            requested_output_tokens: int | None = None) -> None:
+            requested_output_tokens: int | None = None,
+            cost_used_usd: float = 0.0) -> None:
         requested_input_tokens = requested_input_tokens or 0
         requested_output_tokens = requested_output_tokens or 0
         requested_total = requested_input_tokens + requested_output_tokens
@@ -41,6 +46,8 @@ class UsageBudget:
         if (self.max_total_tokens is not None and
                 total_tokens_used + requested_total > self.max_total_tokens):
             raise UsageBudgetExceeded("Total-token budget exhausted")
+        if self.max_cost_usd is not None and cost_used_usd >= self.max_cost_usd:
+            raise UsageBudgetExceeded("Spend budget exhausted")
 
 
 def usage_mapping(value: object | None) -> dict[str, object]:
@@ -91,3 +98,42 @@ def token_counts(value: object | None) -> tuple[int | None, int | None, int | No
     if total_tokens is None and input_tokens is not None and output_tokens is not None:
         total_tokens = input_tokens + output_tokens
     return input_tokens, output_tokens, total_tokens
+
+
+def _number(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def usage_cost(value: object | None) -> float | None:
+    """Provider-reported cost in USD, or None when the provider reported none.
+
+    OpenRouter reports ``usage.cost`` in credits denominated in USD. The value is
+    never estimated from token counts here: an unknown cost stays unknown.
+    """
+    usage = usage_mapping(value)
+    for key in ("cost", "total_cost"):
+        cost = _number(usage.get(key))
+        if cost is not None and cost >= 0:
+            return cost
+    return None
+
+
+def cached_tokens(value: object | None) -> int | None:
+    """Prompt tokens served from a provider cache, when the provider reports them."""
+    usage = usage_mapping(value)
+    for details_key in ("prompt_tokens_details", "input_tokens_details"):
+        details = usage.get(details_key)
+        if isinstance(details, Mapping):
+            cached = _integer(details.get("cached_tokens"))
+            if cached is not None:
+                return cached
+    return _integer(usage.get("cached_tokens"))
