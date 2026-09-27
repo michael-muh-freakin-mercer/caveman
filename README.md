@@ -478,9 +478,15 @@ escalates to a human for:
 - external communication on the human's behalf;
 - secrets, credentials, or privileged access;
 - permission, sandbox, or safety-boundary changes;
-- material scope change — including **every** replan the Manager authors at
-  runtime, regardless of how minor the model judges it;
+- material scope change — a replan that adds or removes tasks, rewires
+  dependencies, or would supersede accepted work. The kernel makes that call
+  from the proposal's structure, not from the model's own risk assessment;
 - capability escalation beyond standing Manager authority.
+
+A replan that only reopens work which never reached `ACCEPTED` applies on
+Walter's own authority, because it discards nothing you were shown. That
+assessment is re-derived at apply time, so a proposal whose impact grew while it
+waited is refused rather than applied on a stale judgement.
 
 Approvals are lifecycle objects bound to one exact action and a canonical scope
 digest. Change the artifact, branch, base revision, diff, target, or consequence
@@ -606,7 +612,11 @@ building next and how we will measure it.
   snapshots.
 - Typed, scope-digest-bound approvals; typed worker capability escalation with
   atomic, idempotent application.
-- Bounded recovery routes and approval-gated replanning.
+- Bounded recovery routes, and replanning gated on kernel-assessed materiality.
+- A bounded model-facing read path, so Manager context does not grow with
+  candidate size.
+- No-op candidate refusal: a developer lane that changed no file is handed back
+  before a sandbox execution is spent on it.
 - Fail-closed Bubblewrap execution with signed workspace grants, candidate
   fingerprints, and template-bound commands.
 - Per-run usage budgets with clean exhaustion reporting, and per-call usage

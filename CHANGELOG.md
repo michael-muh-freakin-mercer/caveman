@@ -30,6 +30,39 @@
   than it looks, and the doctrine/safety-path rules.
 
 ### Changed
+- **Replan materiality is decided by the kernel, not asserted by the model.**
+  Every model-authored replan previously waited for human approval, which
+  contradicted the promise that Walter keeps going on its own and in practice
+  cost the operator a round-trip just to unstick a run whose attempt budget was
+  exhausted — exactly what happened in run `a892546081ce`.
+  `Orchestrator.replan_materiality` now derives the answer from the proposal's
+  structure and current durable state: a proposal that only reopens tasks which
+  never reached `ACCEPTED` discards nothing the human was shown and applies
+  autonomously, while adding or removing tasks, rewiring dependencies,
+  superseding accepted work, or changing nothing at all stays gated. The model's
+  own trigger, risk and evidence text is never consulted, so a model cannot talk
+  its way past the gate — nor accidentally gate a harmless proposal by
+  describing it dramatically.
+
+  `DurableController.apply_replan` re-derives the assessment before applying,
+  because a proposal authored as autonomous can become material while it waits —
+  an upstream task reaching `ACCEPTED` is enough, and that does not make the
+  proposal stale. The kernel continues to honor the `requires_approval` flag for
+  trusted programmatic callers, whose authority is established independently;
+  that facility is documented in `OPERATING_MODEL.md` and is not delegated to
+  the model.
+
+- **A developer lane that changed nothing is refused before submission.** A
+  worker claiming `completed` with an empty candidate diff produced nothing to
+  inspect. Trusted validation caught it, but only after a sandbox execution and
+  the further Manager turns spent discovering why. The claim is now checked
+  against the trusted diff at the adapter boundary, classified `BAD_OUTPUT` with
+  the worker's own summary preserved in the failure evidence, and routed to a
+  bounded revision. Read-only `repo_reader` lanes are exempt: their diff is
+  empty by construction. Note this saves the sandbox execution and the
+  diagnosis, not the attempt — `attempts` increments in `Orchestrator.delegate`,
+  before the worker runs.
+
 - **The model-facing read path is bounded by construction.** `inspect_run`
   returned the entire run snapshot — candidate bodies, task packets, approval
   scope documents, pytest logs and workspace diffs — so the Manager's context
@@ -72,6 +105,25 @@
   the current kernel would reject. Five candidate worktrees and branches were
   retired with `walter run cleanup`. The ledger holds 12 abandoned runs and 1
   completed run, with no orphan worktrees.
+
+### Verified
+- **First measured live run on the current worker path** (run
+  `8ab604c242e946b7b06ee76d1ebf4388`, external throwaway repository): completed
+  on the first attempt in 27 model calls and 156,219 tokens — Manager 12,
+  worker 12, reviewer 3. Both predeclared checks and an independent review
+  passed, the live checkout was never modified, and the Manager stopped at the
+  promotion boundary on its own. Full record in
+  `docs/baseline-2026-09-27.md`.
+
+  The worker made 12 calls, which is direct evidence that it used its granted
+  tools — a worker cannot write a file, inspect its diff and run a check in one
+  call. This settles a planned change: two-phase worker finalization was
+  conditional on this measurement showing single-call workers or turn-budget
+  losses, and it showed neither, so that work is dropped rather than built.
+
+  Orchestration overhead fell from 90% of calls to 44%, but this is not a
+  controlled comparison and is not claimed as one: the Manager model, the
+  objective, and the outcome all differ from run `a892546081ce`.
 
 ## Unreleased — 2026-09-22 rehearsal follow-ups
 

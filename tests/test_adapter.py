@@ -12,8 +12,9 @@ pytest.importorskip("agents")
 from walter.adapter import (DurableController, INITIAL_COMPLETION_CRITERION,
                             ReviewResult)
 from walter.contracts import TaskPacket, WorkerResult
-from walter.models import CapabilityProfile, CapabilityRequestStatus, FailureClass, TaskNode
-from walter.orchestration import Orchestrator
+from walter.models import (CapabilityProfile, CapabilityRequestStatus, FailureClass,
+                           ReplanProposal, TaskNode)
+from walter.orchestration import GateError, Orchestrator
 from walter.sandbox import CommandResult, WorkspaceManager
 from walter.store import SQLiteStore
 from walter.adapter import workspace_tools
@@ -62,6 +63,23 @@ class RecordingWorkspaceManager(WorkspaceManager):
         return CommandResult(0, "1 passed\n", "")
 
 
+def _write_candidate(controller, task_id="task", path="test_candidate.py",
+                     content="def test_candidate():\n    assert True\n"):
+    """Make a stubbed worker produce a real candidate change in its own workspace.
+
+    A `developer_sandbox` lane that returns completed without touching a file is
+    refused before submission, so a fixture standing in for a working developer
+    has to actually write something. Resolved at call time because a redelegated
+    attempt gets a fresh workspace and worker identity. The default path is a
+    root-level ``test_*.py`` so it satisfies both the ``compile`` and the
+    candidate-scoped ``pytest`` checks without needing a tests directory.
+    """
+    workspace_id = controller.inspect().tasks[task_id].workspace_id
+    grant = controller.workspaces.inspect_grant(workspace_id)
+    controller.workspaces.write_file(workspace_id, path, content,
+                                     worker_id=grant.worker_id)
+
+
 def _git_fixture(repository):
     """Initialize the fixture repository and commit its current contents."""
     subprocess.run(["git", "init", "-q", str(repository)], check=True)
@@ -84,6 +102,154 @@ def _developer_pytest_controller(tmp_path):
     )])
     manager = RecordingWorkspaceManager(repository)
     return DurableController(core, run.id, manager), manager
+
+
+def test_no_op_developer_candidate_is_refused_before_submission(tmp_path, monkeypatch):
+    """A developer lane that changed nothing never becomes a candidate.
+
+    Trusted validation would catch it, but only after a sandbox execution and
+    the Manager turns spent discovering why. Refuse it against the trusted diff
+    instead, and say so precisely.
+    """
+    controller, manager = _developer_pytest_controller(tmp_path)
+
+    async def claims_success_without_writing(**kwargs):
+        return WorkerResult(task_id="task", status="completed",
+                            summary="added the function", deliverable="trust me")
+
+    monkeypatch.setattr(controller, "_invoke", claims_success_without_writing)
+    returned = asyncio.run(controller.delegate("task"))
+
+    assert isinstance(returned, WorkerResult)
+    state = controller.inspect()
+    task = state.tasks["task"]
+    # No candidate exists, so nothing can be validated, reviewed or accepted.
+    assert task.artifact_ids == []
+    assert state.artifacts == {}
+    # The lane was classified and routed to a bounded revision.
+    assert task.status == "REVISION_REQUIRED"
+    assert state.failures[-1].classification == FailureClass.BAD_OUTPUT
+    assert "unchanged candidate workspace" in state.failures[-1].evidence
+    # The worker's own claim is preserved in the evidence rather than discarded.
+    assert "added the function" in state.failures[-1].evidence
+    # No sandbox execution was spent on a candidate that does not exist.
+    assert manager.executions == []
+
+
+def test_read_only_lane_is_exempt_from_the_no_op_refusal(tmp_path, monkeypatch):
+    """A repo_reader diff is empty by construction and must still submit."""
+    repository = tmp_path / "fixture"
+    repository.mkdir()
+    (repository / "README.md").write_text("# Fixture\n")
+    _git_fixture(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("scout", ["A written report cites repository facts"])
+    core.add_tasks(run.id, [TaskNode(
+        packet=packet(), capability=CapabilityProfile.REPO_READER,
+        required_checks=["result_schema"],
+    )])
+    controller = DurableController(core, run.id, RecordingWorkspaceManager(repository))
+
+    async def report(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="scouted",
+                            deliverable="README.md declares the fixture")
+
+    monkeypatch.setattr(controller, "_invoke", report)
+    artifact = asyncio.run(controller.delegate("task"))
+    assert controller.inspect().tasks["task"].status == "SUBMITTED"
+    assert artifact.content
+
+
+def test_autonomous_replan_needs_no_gate_and_material_one_still_does():
+    """Materiality is structural, and the model's own wording cannot move it."""
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    core.delegate(controller.run_id, "task", "worker")
+    core.start(controller.run_id, "task")
+    core.fail(controller.run_id, "task", FailureClass.TIMEOUT, "interrupted")
+    core.recover(controller.run_id, controller.inspect().failures[-1].id, "retry")
+
+    # Reopen-only against work that never reached ACCEPTED: autonomous, however
+    # alarming the model's trigger and risk text happens to sound.
+    reasons = core.replan_materiality(controller.run_id, ReplanProposal(
+        base_revision=0, trigger="CATASTROPHIC IRREVERSIBLE REWRITE",
+        evidence=["e"], reopen=["task"], risks=["destroys everything"]))
+    assert reasons == []
+
+    # Each structural change is material on its own.
+    assert core.replan_materiality(controller.run_id, ReplanProposal(
+        base_revision=0, trigger="t", evidence=["e"], remove=["task"])) == [
+            "removes 1 task(s)"]
+    assert core.replan_materiality(controller.run_id, ReplanProposal(
+        base_revision=0, trigger="t", evidence=["e"])) == ["changes nothing"]
+    rewire = core.replan_materiality(controller.run_id, ReplanProposal(
+        base_revision=0, trigger="t", evidence=["e"], reopen=["task"],
+        dependencies={"task": []}))
+    assert rewire == ["rewires task dependencies"]
+
+
+def test_reopening_accepted_work_stays_gated():
+    """Superseding an accepted artifact is the human's call, not the model's."""
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    assignment = core.delegate(controller.run_id, "task", "worker")
+    core.start(controller.run_id, "task")
+    core.submit(controller.run_id, "task", assignment.id, "worker",
+        WorkerResult(task_id="task", status="completed", summary="s", deliverable="d"))
+    artifact_id = controller.inspect().tasks["task"].artifact_ids[-1]
+    core.validate(controller.run_id, artifact_id, "result_schema", True, "checked",
+                  validator_id="executor")
+    core.review(controller.run_id, artifact_id, "reviewer", True, "reviewed")
+    core.accept(controller.run_id, "task", reason="gates passed")
+    assert controller.inspect().tasks["task"].status == "ACCEPTED"
+
+    reasons = core.replan_materiality(controller.run_id, ReplanProposal(
+        base_revision=0, trigger="t", evidence=["e"], reopen=["task"]))
+    assert reasons == ["would supersede accepted work: task"]
+    proposal, approval = controller.propose_replan(
+        trigger="redo accepted work", evidence=["new constraint"],
+        add=[], remove=[], reopen=["task"])
+    assert approval is not None and proposal.requires_approval is True
+    with pytest.raises(GateError, match="Exact scoped human approval required"):
+        controller.apply_replan(proposal.id)
+
+
+def test_autonomous_replan_that_becomes_material_is_refused_at_apply():
+    """The assessment is re-derived at apply time, not trusted from the flag."""
+    upstream = TaskNode(packet=packet("upstream"), required_checks=["result_schema"])
+    controller = controller_for(upstream)
+    core = controller.core
+    core.delegate(controller.run_id, "upstream", "worker")
+    core.start(controller.run_id, "upstream")
+    core.fail(controller.run_id, "upstream", FailureClass.TIMEOUT, "interrupted")
+    core.recover(controller.run_id, controller.inspect().failures[-1].id, "retry")
+
+    proposal, approval = controller.propose_replan(
+        trigger="reopen the failed lane", evidence=["transient provider fault"],
+        add=[], remove=[], reopen=["upstream"])
+    assert approval is None
+
+    # The lane succeeds before the Manager gets around to applying the proposal,
+    # so applying it would now supersede accepted work.
+    assignment = core.delegate(controller.run_id, "upstream", "worker-2")
+    core.start(controller.run_id, "upstream")
+    core.submit(controller.run_id, "upstream", assignment.id, "worker-2",
+        WorkerResult(task_id="upstream", status="completed", summary="s", deliverable="d"))
+    artifact_id = controller.inspect().tasks["upstream"].artifact_ids[-1]
+    core.validate(controller.run_id, artifact_id, "result_schema", True, "checked",
+                  validator_id="executor")
+    core.review(controller.run_id, artifact_id, "reviewer", True, "reviewed")
+    core.accept(controller.run_id, "upstream", reason="gates passed")
+
+    with pytest.raises(ValueError, match="no longer autonomous"):
+        controller.apply_replan(proposal.id)
+    assert controller.inspect().plan.revision == 0
+
+
+def test_unknown_replan_proposal_names_the_known_ones():
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    with pytest.raises(ValueError, match="Unknown replan proposal nope"):
+        controller.apply_replan("nope")
 
 
 def test_manager_tool_surface_has_no_trust_forging_tools():
@@ -349,6 +515,7 @@ def test_developer_revision_gets_fresh_workspace_and_cleans_old_candidate(tmp_pa
     controller = DurableController(core, run.id, workspaces)
 
     async def candidate(**kwargs):
+        _write_candidate(controller)
         return WorkerResult(task_id="task", status="completed", summary="candidate",
                             deliverable="bounded candidate")
 
@@ -692,6 +859,7 @@ def test_developer_lane_review_still_requires_candidate_inspection(tmp_path, mon
     controller, _ = _developer_pytest_controller(tmp_path)
 
     async def candidate(**kwargs):
+        _write_candidate(controller)
         return WorkerResult(task_id="task", status="completed", summary="candidate",
                             deliverable="bounded candidate")
 
@@ -861,6 +1029,7 @@ def test_exact_approved_capability_request_applies_persisted_profile(tmp_path, m
     assert reloaded_run.version == version
 
     async def completed(**kwargs):
+        _write_candidate(reloaded)
         return WorkerResult(task_id="task", status="completed", summary="implemented",
                             deliverable="approved workspace candidate")
 
@@ -1206,7 +1375,12 @@ def test_receipt_reports_the_budget_remaining_in_this_plan_revision():
     proposal, approval = controller.propose_replan(
         trigger="Materially different plan", evidence=["operator narrowed scope"],
         add=[], remove=[], reopen=["task"])
-    core.decide_approval(controller.run_id, approval.id, True, "human", "approved")
+    # Reopening work that only ever failed discards nothing anyone accepted, so
+    # the kernel classifies it as autonomous and no human gate is created. This
+    # is the case that previously cost the operator a round-trip just to unstick
+    # a run whose attempt budget was exhausted.
+    assert approval is None
+    assert proposal.requires_approval is False
     controller.apply_replan(proposal.id)
     reopened = json.loads(controller._receipt())["tasks"]["task"]
     # Lifetime history is preserved; the new revision states a usable budget.

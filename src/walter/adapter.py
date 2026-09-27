@@ -496,19 +496,31 @@ class DurableController:
             reopen=reopen,
             dependencies=dependencies,
             risks=risks or [],
-            # Model-supplied risk/materiality claims are not a trust boundary.
-            # Every runtime replan therefore waits for exact human approval.
-            requires_approval=True,
         )
-        scope = {"proposal_id": proposal.id, "base_revision": proposal.base_revision}
         # Refuse an unworkable proposal before the gate exists. Approval scope
         # binds to this exact proposal, so a rejected-then-corrected proposal
         # would otherwise cost the operator a full review round-trip per defect
         # (2026-09-22 decision from the pygtrie rehearsal).
         self.core.validate_replan(self.run_id, proposal)
+        # The kernel decides materiality from the proposal's structure and
+        # current durable state; the model's own trigger/risk text is not a
+        # trust boundary and is never consulted. A proposal that only reopens
+        # already-failed work, discarding nothing accepted, applies
+        # autonomously -- gating every replan contradicted the promise that
+        # Walter keeps going on its own, and in practice cost the operator a
+        # round-trip to unstick a run (2026-09-27 decision). apply_replan
+        # re-derives this, so an autonomous proposal that becomes material
+        # while it waits still fails closed.
+        reasons = self.core.replan_materiality(self.run_id, proposal)
+        if not reasons:
+            self.core.propose_replan(self.run_id, proposal)
+            return proposal, None
+        proposal.requires_approval = True
+        scope = {"proposal_id": proposal.id, "base_revision": proposal.base_revision}
         approval = self.core.request_approval(
             self.run_id, "replan", scope,
-            "Runtime replan requires human review of the exact persisted proposal",
+            "Runtime replan requires human review of the exact persisted proposal: "
+            + "; ".join(reasons),
             category="runtime_replan", target=self.run_id,
             risk="Model-authored plan changes may omit or understate material impact",
         )
@@ -517,6 +529,29 @@ class DurableController:
         return proposal, approval
 
     def apply_replan(self, proposal_id: str):
+        """Apply a persisted proposal, re-deriving materiality at the model boundary.
+
+        A proposal authored as autonomous can become material while it waits --
+        an upstream task reaching ACCEPTED is enough, and that does not make the
+        proposal stale -- so the assessment is recomputed here rather than
+        trusted from the stored flag. The kernel keeps honoring the flag for
+        trusted programmatic callers; this check is what stops the model-facing
+        path from applying a proposal whose impact grew after it was written.
+        """
+        run = self.inspect()
+        proposal = run.replans.get(proposal_id)
+        if proposal is None:
+            raise ValueError(
+                f"Unknown replan proposal {proposal_id}. "
+                f"Known proposals: {sorted(run.replans)}")
+        if not proposal.requires_approval:
+            reasons = self.core.replan_materiality(self.run_id, proposal)
+            if reasons:
+                raise ValueError(
+                    "This proposal is no longer autonomous: "
+                    + "; ".join(reasons)
+                    + ". Durable state changed since it was authored. Propose a "
+                    "replacement with replan_tasks so it is gated on its current impact.")
         self.core.apply_replan(self.run_id, proposal_id)
         return self.inspect()
 
@@ -926,11 +961,43 @@ class DurableController:
                 return result
             current = self.inspect().tasks[task_id]
             if current.workspace_id:
+                candidate_diff = self.workspaces.diff(current.workspace_id)
+                if (task.capability == CapabilityProfile.DEVELOPER_SANDBOX
+                        and not candidate_diff.strip()):
+                    # A developer lane that claims completion having changed no
+                    # file has produced nothing to inspect. Trusted validation
+                    # would catch it, but only after a sandbox execution and
+                    # further Manager turns spent discovering why; the worker's
+                    # own claim is refused here against the trusted diff
+                    # instead. Read-only lanes are exempt: their diff is empty
+                    # by construction (2026-09-27 decision).
+                    #
+                    # The attempt is already spent -- attempts increments in
+                    # Orchestrator.delegate, before the worker runs -- so this
+                    # saves the sandbox execution and the diagnosis, not the
+                    # attempt. No provisional result is recorded: the kernel
+                    # accepts those only for a self-declared blocked or
+                    # needs_revision worker, and this worker claimed success, so
+                    # its summary is preserved in the failure evidence instead.
+                    failure = self.core.fail_assignment(
+                        self.run_id, task_id, assignment.id, worker_id,
+                        FailureClass.BAD_OUTPUT,
+                        "Worker reported completed with an unchanged candidate workspace: "
+                        "no file was created, modified or deleted, so there is no candidate "
+                        "to validate. Redelegate with explicit direction to write the files "
+                        "and verify with inspect_diff. Worker summary: "
+                        + (result.summary.strip() or "(none)"),
+                    )
+                    self.core.recover(
+                        self.run_id, failure.id,
+                        "Commission a bounded revision: the lane produced no candidate change",
+                    )
+                    return result
                 fingerprint = self.workspaces.freeze(current.workspace_id)
                 # Trusted manifest is appended by the adapter, never obtained from model assertions.
                 result.deliverable += "\n\nWORKSPACE_MANIFEST=" + json.dumps({
                     "workspace_id": current.workspace_id, "fingerprint": fingerprint,
-                    "diff": self.workspaces.diff(current.workspace_id)})
+                    "diff": candidate_diff})
             return self.core.submit(self.run_id, task_id, assignment.id, worker_id, result,
                                     workspace_fingerprint=fingerprint)
         except Exception as exc:

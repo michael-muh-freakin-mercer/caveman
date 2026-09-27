@@ -12,7 +12,7 @@ No participant may collapse two authorities into one claim. Human approval recor
 
 ## Standing Manager authority
 
-The Manager may autonomously make reversible orchestration choices within the accepted objective: decompose and sequence work, assign profiles already allowed by policy, create/replace/retire workers, request corrections, commission review, classify failures, and accept artifacts that pass declared gates. Trusted programmatic callers may apply bounded low-impact replans through the core; every model-facing runtime replan is conservatively human approval-gated.
+The Manager may autonomously make reversible orchestration choices within the accepted objective: decompose and sequence work, assign profiles already allowed by policy, create/replace/retire workers, request corrections, commission review, classify failures, and accept artifacts that pass declared gates. It may also apply a replan that only reopens tasks which never reached `ACCEPTED`, because that discards nothing the human was shown; the kernel makes that determination structurally, and the model's own risk assessment is not consulted. Trusted programmatic callers may apply bounded low-impact replans through the core under their own declared authority.
 
 ## Human approval required
 

@@ -1098,6 +1098,63 @@ class Orchestrator:
             defects.append(f"resulting plan is invalid: {exc}")
         return defects
 
+    @staticmethod
+    def _replan_affected(run, proposal: ReplanProposal) -> set[str]:
+        """Every task this proposal would reset, including transitive consumers.
+
+        Consumers are resolved exactly as ``_input_artifact_ids`` resolves them,
+        so a task that names its upstream through ``required_inputs`` is
+        invalidated too. Missing one leaves an ACCEPTED task whose accepted
+        artifact cites superseded provenance.
+        """
+        affected = set(proposal.reopen + proposal.remove + list(proposal.dependencies))
+        affected &= set(run.tasks)
+        changed = True
+        while changed:
+            changed = False
+            artifact_ids = {a for key in affected for a in run.tasks[key].artifact_ids}
+            for key, task in run.tasks.items():
+                consumed = set(task.packet.dependencies) | set(task.packet.required_inputs)
+                if key not in affected and consumed & (affected | artifact_ids):
+                    affected.add(key)
+                    changed = True
+        return affected
+
+    def _replan_materiality(self, run, proposal: ReplanProposal) -> list[str]:
+        """Trusted reasons this proposal needs a human, or [] if it needs none.
+
+        Computed only from the persisted proposal's structure and current
+        durable state. Model-supplied trigger, risk and evidence text is never
+        consulted: a model that understates its own impact must not be able to
+        talk its way past the gate (2026-09-27 decision).
+
+        The narrow autonomous case is a proposal that only reopens work which
+        already failed, discarding nothing anyone has accepted. Anything that
+        adds or removes tasks, rewires the graph, or would supersede an
+        ACCEPTED artifact stays gated, because those change what the human has
+        already been shown or what authority the plan grants.
+        """
+        reasons: list[str] = []
+        if proposal.add:
+            reasons.append(f"adds {len(proposal.add)} task(s)")
+        if proposal.remove:
+            reasons.append(f"removes {len(proposal.remove)} task(s)")
+        if proposal.dependencies:
+            reasons.append("rewires task dependencies")
+        if not (proposal.reopen or proposal.add or proposal.remove or proposal.dependencies):
+            # A proposal that changes nothing still consumes a plan revision.
+            # Keep it gated rather than silently applying a no-op.
+            reasons.append("changes nothing")
+        discarded = sorted(key for key in self._replan_affected(run, proposal)
+                           if run.tasks[key].status == TaskStatus.ACCEPTED)
+        if discarded:
+            reasons.append("would supersede accepted work: " + ", ".join(discarded))
+        return reasons
+
+    def replan_materiality(self, run_id: str, proposal: ReplanProposal) -> list[str]:
+        """Public projection: the reasons this proposal requires human approval."""
+        return self._replan_materiality(self.get_run(run_id), proposal)
+
     def validate_replan(self, run_id: str, proposal: ReplanProposal) -> None:
         """Refuse an unworkable proposal before it can bind a human approval gate."""
         defects = self._replan_defects(self.get_run(run_id), proposal)
@@ -1129,22 +1186,14 @@ class Orchestrator:
             defects = self._replan_defects(run, proposal)
             if defects:
                 raise GateError("Invalid replan proposal: " + "; ".join(defects))
+            # The flag is the caller's declared authority. A trusted programmatic
+            # caller may apply a low-impact proposal directly (OPERATING_MODEL.md);
+            # the model-facing path never sets this itself -- DurableController
+            # derives it from _replan_materiality and re-derives it before
+            # applying, so the model cannot route around the gate.
             if proposal.requires_approval:
                 self._approved(run, proposal.approval_id, "replan", {"proposal_id":proposal.id, "base_revision":proposal.base_revision})
-            affected = set(proposal.reopen + proposal.remove + list(proposal.dependencies))
-            changed = True
-            while changed:
-                changed = False
-                artifact_ids = {a for key in affected for a in run.tasks[key].artifact_ids}
-                for key, task in run.tasks.items():
-                    # Consumers are resolved exactly as _input_artifact_ids resolves
-                    # them, so a task that names its upstream through required_inputs
-                    # is invalidated too. Missing one leaves an ACCEPTED task whose
-                    # accepted artifact cites superseded provenance.
-                    consumed = set(task.packet.dependencies) | set(task.packet.required_inputs)
-                    if key not in affected and consumed & (affected | artifact_ids):
-                        affected.add(key)
-                        changed = True
+            affected = self._replan_affected(run, proposal)
             for key in affected:
                 task = run.tasks[key]
                 for artifact_id in task.artifact_ids:

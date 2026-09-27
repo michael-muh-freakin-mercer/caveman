@@ -74,63 +74,64 @@ only:
   suite and the eval scenarios. The runner installs Bubblewrap and libseccomp and
   relaxes the AppArmor user-namespace restriction, so the sandbox tests execute
   for real instead of being skipped.
+- A bounded model-facing read path, so Manager context no longer grows with
+  candidate size.
 - Verification: offline suite green, 3/3 eval scenarios, readiness demo against
-  real Bubblewrap.
+  real Bubblewrap, and one measured live run on an external repository that
+  completed on the first attempt — 27 model calls, 156k tokens, both predeclared
+  checks and an independent review passed, live checkout untouched
+  ([docs/baseline-2026-09-27.md](docs/baseline-2026-09-27.md)).
 
 ### A note on the live evidence
 
-Every live-model datapoint in this repository was recorded on 2026-09-20: the
-end-to-end run that completed for ~$0.38 in 16 model calls, and the external-
-repository run that failed honestly. Both predate two changes to the path they
-exercised — the 2026-09-22 worker tool-calling fix, and the 2026-09-21 split of
-the `pytest` validation scopes. One of those stale runs declared a check named
-`unittest`, which no longer exists.
-
-So the current worker invocation path has no end-to-end live measurement. Those
-numbers are kept as history, not as claims about today. Establishing a fresh
+The measured baseline above is the only live datapoint that reflects current
+code. The earlier numbers — an end-to-end run that completed for ~$0.38 in 16
+model calls, and an external-repository run that failed honestly — were both
+recorded on 2026-09-20 and predate the 2026-09-22 worker tool-calling fix and
+the 2026-09-21 split of the `pytest` validation scopes. One of those runs
+declared a check named `unittest`, which no longer exists. They are kept as
+history, not as claims about today. Establishing a fresh
 baseline is the second item under *Now*.
 
 ---
 
 ## Now — worker reliability and loop cost
 
-The next release is about the Manager's own cost, and then about establishing
-what the current code actually does on a real objective.
+The next release is about the Manager's own cost.
 
-Ordered by evidence. The last instrumented run spent 19 Manager calls against 2
-worker calls — 90% of the spend went on orchestration overhead for a single-task
-objective that accepted nothing. Worker reliability matters, but Manager
-overhead dominates the bill, and unlike worker behavior it can be fixed and
-measured without spending a cent.
+Ordered by evidence. The 2026-09-27 baseline completed a single-task objective
+in 27 model calls, of which the Manager spent 12 and ~105k tokens — two thirds
+of total spend, and twice the ≤6-call target for work that size. Worker
+reliability is no longer the bottleneck on that evidence: the worker iterated
+with its tools across 12 calls and passed both predeclared checks on the first
+attempt.
 
-- **Bounded Manager reads.** `inspect_run` returned the whole run snapshot,
-  including artifact bodies and workspace diffs, so Walter's own context grew
-  with exactly the material Walter exists to keep out of context windows. The
-  read path is now a projection with explicit drill-down; the full snapshot
-  stays on the CLI.
-- **A measured live baseline.** One controlled run on a throwaway repository
-  against current code, with a token cap, recording Manager calls, worker calls,
-  tokens, cost, and outcome. Until that exists, every live number here is
-  historical.
-- **Pre-flight rejection of no-op candidates.** A developer lane that changed
-  nothing should be handed straight back, not charged an attempt and put through
-  validation.
-- **Two-phase worker finalization.** Let a worker use its tools, then take its
-  structured result in a separate tool-free call, so a worker that exhausts its
-  turns does not lose the work it already did. Conditional: only warranted if the
-  baseline shows single-call workers or turn-budget losses.
+- **Bounded Manager reads.** *Shipped 2026-09-27.* `inspect_run` returned the
+  whole run snapshot, including artifact bodies and workspace diffs, so Walter's
+  own context grew with exactly the material Walter exists to keep out of
+  context windows. The read path is now a projection with explicit drill-down;
+  the full snapshot stays on the CLI.
+- **A measured live baseline.** *Shipped 2026-09-27.* See
+  [docs/baseline-2026-09-27.md](docs/baseline-2026-09-27.md).
+- **Fewer Manager turns.** 12 Manager calls for one task is the open cost
+  problem. The next step is to establish where they go — turn-level accounting
+  of which tool each Manager call invoked — before optimizing, since guessing is
+  what produced the two stale roadmap items above.
+- **Pre-flight rejection of no-op candidates.** *Shipped 2026-09-27.* A developer
+  lane that changed nothing is handed straight back against the trusted diff,
+  before a sandbox execution and the Manager turns spent discovering why.
 - **Cost as a tested invariant.** Offline evals cannot measure chattiness — the
   scripted steps dictate the call count — so the offline assertion is a bound on
   Manager tool payload size as a run grows. Model calls per accepted artifact is
-  a live-only metric. Target: ≤6 median for a single-task objective.
+  a live-only metric. Target: ≤6 median for a single-task objective; currently 12.
 
 ## Next — autonomy that earns the name
 
-- **Kernel-decided replan materiality.** Every model-authored replan is human-
-  gated today, which contradicts the promise that Walter keeps going on its own.
-  Let the kernel auto-apply reopen-only proposals that add no task, no
-  capability, and no external effect, within the existing replan budget; keep
-  everything else gated.
+- **Kernel-decided replan materiality.** *Shipped 2026-09-27.* A replan that only
+  reopens work which never reached `ACCEPTED` now applies on Walter's own
+  authority; adding or removing tasks, rewiring dependencies, or superseding
+  accepted work stays gated. The kernel decides structurally and re-derives the
+  assessment at apply time, so the model's own risk wording never moves the gate.
 - **Separate Manager and worker model defaults,** and per-profile model
   selection. One model for both roles is the wrong default for two very
   different jobs.
