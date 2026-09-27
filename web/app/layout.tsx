@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   applicationName: "Caveman",
 };
 
+// Rendered per request so Next.js can stamp its scripts with the CSP nonce set in proxy.ts.
+export const dynamic = "force-dynamic";
+
 export const viewport: Viewport = {
   themeColor: "#0b0c0f",
   colorScheme: "dark",

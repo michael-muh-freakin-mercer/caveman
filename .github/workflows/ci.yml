@@ -67,6 +67,11 @@ jobs:
       - name: Offline evaluation scenarios
         run: .venv/bin/python evals/runner.py
 
+      - name: Dependency audit (Python)
+        run: |
+          .venv/bin/python -m pip install pip-audit
+          .venv/bin/pip-audit --skip-editable
+
   web:
     name: web (typecheck, lint, unit, build)
     runs-on: ubuntu-24.04
@@ -81,6 +86,8 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Dependency audit (runtime dependencies)
+        run: npm audit --omit=dev --audit-level=high
       - name: Type check
         run: npm run typecheck
       - name: Lint

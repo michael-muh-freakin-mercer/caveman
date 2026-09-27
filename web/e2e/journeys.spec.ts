@@ -170,3 +170,23 @@ test("a forgotten password is reset through the emailed link", async ({ browser 
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/app$/);
 });
+
+
+test("pages are served with a strict CSP and run without violations", async ({ page }) => {
+  const violations: string[] = [];
+  page.on("console", (message) => {
+    if (/Content.Security.Policy|Refused to (execute|load|apply)/i.test(message.text())) violations.push(message.text());
+  });
+  for (const path of ["/", "/how-it-works", "/pricing", "/docs", "/sign-in", "/does-not-exist"]) {
+    const response = await page.goto(path);
+    const policy = response!.headers()["content-security-policy"] ?? "";
+    expect(policy).toContain("script-src 'self' 'nonce-");
+    expect(policy).toContain("frame-ancestors 'none'");
+  }
+  await signUp(page);
+  await page.goto("/app/new");
+  await expect(page.getByLabel("What do you want to build?")).toBeVisible();
+  await page.getByLabel("What do you want to build?").fill("Build a CLI");
+  await expect(page.getByRole("button", { name: "Build it" })).toBeEnabled();
+  expect(violations).toEqual([]);
+});
