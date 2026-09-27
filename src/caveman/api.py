@@ -84,6 +84,13 @@ class AbandonRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
 
 
+class PublishRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    private: bool = True
+    confirm: Literal[True]
+    github_token: str = Field(min_length=10, max_length=500)
+
+
 class BudgetRequest(BaseModel):
     budget_usd: float = Field(gt=0)
 
@@ -199,10 +206,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "report": manifest.get("report"),
                 "downloadable": delivery.status == "ready" and bool(delivery.archive_name)}
 
+    def publication_view(run_id: str) -> dict | None:
+        found = platform.publication(run_id)
+        if found is None:
+            return None
+        return {"repository": found["repo_full_name"], "url": found["html_url"], "commit": found["commit_sha"],
+                "private": bool(found["private"]), "created_at": found["created_at"]}
+
     def detail(record: RunRecord) -> dict:
         run = engine.load(record.id)
-        return projector.run_detail(run, record, platform.jobs(record.id), engine.events(record.id),
+        view = projector.run_detail(run, record, platform.jobs(record.id), engine.events(record.id),
                                     project_name(record.project_id), delivery_view(record.id))
+        view["publication"] = publication_view(record.id)
+        return view
 
     @app.exception_handler(GateError)
     async def gate_error(_request, exc: GateError):
@@ -257,7 +273,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                            "account_monthly_calls": settings.account_monthly_max_calls,
                            "default_max_model_calls": settings.default_max_model_calls,
                            "warning_ratio": settings.budget_warning_ratio},
-                "capabilities": {"github_publish": False, "previews": False,
+                "capabilities": {"github_publish": True, "previews": False,
                                  "sandbox_toolchains": _toolchains()}}
 
     def require_account_allowance(user: str) -> None:
@@ -508,6 +524,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return delivery_view(record.id)
         deliver_run(engine, platform, projector, record.id, retry=True)
         return delivery_view(record.id)
+
+    @app.post("/api/runs/{run_id}/publish", status_code=201)
+    def publish(run_id: str, body: PublishRequest, user: User):
+        from .publish import REPO_NAME, GitHubClient, PublishError, push
+
+        record = owned_run(user, run_id)
+        if not REPO_NAME.fullmatch(body.name) or body.name.strip(".") == "":
+            raise HTTPException(422, "Repository names use letters, digits, '.', '-' and '_' only.")
+        if platform.publication(record.id) is not None:
+            raise HTTPException(409, "This run was already published.")
+        run = engine.load(record.id)
+        delivery = platform.delivery(record.id)
+        commit = (delivery.manifest.get("commit") if delivery and delivery.status == "ready" else None)
+        if run.status != "completed" or not commit:
+            raise HTTPException(409, "Only a completed run with a verified, integrated project can be published.")
+        client = GitHubClient(body.github_token, settings.github_api_url)
+        try:
+            created = client.create_repository(body.name, body.private,
+                                               f"{project_name(record.project_id)} - built with Caveman")
+            push(engine.project_repo(record.project_id), commit, created["clone_url"], body.github_token)
+        except PublishError as exc:
+            raise HTTPException(exc.status, engine.redact(str(exc))) from None
+        platform.save_publication(record.id, user, created["full_name"], created["html_url"], commit, body.private)
+        return {"publication": publication_view(record.id)}
 
     @app.get("/api/runs/{run_id}/delivery/download")
     def download(run_id: str, user: User):

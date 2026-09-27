@@ -75,6 +75,7 @@ class Settings:
     heartbeat_seconds: float = 5.0
     max_recoveries: int = 3
     scripted_step_delay: float = 0.25
+    github_api_url: str = "https://api.github.com"
     # Prometheus scrape token; the metrics endpoint is disabled when unset.
     metrics_token: str | None = None
     # Event streams end after this long; EventSource reconnects with Last-Event-ID.
@@ -135,6 +136,7 @@ class Settings:
             environment=environment,
             executor=executor,
             orchestration=orchestration,
+            github_api_url=(values.get("CAVEMAN_GITHUB_API_URL") or "https://api.github.com").strip(),
             metrics_token=(values.get("CAVEMAN_METRICS_TOKEN") or "").strip() or None,
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,

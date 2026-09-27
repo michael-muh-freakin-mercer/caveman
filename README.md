@@ -182,7 +182,12 @@ end-to-end journeys.
   one with its previous attempt carried over.
 - Delivery: when the kernel completes a run, Caveman archives the integration
   head (verified against the kernel's recorded commits) plus a build report.
-  Nothing is pushed or deployed on anyone's behalf.
+- Publish to GitHub (when GitHub sign-in is configured): on explicit request,
+  Caveman asks for repository scope at that moment, creates a new repository
+  with the exact name and visibility you confirm, and pushes only the verified
+  integration commit to `main`. The token is encrypted at rest in the auth
+  store, used once per request, and never stored by the API. Nothing existing is
+  overwritten, and nothing is deployed.
 
 ## Security model
 
@@ -224,7 +229,10 @@ No deployment is performed by anything in this repository.
 - OpenRouter is the only configured model provider (any tool-calling model on it,
   e.g. Kimi, DeepSeek, Qwen). Model modes beyond "Automatic" are not built yet.
 - Operational state is SQLite on a shared volume; Postgres is used only for auth.
-- No GitHub repository creation or push, and no live previews yet.
+- GitHub publishing is tested against a local stand-in for GitHub; the
+  OAuth scope upgrade and token retrieval path has not been exercised against
+  github.com from this environment. No live previews yet; existing-repository
+  import is not built.
 - Some providers do not report cost for every call; Caveman shows cost as
   incomplete instead of estimating it.
 

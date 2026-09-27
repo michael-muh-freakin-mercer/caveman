@@ -40,7 +40,11 @@ export default async function SettingsPage() {
               ? "GitHub sign-in is available. It grants Caveman your public profile and email only."
               : "GitHub sign-in is not configured on this server."}
           </p>
-          <p className="mt-3 text-sm text-muted">Publishing builds to a GitHub repository is not available yet. Download the verified project from a completed run instead.</p>
+          <p className="mt-3 text-sm text-muted">
+            {githubEnabled
+              ? "From a completed run, you can publish the verified project to a new repository. Caveman asks for repository access only at that moment and pushes only after you confirm the exact name and visibility."
+              : "Publishing to GitHub needs GitHub sign-in to be configured by an operator. Download the verified project from a completed run instead."}
+          </p>
         </Panel>
         {system.ok ? (
           <>

@@ -20,7 +20,7 @@ import { UsagePanel } from "./usage-panel";
 
 const ATTENTION_STATES = new Set(["waiting", "paused", "budget_reached", "failed", "blocked", "recovering"]);
 
-export function RunDashboard({ initial }: { initial: RunDetail }) {
+export function RunDashboard({ initial, githubEnabled = false }: { initial: RunDetail; githubEnabled?: boolean }) {
   const { run, setRun, connection, error, refresh } = useRun(initial);
   const executing = isExecuting(run.state);
   const pending = run.approvals.filter((a) => a.status === "pending");
@@ -100,7 +100,7 @@ export function RunDashboard({ initial }: { initial: RunDetail }) {
         </Notice>
       ) : null}
 
-      {run.state === "complete" ? <CompletionPanel run={run} /> : null}
+      {run.state === "complete" ? <CompletionPanel run={run} githubEnabled={githubEnabled} onPublished={refresh} /> : null}
 
       {run.state === "cancelled" ? (
         <Notice tone="info" title="This run was closed">

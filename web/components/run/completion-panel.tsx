@@ -3,8 +3,9 @@ import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { duration, formatUsd } from "@/lib/format";
 import type { RunDetail } from "@/lib/types";
+import { PublishPanel } from "./publish-panel";
 
-export function CompletionPanel({ run }: { run: RunDetail }) {
+export function CompletionPanel({ run, githubEnabled = false, onPublished }: { run: RunDetail; githubEnabled?: boolean; onPublished?: () => Promise<void> }) {
   const accepted = run.artifacts.filter((a) => a.status === "accepted");
   const checks = run.tasks.flatMap((t) => t.required_checks);
   const passed = checks.filter((c) => c.status === "passed").length;
@@ -26,6 +27,9 @@ export function CompletionPanel({ run }: { run: RunDetail }) {
               <a href={`/api/caveman/runs/${run.id}/delivery/download`} className={buttonClass("primary", "md")} download>
                 <Download className="h-4 w-4" aria-hidden="true" /> Download project
               </a>
+            ) : null}
+            {githubEnabled || run.publication ? (
+              <PublishPanel run={run} onPublished={onPublished ?? (async () => undefined)} />
             ) : null}
             <Link href={`/app/projects/${run.project_id}`} className={buttonClass("secondary", "md")}>
               <FolderOpen className="h-4 w-4" aria-hidden="true" /> Open Project
@@ -52,7 +56,11 @@ export function CompletionPanel({ run }: { run: RunDetail }) {
           <div><dt className="text-xs text-muted">Total cost</dt><dd className="tabular-nums text-fg">{formatUsd(run.usage.cost_usd, { complete: run.usage.cost_complete })}</dd></div>
           <div><dt className="text-xs text-muted">Elapsed</dt><dd className="tabular-nums text-fg">{duration(run.created_at, finishedAt)}</dd></div>
           <div className="col-span-2"><dt className="text-xs text-muted">Repository</dt><dd className="text-fg-soft">
-                Local project repository{delivery?.commit ? <> · commit <span className="font-mono">{delivery.commit.slice(0, 7)}</span></> : null} · not published
+                {run.publication ? (
+                  <a href={run.publication.url} className="text-glacier hover:underline" target="_blank" rel="noreferrer">{run.publication.repository}</a>
+                ) : (
+                  <>Local project repository{delivery?.commit ? <> · commit <span className="font-mono">{delivery.commit.slice(0, 7)}</span></> : null} · not published</>
+                )}
               </dd></div>
           <div className="col-span-2"><dt className="text-xs text-muted">Preview</dt><dd className="text-fg-soft">Not available — Caveman does not run generated apps on this site.</dd></div>
         </dl>

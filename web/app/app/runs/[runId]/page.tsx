@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ApiError } from "@/components/app/api-error";
 import { RunDashboard } from "@/components/run/run-dashboard";
+import { githubEnabled } from "@/lib/auth";
 import { load } from "@/lib/load";
 import { requireUser } from "@/lib/session";
 import type { RunDetail } from "@/lib/types";
@@ -20,5 +21,5 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
       </div>
     );
   }
-  return <RunDashboard key={result.data.id} initial={result.data} />;
+  return <RunDashboard key={result.data.id} initial={result.data} githubEnabled={githubEnabled} />;
 }

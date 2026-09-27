@@ -63,6 +63,15 @@ CREATE TABLE IF NOT EXISTS jobs(
 );
 CREATE INDEX IF NOT EXISTS jobs_run ON jobs(run_id, created_at);
 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
+CREATE TABLE IF NOT EXISTS publications(
+  run_id TEXT PRIMARY KEY REFERENCES runs(id),
+  owner_id TEXT NOT NULL,
+  repo_full_name TEXT NOT NULL,
+  html_url TEXT NOT NULL,
+  commit_sha TEXT NOT NULL,
+  private INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS workflow_state(
   run_id TEXT PRIMARY KEY REFERENCES runs(id),
   state_json TEXT NOT NULL,
@@ -375,6 +384,19 @@ class PlatformStore:
     def delivery_counts(self) -> dict[str, int]:
         return {row["status"]: row["n"] for row in self._query(
             "SELECT status, COUNT(*) AS n FROM deliveries GROUP BY status")}
+
+    # Publications ---------------------------------------------------------
+
+    def publication(self, run_id: str) -> dict | None:
+        rows = self._query("SELECT * FROM publications WHERE run_id=?", (run_id,))
+        return dict(rows[0]) if rows else None
+
+    def save_publication(self, run_id: str, owner_id: str, repo_full_name: str, html_url: str,
+                         commit_sha: str, private: bool) -> dict:
+        with self._write() as db:
+            db.execute("INSERT INTO publications VALUES(?,?,?,?,?,?,?)",
+                       (run_id, owner_id, repo_full_name, html_url, commit_sha, int(private), _now()))
+        return self.publication(run_id)
 
     # Workflow state -------------------------------------------------------
 

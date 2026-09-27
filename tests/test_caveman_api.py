@@ -525,3 +525,61 @@ def test_json_log_format_is_one_object_per_line():
     record.run_id = "r1"
     payload = json.loads(JsonFormatter().format(record))
     assert payload["message"] == "Job j1 done" and payload["run_id"] == "r1" and payload["level"] == "INFO"
+
+
+@needs_sandbox
+def test_publish_pushes_exactly_the_verified_commit_to_a_new_repository(client, settings, tmp_path, monkeypatch):
+    import subprocess
+    from caveman import publish as publish_module
+
+    token = "gho_" + "t" * 36
+    created = []
+
+    def create_repository(self, name, private, description):
+        assert self._token == token
+        remote = tmp_path / f"{name}.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+        created.append((name, private))
+        return {"full_name": f"alice/{name}", "html_url": f"https://github.com/alice/{name}",
+                "clone_url": str(remote)}
+    monkeypatch.setattr(publish_module.GitHubClient, "create_repository", create_repository)
+
+    run_id = build(client, prompt="Booking API #dependent")["run_id"]
+    body = {"name": "booking-api", "private": True, "confirm": True, "github_token": token}
+    early = client.post(f"/api/runs/{run_id}/publish", json=body, headers=ALICE)
+    assert early.status_code == 409 and created == []
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert client.post(f"/api/runs/{run_id}/publish", json={**body, "confirm": False},
+                       headers=ALICE).status_code == 422
+    assert client.post(f"/api/runs/{run_id}/publish", json={**body, "name": "../x"},
+                       headers=ALICE).status_code == 422
+    assert client.post(f"/api/runs/{run_id}/publish", json=body, headers=MALLORY).status_code == 404
+    published = client.post(f"/api/runs/{run_id}/publish", json=body, headers=ALICE)
+    assert published.status_code == 201, published.text
+    publication = published.json()["publication"]
+    assert publication["repository"] == "alice/booking-api" and publication["private"] is True
+    assert publication["commit"] == detail["delivery"]["commit"]
+    remote = tmp_path / "booking-api.git"
+    head = subprocess.run(["git", "-C", str(remote), "rev-parse", "main"], capture_output=True, text=True).stdout.strip()
+    assert head == detail["delivery"]["commit"]
+    files = subprocess.run(["git", "-C", str(remote), "ls-tree", "-r", "--name-only", "main"],
+                           capture_output=True, text=True).stdout.split()
+    assert {"api.py", "booking.py", "test_api.py", "test_booking.py"} <= set(files)
+    again = client.post(f"/api/runs/{run_id}/publish", json=body, headers=ALICE)
+    assert again.status_code == 409 and len(created) == 1
+    final = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert final["publication"]["url"] == "https://github.com/alice/booking-api"
+    assert token not in json.dumps(final)
+
+
+def test_push_failure_messages_never_contain_the_token(tmp_path):
+    from caveman.publish import PublishError, push
+    token = "gho_" + "s" * 36
+    repo = tmp_path / "r"
+    repo.mkdir()
+    import subprocess
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    with pytest.raises(PublishError) as raised:
+        push(repo, "0" * 40, f"https://x-access-token:{token}@invalid.invalid/r.git", token)
+    assert token not in str(raised.value)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Publish to GitHub
+
+- Decision: publishing is a promotion performed only on the user's explicit request for one exact target (new repository name, visibility, verified integration commit). The user's click on the confirmation dialog is the human authorization; it is recorded in the platform `publications` table (the kernel refuses mutations on completed runs). Repository scope is requested incrementally at that moment; OAuth tokens are encrypted at rest (Better Auth `encryptOAuthTokens`), read server-side by a dedicated route, used once by the API, passed to git through environment config (never argv or repo config), and redacted from errors. Only newly created repositories are pushed to, so nothing is overwritten.
+
 ## 2026-09-28 — Node/TypeScript toolchain and execution backend seam
 
 - New trusted checks `node_test` and `tsc` (see TOOLS.md). Node runs under the existing network-deny seccomp filter with in-process test isolation, because per-file test processes need `socketpair`, which the filter denies. Node gets a 4 GB address-space cap (V8 reserves far more than it uses) with a 768 MB heap limit, and remains bound by the 1 GB aggregate-RSS monitor; Python keeps 1 GB. Node 22+ is required.

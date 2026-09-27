@@ -265,6 +265,7 @@ export interface RunDetail extends RunSummary {
   timeline: TimelineEvent[];
   final_result: string | null;
   delivery: DeliveryView | null;
+  publication?: { repository: string; url: string; commit: string; private: boolean; created_at: string } | null;
 }
 
 export interface ProjectView {

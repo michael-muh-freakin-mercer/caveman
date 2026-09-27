@@ -70,6 +70,8 @@ const options = {
   },
   socialProviders: github,
   session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24 },
+  // OAuth tokens (used only to publish to GitHub on explicit request) are encrypted at rest.
+  account: { encryptOAuthTokens: true },
   rateLimit: { enabled: process.env.NODE_ENV === "production" && process.env.CAVEMAN_E2E !== "1" },
   telemetry: { enabled: false },
   plugins: [nextCookies()],
