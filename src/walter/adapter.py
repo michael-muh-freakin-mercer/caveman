@@ -157,8 +157,11 @@ def workspace_tools(manager, workspace_id: str, worker_id: str, *, writable: boo
 
         @tool
         def run_check(category: str, argv: list[str]) -> str:
-            """Execute an allowed check inside the isolated candidate sandbox."""
-            output = manager.run_command(workspace_id, category, argv, worker_id=worker_id)
+            """Execute an allowed check inside the isolated candidate sandbox: python -m pytest <tests>, node --test <tests>, or tsc (category check)."""
+            node_modules = (manager.node_dependencies(workspace_id, worker_id=worker_id)
+                            if argv and argv[0] in {"node", "tsc"} else None)
+            output = manager.run_command(workspace_id, category, argv, worker_id=worker_id,
+                                         node_modules=node_modules)
             return json.dumps(output.model_dump(mode="json") if hasattr(output, "model_dump") else asdict(output))
         result.extend([write_file, delete_file, run_check])
     return result
@@ -1225,6 +1228,10 @@ class DurableController:
                             # the tool call.
                             valid = False
                             evidence = f"Regression suite could not complete in the sandbox: {exc}"
+            elif check in {"node_test", "tsc"}:
+                if not task.workspace_id or self.workspaces is None:
+                    raise ValueError("Executable check requires candidate workspace")
+                valid, evidence = self._node_check(check, executor_grant)
             else:
                 raise ValueError("Unsupported trusted validation check")
             validator_id = executor_grant.worker_id if executor_grant else "executor-" + uuid4().hex
@@ -1233,6 +1240,36 @@ class DurableController:
                                         workspace_fingerprint=self._fingerprint(task_id))
             recorded.append(record)
         return recorded
+
+    def _node_check(self, check: str, grant) -> tuple[bool, str]:
+        """Trusted Node checks; dependencies come from the isolated installer."""
+        from .sandbox import SandboxViolation, _node_test_path
+
+        files = self.workspaces.list_files(grant.id, worker_id=grant.worker_id)
+        if check == "node_test":
+            changed = self.workspaces.changed_paths(grant.id, worker_id=grant.worker_id)
+            tests = [path for path in changed if _node_test_path(path)]
+            if not tests:
+                return False, ("No candidate Node test files (*.test.ts, *.test.js, ...) were added or "
+                               "changed; a developer candidate must include tests")
+            argv, category = ["node", "--test", *tests], "test"
+        else:
+            if "tsconfig.json" not in files:
+                return False, "Type checking requires a tsconfig.json in the project"
+            argv, category = ["tsc"], "check"
+        try:
+            node_modules = self.workspaces.node_dependencies(grant.id, worker_id=grant.worker_id)
+        except SandboxViolation as exc:
+            return False, f"Dependencies could not be installed: {exc}"
+        if check == "tsc" and (node_modules is None or not (node_modules / "typescript").is_dir()):
+            return False, "Type checking requires typescript as a project dependency"
+        try:
+            output = self.workspaces.run_command(grant.id, category, argv, worker_id=grant.worker_id,
+                                                 node_modules=node_modules, timeout=120)
+        except SandboxViolation as exc:
+            return False, f"Node check could not complete in the sandbox: {exc}"
+        return output.returncode == 0, json.dumps({"argv": argv, "returncode": output.returncode,
+                                                   "stdout": output.stdout, "stderr": output.stderr})
 
     @staticmethod
     def _validation_outcome(records) -> list[dict]:

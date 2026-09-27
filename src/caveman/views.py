@@ -21,6 +21,8 @@ CHECK_LABELS = {
     "pytest": "Candidate tests",
     "pytest_candidate": "Candidate tests",
     "pytest_regression": "Regression tests",
+    "node_test": "Node tests",
+    "tsc": "TypeScript typecheck",
 }
 
 FAILURE_EXPLANATIONS = {

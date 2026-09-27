@@ -34,6 +34,9 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
   failed closed: validation errored, acceptance was refused, nothing was marked
   done. The worker now refuses to start in that situation.
 
+- The same image ran a TypeScript build (sandboxed `node_test`) and a parallel
+  build with a stale-base retry and integration, under the same options.
+
 Not verified here: `deploy/web.Dockerfile`, `compose.yaml` end to end, Vercel,
 and Postgres-backed auth (the SQLite path is what the tests exercise).
 

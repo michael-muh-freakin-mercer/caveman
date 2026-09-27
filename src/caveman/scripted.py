@@ -18,6 +18,7 @@ Scenarios are selected by a tag in the build request:
 - ``#dependent``   a second code task imports the first task's accepted code
 - ``#parallel``    two independent code tasks; the second is rebuilt on the
                    integrated first (stale base, carried-over retry)
+- ``#node``        a TypeScript module checked with Node's test runner (workflow mode)
 """
 from __future__ import annotations
 
@@ -183,6 +184,38 @@ _NOTIFY_PACKET = {
 }
 
 
+SLOTS_MODULE = '''export type Slot = { day: string; hour: number };
+
+export function openSlots(day: string, booked: Slot[], open = 10, close = 18): Slot[] {
+  const taken = new Set(booked.filter((s) => s.day === day).map((s) => s.hour));
+  const slots: Slot[] = [];
+  for (let hour = open; hour < close; hour++) if (!taken.has(hour)) slots.push({ day, hour });
+  return slots;
+}
+'''
+
+SLOTS_TESTS = '''import { test } from "node:test";
+import assert from "node:assert/strict";
+import { openSlots } from "./slots.ts";
+
+test("booked hours are not offered", () => {
+  const slots = openSlots("mon", [{ day: "mon", hour: 11 }]);
+  assert.equal(slots.length, 7);
+  assert.ok(!slots.some((s) => s.hour === 11));
+});
+'''
+
+_SLOTS_PACKET = {
+    "task_id": "slots",
+    "role": "Frontend specialist",
+    "objective": "Implement the TypeScript availability helper for the booking UI",
+    "deliverable": "slots.ts exporting openSlots(), with node:test tests in slots.test.ts",
+    "acceptance_criteria": ["Booked hours are never offered", "Tests run with node --test"],
+    "stop_condition": "Module and tests written and self-checked, or genuinely blocked",
+}
+NODE_CRITERION = "TypeScript availability helper implemented with passing Node tests"
+
+
 def _write(task_id: str, prefix: str, files: dict[str, str], summary: str) -> list[dict]:
     steps = [_tool("write_file", {"path": path, "content": content}, f"{prefix}-{index}")
              for index, (path, content) in enumerate(files.items())]
@@ -214,6 +247,8 @@ def scenario_for(objective: str) -> str:
         return "dependent"
     if "#parallel" in text:
         return "parallel"
+    if "#node" in text:
+        return "node"
     return "complete"
 
 
@@ -482,6 +517,11 @@ def build_workflow_scripts(scenario: str, kind: str) -> tuple[list, dict]:
                                            "Reminder text written"), *retry("notify")],
             ("notify", "reviewer"): [_tool("read_file", {"path": "notify.py"}, "r1"), review_pass,
                                      _tool("read_file", {"path": "notify.py"}, "r2"), review_pass]}
+    if scenario == "node":
+        return [_plan([NODE_CRITERION], [(_SLOTS_PACKET, "developer_sandbox", ["node_test"], [0])])], {
+            ("slots", "worker"): _write("slots", "slots", {"slots.ts": SLOTS_MODULE, "slots.test.ts": SLOTS_TESTS},
+                                        "Availability helper written"),
+            ("slots", "reviewer"): [_tool("read_file", {"path": "slots.ts"}, "review-slots"), review_pass]}
     if scenario == "approval":
         if kind == "start":
             # The plan under-provisions the task; its specialist asks for a sandbox.

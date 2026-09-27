@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — Node/TypeScript toolchain and execution backend seam
+
+- New trusted checks `node_test` and `tsc` (see TOOLS.md). Node runs under the existing network-deny seccomp filter with in-process test isolation, because per-file test processes need `socketpair`, which the filter denies. Node gets a 4 GB address-space cap (V8 reserves far more than it uses) with a 768 MB heap limit, and remains bound by the 1 GB aggregate-RSS monitor; Python keeps 1 GB. Node 22+ is required.
+- npm dependencies install in a separate jail: network allowed, `--ignore-scripts`, cleared environment, manifest-only view, cached by manifest digest, mounted read-only.
+- Execution is now behind `ExecutionBackend` / `ExecutionSpec`; `BubblewrapBackend` is the implementation. A microVM or managed sandbox can be added without touching workspaces, checks or the kernel.
+- The worker image ships Node 22.
+
 ## 2026-09-28 — Workflow driver
 
 - Decision: Caveman runs default to a deterministic workflow driver (`src/caveman/workflow.py`) instead of the Manager model's tool loop. Code drives plan → delegate → validate → review → accept/integrate → recover; a planner model produces criteria and a task graph that is validated (uniqueness, dependency order, criterion coverage, kernel task rules) before anything is recorded, with one corrected retry. Failures are classified by trusted code and routed by the kernel's recovery table; replan-blocked work is reopened only when the kernel judges the reopen non-material; capability requests become exact human approvals. The default scripted build dropped from 19 model calls to 8. `CAVEMAN_ORCHESTRATION=manager` keeps the original mode.

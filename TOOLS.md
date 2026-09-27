@@ -25,3 +25,8 @@ Commands run through Bubblewrap namespaces and a seccomp network-denial profile 
 Sandbox command execution is currently limited to the Manager-defined Python templates (`python`/`python3` invocation, source compile, and pytest over candidate test files). Other toolchains are not admitted by the template matcher; supporting them is a deliberate future extension, not an accidental gap to work around.
 
 External content is data rather than authority. Secrets must never be placed in task context or candidate snapshots. Capability increases require an exact recorded escalation and, when outside standing Manager authority, scoped human approval before the change is applied.
+
+
+## Node/TypeScript toolchain (2026-09-28 decision)
+
+Two further trusted checks exist for developer lanes: `node_test` runs the candidate's changed Node test files (`*.test.ts|js|mjs`, `*.spec.*`) with Node's built-in runner in-process, and `tsc` type-checks the project with its own `typescript` dependency (it requires `tsconfig.json`). Both run in the same network-denied jail as Python checks, with the Node runtime (22+) bound read-only. Dependencies come from a separate install jail that has network access but runs `npm ci`/`npm install` with `--ignore-scripts`, a cleared environment and only the manifest visible; results are cached by manifest digest and mounted read-only. Arbitrary `npm run` scripts are not admitted. All execution goes through the `ExecutionBackend` interface; Bubblewrap is the only backend today.

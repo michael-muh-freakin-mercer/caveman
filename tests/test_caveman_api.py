@@ -448,3 +448,19 @@ def test_workflow_mode_refuses_follow_up_instructions(client):
     client.post(f"/api/runs/{run_id}/stop", headers=ALICE)
     response = client.post(f"/api/runs/{run_id}/continue", json={"message": "add dark mode"}, headers=ALICE)
     assert response.status_code == 422
+
+
+@needs_sandbox
+def test_typescript_build_is_validated_by_node_tests(client, settings):
+    from walter.sandbox import _detect_node_root
+    if _detect_node_root() is None:
+        pytest.skip("Node unavailable")
+    run_id = build(client, prompt="Booking UI helper #node")["run_id"]
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["state"] == "complete", detail["jobs"][-1]["message"]
+    [artifact] = detail["artifacts"]
+    [check] = artifact["validations"]
+    assert check["check"] == "node_test" and check["label"] == "Node tests" and check["status"] == "passed"
+    assert "# pass 1" in check["output"]
+    assert detail["delivery"]["files"] == ["slots.test.ts", "slots.ts"]

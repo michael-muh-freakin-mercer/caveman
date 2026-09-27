@@ -41,9 +41,10 @@ MESSAGES = {
 }
 
 
-PLATFORM_NOTES = ("Executable sandbox checks currently support Python only (compile, pytest). "
-                  "Deliver other stacks as reviewed documents or source files with Python-checkable "
-                  "components where possible, and say so honestly in the final result.")
+PLATFORM_NOTES = ("Executable sandbox checks support Python (compile, pytest, pytest_regression) and "
+                  "Node/TypeScript (node_test with node:test test files; tsc with a tsconfig.json and "
+                  "typescript dependency). Deliver other stacks as reviewed documents or source files, "
+                  "and say so honestly in the final result.")
 
 
 def build_objective_message(prompt: str, constraints: list[str]) -> str:

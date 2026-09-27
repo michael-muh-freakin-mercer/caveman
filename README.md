@@ -183,6 +183,10 @@ end-to-end journeys.
   namespaces, no network (seccomp), a cleared environment, resource limits and a
   read-only snapshot; credential-shaped files are excluded and unwritable.
   Missing isolation is a hard failure, never a host fallback.
+- npm dependencies are installed in a separate jail that has network access but
+  runs with install scripts disabled, a cleared environment and only the
+  manifest visible. The result is cached by manifest digest and mounted
+  read-only into the network-denied jail where candidate code runs.
 - The API is private and authenticates the web server with a shared token; the
   web server verifies the user session and forwards only the user id. Every
   project and run lookup is owner-scoped. State-changing browser requests must
@@ -202,8 +206,14 @@ No deployment is performed by anything in this repository.
 
 ## Current limitations
 
-- Sandboxed execution supports Python toolchains only (compile, pytest). Other
-  stacks are produced as reviewed source and documents, without executable checks.
+- Sandboxed execution covers Python (`compile`, `pytest`, `pytest_regression`)
+  and Node/TypeScript (`node_test` via Node's test runner, `tsc`). Project build
+  scripts and dev servers are not run, and other stacks get reviewed source and
+  documents without executable checks.
+- Isolation is Bubblewrap on a shared kernel. Execution goes through an
+  `ExecutionBackend` interface (`src/walter/sandbox.py`), so a microVM or
+  managed-sandbox backend can replace it; for a public multi-tenant service,
+  that is recommended before launch.
 - OpenRouter is the only configured model provider (any tool-calling model on it,
   e.g. Kimi, DeepSeek, Qwen). Model modes beyond "Automatic" are not built yet.
 - Operational state is SQLite on a shared volume; Postgres is used only for auth.

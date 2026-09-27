@@ -15,6 +15,12 @@ RUN apt-get update \
  && apt-get install --yes --no-install-recommends python3 python3-venv bubblewrap libseccomp2 util-linux git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+# Node 22 for the sandboxed Node/TypeScript toolchain (Ubuntu's package is too
+# old). Only the runtime and npm are copied; the sandbox binds them read-only.
+COPY --from=node:22-slim /usr/local/bin/node /opt/node/bin/node
+COPY --from=node:22-slim /usr/local/lib/node_modules/npm /opt/node/lib/node_modules/npm
+ENV CAVEMAN_NODE_ROOT=/opt/node
+
 # The sandbox binds /usr/bin/bwrap and /usr/bin/prlimit by absolute path.
 RUN test -x /usr/bin/bwrap && test -x /usr/bin/prlimit
 

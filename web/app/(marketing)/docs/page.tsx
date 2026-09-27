@@ -25,7 +25,7 @@ const SECTIONS = [
     title: "What “done” means",
     body: [
       "A specialist returning work only creates a candidate. It is accepted only after every predeclared check passes in the sandbox and a fresh independent reviewer approves it — against the exact bytes submitted. The run completes only when every success criterion cites accepted work.",
-      "Checks run inside Bubblewrap with no network, a cleared environment, and resource limits. Today the sandbox runs Python toolchains (compile and pytest); other stacks are delivered as reviewed source and documents.",
+      "Checks run inside Bubblewrap with no network, a cleared environment, and resource limits. The sandbox runs Python (compile, pytest) and Node/TypeScript (the Node test runner and tsc). npm dependencies are installed by a separate isolated step with install scripts disabled, then mounted read-only. Other stacks are delivered as reviewed source and documents.",
     ],
   },
   {
@@ -54,7 +54,7 @@ const SECTIONS = [
     id: "limits",
     title: "Current limitations",
     body: [
-      "Live previews of generated apps are not available yet; Caveman will not render untrusted code on its own origin. Publishing to GitHub is not wired yet. Sandboxed execution supports Python only. OpenRouter is the only configured model provider.",
+      "Live previews of generated apps are not available yet; Caveman will not render untrusted code on its own origin. Publishing to GitHub is not wired yet. Sandboxed execution supports Python and Node/TypeScript; builds and dev servers are not run. OpenRouter is the only configured model provider.",
     ],
   },
 ];

@@ -45,6 +45,11 @@ jobs:
           python3 -c "import ctypes; ctypes.CDLL('libseccomp.so.2'); print('libseccomp resolves')"
           ls -ld /lib /lib64 /usr/lib64 || true
 
+      - uses: actions/setup-node@v5
+        with:
+          # The sandboxed Node toolchain needs Node 22+ (type stripping, in-process test isolation).
+          node-version: 22
+
       - name: Install Caveman (API, worker and orchestration core)
         # Deliberately the distribution interpreter, not a toolcache one. The
         # sandbox binds /usr into an environment-cleared namespace, so the

@@ -121,6 +121,11 @@ def _provider_status() -> dict:
             "worker_model": config.worker_model}
 
 
+def _toolchains() -> list[str]:
+    from walter.sandbox import _detect_node_root
+    return ["python"] + (["node"] if _detect_node_root() is not None else [])
+
+
 def _sandbox_status() -> dict:
     from .sandbox_probe import probe
     usable, detail = probe()
@@ -221,7 +226,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                            "default_max_model_calls": settings.default_max_model_calls,
                            "warning_ratio": settings.budget_warning_ratio},
                 "capabilities": {"github_publish": False, "previews": False,
-                                 "sandbox_toolchains": ["python"]}}
+                                 "sandbox_toolchains": _toolchains()}}
 
     # Builds -----------------------------------------------------------
 
