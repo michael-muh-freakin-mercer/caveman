@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    name: offline suite (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the isolation backend
+        # Walter's sandbox fails closed without these, so the sandbox tests
+        # cannot run at all on a runner that lacks them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            bubblewrap libseccomp2 util-linux
+
+      - name: Allow unprivileged user namespaces
+        # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor,
+        # which breaks bubblewrap. Do not silently skip this: the next step
+        # proves the backend actually works before any test runs.
+        run: |
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - name: Verify the isolation backend works
+        run: |
+          set -euo pipefail
+          ls -l /usr/bin/bwrap /usr/bin/prlimit /usr/lib/libseccomp.so.2
+          # Mirror the flag set Walter's sandbox actually uses. The /lib and
+          # /lib64 interpreter symlinks are load-bearing: without them, exec of
+          # any dynamically linked binary fails with "execvp: No such file or
+          # directory", which reads like a missing file rather than a missing
+          # dynamic loader.
+          /usr/bin/bwrap --unshare-user --unshare-pid --unshare-ipc --unshare-uts \
+            --unshare-cgroup-try --die-with-parent --new-session --cap-drop ALL \
+            --ro-bind /usr /usr \
+            --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib /lib64 \
+            --proc /proc --dev /dev \
+            --clearenv --setenv PATH /usr/bin:/bin \
+            -- /usr/bin/true
+          echo "bubblewrap isolation is usable"
+
+      - name: Install Walter
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[test]'
+
+      - name: Offline suite
+        run: python -m pytest -q
+
+      - name: Offline evaluation scenarios
+        run: python evals/runner.py
