@@ -155,6 +155,8 @@ end-to-end journeys.
 
 ## What the product does today
 
+- Accounts with email and password (plus optional GitHub sign-in), password
+  reset by emailed link, and optional required email verification.
 - Plain-English build requests with optional stack, constraints, deployment
   target and budget; the prompt survives sign-up.
 - Durable runs executed by workers, recoverable after worker loss, observable

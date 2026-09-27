@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { runJson, signUp, startBuild } from "./helpers";
 
 test("journey 1: a landing-page prompt survives sign-up", async ({ page }) => {
@@ -139,4 +141,32 @@ test("dependent code tasks build on merged work and deliver one integrated proje
   const run = await runJson(page, runId);
   const api = run.artifacts.find((a: { task_id: string }) => a.task_id === "api");
   expect(run.delivery.commit).toBe(api.integrated_commit);
+});
+
+
+test("a forgotten password is reset through the emailed link", async ({ browser }) => {
+  const setup = await browser.newPage();
+  const email = await signUp(setup);
+  await setup.close();
+
+  const page = await browser.newPage();
+  await page.goto("/sign-in");
+  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: "Send reset link" }).click();
+  await expect(page.getByRole("status")).toContainText("reset link is on its way");
+
+  const outbox = readFileSync(join(process.env.CAVEMAN_E2E_DIR!, "outbox.jsonl"), "utf8").trim().split("\n")
+    .map((line) => JSON.parse(line) as { to: string; subject: string; text: string });
+  const message = outbox.reverse().find((item) => item.to === email && item.subject.includes("Reset"));
+  const link = message!.text.match(/https?:\/\/\S+/)![0];
+  await page.goto(link);
+  await page.waitForURL(/\/reset-password\?token=/);
+  await page.getByLabel("New password").fill("a-brand-new-password");
+  await page.getByRole("button", { name: "Set new password" }).click();
+  await page.waitForURL(/\/sign-in\?reset=1/);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("a-brand-new-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/app$/);
 });

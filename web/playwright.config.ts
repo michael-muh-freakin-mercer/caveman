@@ -63,6 +63,7 @@ export default defineConfig({
         BETTER_AUTH_SECRET: "e2e-auth-secret-0123456789abcdef0123456789",
         BETTER_AUTH_URL: `http://localhost:${webPort}`,
         AUTH_DATABASE_URL: join(dir, "auth.db"),
+        CAVEMAN_DEV_OUTBOX: join(dir, "outbox.jsonl"),
         CAVEMAN_E2E: "1",
       },
       reuseExistingServer: false,

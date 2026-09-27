@@ -20,6 +20,7 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
   const destination = safeNext(next);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const ids = { name: useId(), email: useId(), password: useId(), error: useId() };
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -35,7 +36,17 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
         ? await signUp.email({ email, password, name })
         : await signIn.email({ email, password });
     if (result.error) {
-      setError(result.error.message ?? "That did not work. Check your details and try again.");
+      setError(
+        result.error.code === "EMAIL_NOT_VERIFIED"
+          ? "Verify your email first: we sent you a link. Check your inbox, then sign in."
+          : (result.error.message ?? "That did not work. Check your details and try again."),
+      );
+      setBusy(false);
+      return;
+    }
+    if (mode === "sign-up" && result.data && !("token" in result.data && result.data.token)) {
+      // Email verification is required on this server: no session until verified.
+      setNotice(`Check ${email} for a link to verify your address, then sign in.`);
       setBusy(false);
       return;
     }
@@ -80,7 +91,12 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
           <input id={ids.email} name="email" type="email" required autoComplete="email" className={field} placeholder="you@example.com" />
         </div>
         <div>
-          <label htmlFor={ids.password} className="text-sm text-fg-soft">Password</label>
+          <div className="flex items-baseline justify-between">
+            <label htmlFor={ids.password} className="text-sm text-fg-soft">Password</label>
+            {mode === "sign-in" ? (
+              <Link href="/forgot-password" className="text-xs text-muted hover:text-fg">Forgot password?</Link>
+            ) : null}
+          </div>
           <input
             id={ids.password}
             name="password"
@@ -95,6 +111,11 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
         {error ? (
           <p id={ids.error} role="alert" className="text-sm text-bad">
             {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p role="status" className="rounded-lg border border-ok/30 bg-ok/5 px-3 py-2 text-sm text-ok">
+            {notice}
           </p>
         ) : null}
         <button

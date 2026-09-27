@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Pool } from "pg";
+import { linkEmail, sendEmail } from "./email";
 
 /**
  * Authentication uses Better Auth, an established library: password hashing,
@@ -49,6 +50,23 @@ const options = {
     minPasswordLength: 10,
     maxPasswordLength: 128,
     autoSignIn: true,
+    // Off by default so a fresh install works without an email provider;
+    // hosted deployments should set CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1.
+    requireEmailVerification: process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1",
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
+      await sendEmail(linkEmail(user.email, "Reset your Caveman password",
+        "Someone asked to reset the password for your Caveman account.", "Choose a new password", url));
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1",
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
+      await sendEmail(linkEmail(user.email, "Verify your email for Caveman",
+        "Confirm this email address to start building with Caveman.", "Verify email", url));
+    },
   },
   socialProviders: github,
   session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24 },
