@@ -91,3 +91,33 @@ def test_no_budget_preserves_prior_recording_behavior():
     assert records[0].role == "worker"
     assert records[0].usage_known is True
     store.close()
+
+
+def test_openrouter_calls_request_cost_reporting():
+    import asyncio
+    from agents.model_settings import ModelSettings
+    from walter.usage_model import UsageRecordingModel
+
+    seen = {}
+
+    class Wrapped:
+        async def get_response(self, **kwargs):
+            seen["settings"] = kwargs["model_settings"]
+            class Response:
+                raw_usage = {"prompt_tokens": 1, "completion_tokens": 1, "cost": 0.0001}
+            return Response()
+
+    class Core:
+        def record_usage(self, *args, **kwargs):
+            seen["recorded"] = kwargs
+
+        def get_run(self, run_id):
+            raise AssertionError("no budget configured")
+
+    model = UsageRecordingModel(Wrapped(), Core(), "run", provider="openrouter", model="m", role="worker")
+    original = ModelSettings(extra_body={"transforms": []})
+    asyncio.run(model.get_response(None, "hi", original, [], None, [], None,
+                                   previous_response_id=None, conversation_id=None, prompt=None))
+    assert seen["settings"].extra_body == {"transforms": [], "usage": {"include": True}}
+    assert original.extra_body == {"transforms": []}  # shared settings untouched
+    assert seen["recorded"]["raw_usage"]["cost"] == 0.0001

@@ -167,7 +167,12 @@ end-to-end journeys.
 - Exact-scope approvals: approve or reject a specific request; a changed request
   must be shown again.
 - Budgets on by default: a USD ceiling on provider-reported cost plus a
-  model-call ceiling, with a warning at 80% and a safe pause at the limit.
+  model-call ceiling per run and per account per month, with a warning at 80%
+  and a safe pause at the limit. OpenRouter calls explicitly request cost
+  reporting.
+- A live-model campaign harness (`scripts/live_campaign.py`) runs a batch of
+  real requests with per-run and total spend caps and writes a report to
+  `docs/live-campaign/`; `--executor scripted` is a free dry run.
 - Integrated builds: each accepted code change is fast-forwarded onto the
   project's internal integration branch with exactly its validated bytes, and
   later tasks start from that branch, so dependent work builds and is tested on

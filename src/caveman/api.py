@@ -32,6 +32,7 @@ from walter.orchestration import GateError
 
 from . import __version__
 from .config import EXECUTOR_PROVIDER, Settings
+from .accounts import account_usage
 from .delivery import deliver_run
 from .engine import ApprovalScopeChanged, Engine
 from .platform_store import PlatformStore, RunRecord, new_id
@@ -223,10 +224,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "orchestration": settings.orchestration, "provider": provider,
                 "sandbox": _sandbox_status(),
                 "budget": {"default_usd": settings.default_budget_usd, "max_usd": settings.max_budget_usd,
+                           "account_monthly_usd": settings.account_monthly_budget_usd,
+                           "account_monthly_calls": settings.account_monthly_max_calls,
                            "default_max_model_calls": settings.default_max_model_calls,
                            "warning_ratio": settings.budget_warning_ratio},
                 "capabilities": {"github_publish": False, "previews": False,
                                  "sandbox_toolchains": _toolchains()}}
+
+    def require_account_allowance(user: str) -> None:
+        usage = account_usage(engine, platform, settings, user)
+        if usage["exhausted"]:
+            raise HTTPException(402, "Your monthly spending limit is reached "
+                                     f"(${usage['spent_usd']:.2f} of ${usage['limit_usd']:.2f}, "
+                                     f"{usage['model_calls']} of {usage['max_model_calls']} model calls). "
+                                     "New work starts again next month or when an operator raises the limit.")
+
+    @app.get("/api/account")
+    def account(user: User):
+        return {"spending": account_usage(engine, platform, settings, user)}
 
     # Builds -----------------------------------------------------------
 
@@ -238,6 +253,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(503, "Caveman's model provider is not configured on the server yet, "
                                          "so builds cannot start. An operator needs to set "
                                          "OPENROUTER_API_KEY for the Caveman worker.")
+        require_account_allowance(user)
         budget = body.settings.budget_usd or settings.default_budget_usd
         if budget > settings.max_budget_usd:
             raise HTTPException(422, f"The maximum budget per run is ${settings.max_budget_usd:.2f}.")
@@ -413,6 +429,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if body.message.strip() and settings.orchestration != "manager":
             raise HTTPException(422, "Follow-up instructions are not supported by this server yet. "
                                      "Continue without an instruction, or start a new build.")
+        require_account_allowance(user)
         job, created = platform.enqueue(record.id, "continue", body.message.strip())
         if not created:
             raise HTTPException(409, "This run is already executing.")

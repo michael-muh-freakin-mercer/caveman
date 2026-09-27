@@ -288,3 +288,17 @@ export interface SystemView {
   budget: { default_usd: number; max_usd: number; default_max_model_calls: number; warning_ratio: number };
   capabilities: { github_publish: boolean; previews: boolean; sandbox_toolchains: string[] };
 }
+
+export interface AccountSpending {
+  period_start: string;
+  spent_usd: number;
+  limit_usd: number;
+  remaining_usd: number;
+  model_calls: number;
+  max_model_calls: number;
+  remaining_calls: number;
+  calls_without_cost: number;
+  cost_complete: boolean;
+  exhausted: boolean;
+  warning: boolean;
+}

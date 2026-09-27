@@ -106,15 +106,32 @@ class Worker:
         await self.execute(job)
         return True
 
+    def _limits(self, record) -> tuple[float, int]:
+        """The run's own ceilings, tightened to what its account has left this month.
+
+        Budgets count a run's lifetime usage, so the account's remaining
+        allowance is added to what this run has already used.
+        """
+        from walter.usage import usage_cost
+
+        from .accounts import account_usage
+
+        account = account_usage(self.engine, self.platform, self.settings, record.owner_id)
+        run = self.engine.load(record.id)
+        run_cost = sum(usage_cost(u.raw_usage) or 0.0 for u in run.usage_records)
+        run_calls = len(run.usage_records)
+        return (min(record.budget_usd, run_cost + account["remaining_usd"]),
+                min(record.max_model_calls, run_calls + account["remaining_calls"]))
+
     def _config(self, job: Job, record):
+        budget_usd, max_calls = self._limits(record)
         if self.settings.executor == EXECUTOR_SCRIPTED:
             from .scripted import scripted_config
             key = f"scripted:{job.id}"
             self._scripted.prepare(key, job.run_id, job.kind)
-            return scripted_config(key, _merge_budget(None, record.budget_usd, record.max_model_calls)), key
+            return scripted_config(key, _merge_budget(None, budget_usd, max_calls)), key
         config = runtime.RuntimeConfig.from_env()
-        return replace(config, budget=_merge_budget(config.budget, record.budget_usd,
-                                                    record.max_model_calls)), None
+        return replace(config, budget=_merge_budget(config.budget, budget_usd, max_calls)), None
 
     async def execute(self, job: Job) -> None:
         record = self.platform.run_by_id(job.run_id)

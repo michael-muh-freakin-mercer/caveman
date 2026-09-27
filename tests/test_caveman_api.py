@@ -464,3 +464,22 @@ def test_typescript_build_is_validated_by_node_tests(client, settings):
     assert check["check"] == "node_test" and check["label"] == "Node tests" and check["status"] == "passed"
     assert "# pass 1" in check["output"]
     assert detail["delivery"]["files"] == ["slots.test.ts", "slots.ts"]
+
+
+@needs_sandbox
+def test_account_monthly_call_cap_blocks_new_work_and_tightens_runs(settings):
+    from dataclasses import replace
+    capped = replace(settings, account_monthly_max_calls=5)
+    with TestClient(create_app(capped)) as client:
+        first = build(client)["run_id"]
+        drain(capped)
+        detail = client.get(f"/api/runs/{first}", headers=ALICE).json()
+        # The run was cut off at the account's remaining allowance, not its own 300 calls.
+        assert detail["state"] == "budget_reached" and detail["usage"]["calls"] == 5
+        spending = client.get("/api/account", headers=ALICE).json()["spending"]
+        assert spending["exhausted"] is True and spending["model_calls"] == 5
+        refused = client.post("/api/builds", json={"prompt": "Another build"}, headers=ALICE)
+        assert refused.status_code == 402 and "monthly spending limit" in refused.json()["detail"]
+        assert client.post(f"/api/runs/{first}/continue", json={}, headers=ALICE).status_code == 402
+        # Other accounts are unaffected.
+        assert client.post("/api/builds", json={"prompt": "Mallory's build"}, headers=MALLORY).status_code == 201

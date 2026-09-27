@@ -66,6 +66,9 @@ class Settings:
     default_budget_usd: float = 5.0
     max_budget_usd: float = 100.0
     default_max_model_calls: int = 300
+    # Per-account monthly ceilings across all runs.
+    account_monthly_budget_usd: float = 25.0
+    account_monthly_max_calls: int = 3000
     budget_warning_ratio: float = 0.8
     manager_max_turns: int = 60
     lease_seconds: float = 90.0
@@ -133,6 +136,8 @@ class Settings:
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,
             default_max_model_calls=_int(values, "CAVEMAN_DEFAULT_MAX_MODEL_CALLS", 300),
+            account_monthly_budget_usd=_float(values, "CAVEMAN_ACCOUNT_MONTHLY_BUDGET_USD", 25.0, minimum=0.01),
+            account_monthly_max_calls=_int(values, "CAVEMAN_ACCOUNT_MONTHLY_MAX_CALLS", 3000),
             manager_max_turns=_int(values, "CAVEMAN_MANAGER_MAX_TURNS", 60),
             lease_seconds=_float(values, "CAVEMAN_LEASE_SECONDS", 90.0, minimum=5.0),
             heartbeat_seconds=_float(values, "CAVEMAN_HEARTBEAT_SECONDS", 5.0, minimum=0.1),

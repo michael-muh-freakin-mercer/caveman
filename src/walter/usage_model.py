@@ -47,6 +47,12 @@ class UsageRecordingModel(Model):
         from dataclasses import replace
 
         settings = replace(model_settings, preserve_raw_usage=True)
+        if self.identity["provider"] == "openrouter":
+            # Ask OpenRouter to report the call's cost in its usage block; the
+            # spend ceiling can only count cost the provider actually reports.
+            extra = dict(settings.extra_body) if isinstance(settings.extra_body, dict) else {}
+            extra["usage"] = {**(extra.get("usage") or {}), "include": True}
+            settings = replace(settings, extra_body=extra)
         try:
             response = await self.wrapped.get_response(
                 system_instructions=system_instructions, input=input,

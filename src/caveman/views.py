@@ -60,7 +60,8 @@ CAPABILITY_LABELS = {
 JOB_OUTCOME_TEXT = {
     "succeeded": "The Manager finished its turn.",
     "terminal": "The run had already finished.",
-    "budget_exceeded": "The run reached its spending or usage limit and was paused safely.",
+    "budget_exceeded": ("The run reached its spending or usage limit, or your account's monthly limit, "
+                        "and was paused safely."),
     "turn_limit": "The Manager reached its per-session turn limit and paused.",
     "cancelled": "Execution was stopped by you.",
     "config_error": "Caveman's model provider is not configured, so the run could not start.",

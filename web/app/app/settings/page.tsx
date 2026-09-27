@@ -7,7 +7,7 @@ import { githubEnabled } from "@/lib/auth";
 import { formatUsd } from "@/lib/format";
 import { load } from "@/lib/load";
 import { requireUser } from "@/lib/session";
-import type { SystemView } from "@/lib/types";
+import type { AccountSpending, SystemView } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -20,7 +20,10 @@ const MODES = [
 
 export default async function SettingsPage() {
   const user = await requireUser("/app/settings");
-  const system = await load<SystemView>(user.id, "system");
+  const [system, account] = await Promise.all([
+    load<SystemView>(user.id, "system"),
+    load<{ spending: AccountSpending }>(user.id, "account"),
+  ]);
   return (
     <>
       <PageHeader eyebrow="Settings" title="Settings" />
@@ -59,7 +62,27 @@ export default async function SettingsPage() {
                 {system.data.provider.worker_model ? <div className="flex justify-between gap-3"><dt className="text-muted">Specialist model</dt><dd className="font-mono text-fg-soft">{system.data.provider.worker_model}</dd></div> : null}
               </dl>
             </Panel>
-            <Panel title="Spending" description="Every run gets a ceiling. You can raise it per run.">
+            <Panel title="Spending" description="Every run gets a ceiling, and your account has a monthly limit.">
+              {account.ok ? (
+                <div className="mb-5 rounded-lg border border-line p-4">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm text-fg">This month</p>
+                    {account.data.spending.exhausted ? (
+                      <StatusPill tone="bad">Limit reached</StatusPill>
+                    ) : account.data.spending.warning ? (
+                      <StatusPill tone="warn">Near limit</StatusPill>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-2xl font-semibold tabular-nums text-fg">
+                    {formatUsd(account.data.spending.spent_usd, { complete: account.data.spending.cost_complete })}
+                    <span className="text-sm font-normal text-muted"> of {formatUsd(account.data.spending.limit_usd)}</span>
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {account.data.spending.model_calls} of {account.data.spending.max_model_calls} model calls
+                    {account.data.spending.cost_complete ? "" : ` · ${account.data.spending.calls_without_cost} calls reported no cost`}
+                  </p>
+                </div>
+              ) : null}
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between"><dt className="text-muted">Default budget per run</dt><dd className="tabular-nums text-fg">{formatUsd(system.data.budget.default_usd)}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted">Maximum budget per run</dt><dd className="tabular-nums text-fg">{formatUsd(system.data.budget.max_usd)}</dd></div>
