@@ -14,9 +14,12 @@ concurrency:
 jobs:
   suite:
     name: offline suite
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the label migrates to Ubuntu 26 on
+    # 2026-10-19, and a runner-image change should be a deliberate commit here,
+    # not a red build with no code change behind it.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install the isolation backend and the system interpreter
         # Walter's sandbox fails closed without bubblewrap and libseccomp, so the
