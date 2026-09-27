@@ -17,8 +17,61 @@
 ### Added
 - **Continuous integration** (`.github/workflows/ci.yml`): the offline suite and
   the offline eval scenarios on Python 3.11 and 3.14, with the isolation backend
-  installed and verified before the tests run. No badge is published until the
-  workflow is green on the default branch.
+  installed and verified before the tests run. The workflow is green on the
+  default branch, so the README now publishes its status badge.
+- **Bounded Manager drill-down tools.** `inspect_task` returns one task's packet,
+  required checks, per-artifact validation and review verdicts, approval gates
+  and failure evidence as bounded excerpts. `inspect_artifact` returns one
+  candidate's content, truncated with the omitted length stated; the digest
+  still covers the whole artifact.
+- **`CONTRIBUTING.md`** covering only workflows this repository enforces: the
+  editable install, the four verification commands, `pytest` as the sole
+  configured gate, the `importorskip` caveat that makes a green run mean less
+  than it looks, and the doctrine/safety-path rules.
+
+### Changed
+- **The model-facing read path is bounded by construction.** `inspect_run`
+  returned the entire run snapshot — candidate bodies, task packets, approval
+  scope documents, pytest logs and workspace diffs — so the Manager's context
+  grew with exactly the material Walter exists to keep out of a context window.
+  It now returns a projection: plan, completion criteria verbatim, per-task
+  status/blocker/attempt budget, artifact status, accepted artifacts, open
+  approval and capability gates, recent event kinds, and usage totals. Operators
+  keep the unbounded snapshot through `walter run inspect`, and
+  `DurableController.inspect()` stays full because trusted internals
+  (`_receipt`, `delegate`, `candidate_scope`, readiness checks) depend on it.
+
+  Measured on synthetic runs: 1,025 bytes versus 6,954 for one task with a
+  2k-character candidate (6.8x), 1,497 versus 55,275 at three tasks (37x), and
+  2,202 versus 253,755 at six tasks with 20k-character candidates (115x). The
+  bounded read grows sub-linearly in candidate size; the snapshot does not.
+
+  This partially reverses the 2026-09-20 resolution of gap-report finding 5,
+  which introduced compact receipts and designated `inspect_run` "the full-truth
+  read". Those receipts fixed the mutation path and left the read path
+  unbounded, which is where the cost actually was: run
+  `a892546081ce4ab1bf62c4778d832988` spent 19 Manager calls against 2 worker
+  calls — 90% of the spend on orchestration overhead — for a single-task
+  objective that accepted nothing.
+- **Manager doctrine names the new read path.** `DURABLE_INSTRUCTIONS` tells the
+  Manager that `inspect_run` is bounded, to drill down only when a decision
+  needs it, and not to re-read after a successful mutation because every
+  mutating tool already returns current status. `TOOLS.md` records the boundary.
+- **Live evidence is no longer presented as current capability.** Every
+  live-model datapoint in this repository was recorded on 2026-09-20 and
+  predates both the 2026-09-22 worker tool-calling fix and the 2026-09-21
+  `pytest` scope split; one stale run declared a check named `unittest`, which no
+  longer exists. `ROADMAP.md` and `docs/IMPLEMENTATION_STATE.md` mark those
+  numbers as history, and a fresh measured baseline is tracked as outstanding
+  work.
+
+### Operational
+- The three remaining `active` runs from 2026-09-20 were closed offline. Each
+  required its pending gate to be denied first — a `promote_candidate` gate on a
+  readiness fixture, and a stale `replan` proposal written against a check name
+  the current kernel would reject. Five candidate worktrees and branches were
+  retired with `walter run cleanup`. The ledger holds 12 abandoned runs and 1
+  completed run, with no orphan worktrees.
 
 ## Unreleased — 2026-09-22 rehearsal follow-ups
 

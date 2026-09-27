@@ -90,7 +90,8 @@ def test_manager_tool_surface_has_no_trust_forging_tools():
     controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
     tools = {item.name: item for item in controller.tools()}
     assert set(tools) == {
-        "inspect_run", "set_completion_criteria", "register_repository_inputs",
+        "inspect_run", "inspect_task", "inspect_artifact",
+        "set_completion_criteria", "register_repository_inputs",
         "plan_tasks", "delegate_task",
         "validate_task", "review_task", "accept_task", "recover_task", "replan_tasks",
         "apply_replan",
@@ -146,7 +147,14 @@ def test_register_repository_inputs_rejects_unsafe_paths(tmp_path):
     assert controller.inspect().available_inputs == {}
 
 
-def test_tool_receipt_is_compact_and_inspect_run_stays_full():
+def test_receipt_and_model_read_path_exclude_candidate_content():
+    """The model-facing read path is bounded; the operator snapshot is not.
+
+    Reverses the 2026-09-20 "inspect_run is the full-truth read" resolution: the
+    compact receipts fixed the mutation path and left the read path unbounded,
+    which is where the Manager's context actually grew (2026-09-27 decision).
+    ``controller.inspect()`` stays full because trusted internals depend on it.
+    """
     controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
     core = controller.core
     assignment = core.delegate(controller.run_id, "task", "worker")
@@ -159,8 +167,78 @@ def test_tool_receipt_is_compact_and_inspect_run_stays_full():
     assert receipt["tasks"]["task"]["artifact_ids"] == [artifact.id]
     assert receipt["artifacts"][artifact.id] == "candidate"
     assert "FULL-DELIVERABLE-CONTENT-MARKER" not in json.dumps(receipt)
-    full = controller.inspect().model_dump_json()
-    assert "FULL-DELIVERABLE-CONTENT-MARKER" in full
+
+    # The read tool reports the same operational facts without the candidate body.
+    view = json.loads(controller._run_view())
+    assert "FULL-DELIVERABLE-CONTENT-MARKER" not in json.dumps(view)
+    assert view["tasks"]["task"]["status"] == "SUBMITTED"
+    assert view["artifacts"][artifact.id] == "candidate"
+    # finish_run needs the criteria verbatim, so the bounded view must carry them.
+    assert view["completion_criteria"] == controller.inspect().plan.completion_criteria
+    assert "packet" not in json.dumps(view)
+
+    # Drill-down carries the packet; content still only via inspect_artifact.
+    detail = json.loads(controller._task_view("task"))
+    assert detail["packet"]["task_id"] == "task"
+    assert detail["required_checks"] == ["result_schema"]
+    assert "FULL-DELIVERABLE-CONTENT-MARKER" not in json.dumps(detail)
+    assert detail["artifacts"][0]["content_digest"] == artifact.content_digest
+
+    body = json.loads(controller._artifact_view(artifact.id))
+    assert "FULL-DELIVERABLE-CONTENT-MARKER" in body["content"]
+    assert body["content_truncated"] is False
+
+    # Operators keep the unbounded truth.
+    assert "FULL-DELIVERABLE-CONTENT-MARKER" in controller.inspect().model_dump_json()
+
+
+def test_unknown_read_targets_name_the_known_identifiers():
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    with pytest.raises(ValueError, match="Unknown task nope. Known tasks: \\['task'\\]"):
+        controller._task_view("nope")
+    with pytest.raises(ValueError, match="Unknown artifact nope"):
+        controller._artifact_view("nope")
+
+
+def test_model_read_path_stays_bounded_as_a_run_grows():
+    """Payload size is the honest offline proxy for Manager token cost.
+
+    Offline evals cannot measure chattiness -- scripted steps dictate the call
+    count -- but they can prove the read payload does not grow with candidate
+    size. A 200x larger deliverable must not enlarge the read at all.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    assignment = core.delegate(controller.run_id, "task", "worker")
+    core.start(controller.run_id, "task")
+    core.submit(controller.run_id, "task", assignment.id, "worker",
+        WorkerResult(task_id="task", status="completed", summary="done",
+                     deliverable="x" * 200_000))
+    view_size = len(controller._run_view())
+    full_size = len(controller.inspect().model_dump_json())
+    assert view_size < 4_000, f"bounded read grew to {view_size} bytes"
+    # The full snapshot carries the 200k candidate; the read path must not.
+    assert full_size > 200_000
+    detail = json.loads(controller._task_view("task"))
+    for record in detail["artifacts"]:
+        assert record["content_chars"] == 200_000
+        assert "x" * 5_000 not in json.dumps(record)
+    body = json.loads(controller._artifact_view(detail["artifacts"][0]["id"]))
+    assert body["content_truncated"] is True
+    assert len(body["content"]) < 4_500
+    assert "further characters omitted" in body["content"]
+
+
+def test_evidence_excerpt_keeps_the_failing_tail():
+    from walter.adapter import MAX_EVIDENCE_EXCERPT_CHARS, _excerpt
+
+    short = "compile passed"
+    assert _excerpt(short) == short
+    long = "noise" * 1_000 + "AssertionError: multiply(2, 3) == 5"
+    excerpt = _excerpt(long)
+    assert excerpt.endswith("AssertionError: multiply(2, 3) == 5")
+    assert len(excerpt) < MAX_EVIDENCE_EXCERPT_CHARS + 60
+    assert "earlier characters omitted" in excerpt
 
 
 def test_planning_rejects_unresolvable_required_inputs_until_registered(tmp_path):

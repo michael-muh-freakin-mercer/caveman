@@ -27,7 +27,18 @@ where it is still incomplete.
 
 ## Verified evidence
 
-- Offline suite: `211 passed, 1 skipped`; the skip is the opt-in live provider smoke.
+**Live evidence is historical.** Every live-model datapoint below was recorded on
+2026-09-20 and predates two changes to the path it exercised: the 2026-09-22
+worker tool-calling fix (`_invoke` no longer uses the SDK `output_type`) and the
+2026-09-21 split of the `pytest` validation scopes. Run
+`a892546081ce4ab1bf62c4778d832988` declared a check named `unittest`, which no
+longer exists in `EXECUTABLE_DEVELOPER_CHECKS`. The current worker invocation
+path therefore has no end-to-end live measurement. These records are retained as
+history, not as claims about present capability; a fresh measured baseline is
+tracked in `ROADMAP.md`.
+
+- Offline suite and eval scenarios: green in CI on every push and pull request,
+  with the real Bubblewrap sandbox exercised on the runner.
 - Readiness demo passes against real Bubblewrap.
 - Live provider smoke passes (2026-09-20).
 - One live model-driven end-to-end run completed on 2026-09-20 (run
@@ -50,6 +61,18 @@ where it is still incomplete.
   `finish_run` rejections name the accepted evidence shape. Eight zero-cost
   zombie `active` runs in the main operational DB were closed with the new
   offline `walter run abandon` transition.
+- Manager/worker cost split measured from run
+  `a892546081ce4ab1bf62c4778d832988` (2026-09-20): 19 Manager calls against 2
+  worker calls, 21 total, for a single-task objective that accepted nothing.
+  Orchestration overhead, not worker execution, dominated the spend. Both worker
+  calls were single-shot (~1.5k tokens each), consistent with the tool-calling
+  defect fixed on 2026-09-22.
+- 2026-09-27 operational hygiene: the three remaining `active` runs from
+  2026-09-20 were closed offline (two readiness fixtures and the stuck
+  development run, each requiring its pending gate to be denied first), and five
+  candidate worktrees and branches were retired with `walter run cleanup`. The
+  ledger now holds 12 abandoned runs and 1 completed run, with no orphan
+  worktrees.
 
 ## Known gaps and limitations
 

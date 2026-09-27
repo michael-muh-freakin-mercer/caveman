@@ -75,29 +75,54 @@ only:
   relaxes the AppArmor user-namespace restriction, so the sandbox tests execute
   for real instead of being skipped.
 - Verification: offline suite green, 3/3 eval scenarios, readiness demo against
-  real Bubblewrap, one live end-to-end run accepted through every gate for
-  ~$0.38 and 16 model calls.
+  real Bubblewrap.
+
+### A note on the live evidence
+
+Every live-model datapoint in this repository was recorded on 2026-09-20: the
+end-to-end run that completed for ~$0.38 in 16 model calls, and the external-
+repository run that failed honestly. Both predate two changes to the path they
+exercised — the 2026-09-22 worker tool-calling fix, and the 2026-09-21 split of
+the `pytest` validation scopes. One of those stale runs declared a check named
+`unittest`, which no longer exists.
+
+So the current worker invocation path has no end-to-end live measurement. Those
+numbers are kept as history, not as claims about today. Establishing a fresh
+baseline is the second item under *Now*.
 
 ---
 
 ## Now — worker reliability and loop cost
 
-The next release is about making delegation succeed and making the loop cheap
-enough to run without flinching.
+The next release is about the Manager's own cost, and then about establishing
+what the current code actually does on a real objective.
 
-- **Two-phase worker finalization.** Let a worker use its tools, then take its
-  structured result in a separate tool-free call. Today one call must do both,
-  and a worker that exhausts its turns returns nothing and burns an attempt.
+Ordered by evidence. The last instrumented run spent 19 Manager calls against 2
+worker calls — 90% of the spend went on orchestration overhead for a single-task
+objective that accepted nothing. Worker reliability matters, but Manager
+overhead dominates the bill, and unlike worker behavior it can be fixed and
+measured without spending a cent.
+
+- **Bounded Manager reads.** `inspect_run` returned the whole run snapshot,
+  including artifact bodies and workspace diffs, so Walter's own context grew
+  with exactly the material Walter exists to keep out of context windows. The
+  read path is now a projection with explicit drill-down; the full snapshot
+  stays on the CLI.
+- **A measured live baseline.** One controlled run on a throwaway repository
+  against current code, with a token cap, recording Manager calls, worker calls,
+  tokens, cost, and outcome. Until that exists, every live number here is
+  historical.
 - **Pre-flight rejection of no-op candidates.** A developer lane that changed
   nothing should be handed straight back, not charged an attempt and put through
   validation.
-- **Projected Manager reads.** `inspect_run` currently returns the whole run
-  snapshot, so Walter's own context grows with exactly the material Walter exists
-  to keep out of context windows. Wire the bounded projection in `pulse.py` as
-  the default read; keep the full dump for humans and the CLI.
-- **Cost as a tested invariant.** Add *model calls per accepted artifact* to the
-  eval runner with an asserted ceiling. Target: ≤6 median for a single-task
-  objective.
+- **Two-phase worker finalization.** Let a worker use its tools, then take its
+  structured result in a separate tool-free call, so a worker that exhausts its
+  turns does not lose the work it already did. Conditional: only warranted if the
+  baseline shows single-call workers or turn-budget losses.
+- **Cost as a tested invariant.** Offline evals cannot measure chattiness — the
+  scripted steps dictate the call count — so the offline assertion is a bound on
+  Manager tool payload size as a run grows. Model calls per accepted artifact is
+  a live-only metric. Target: ≤6 median for a single-task objective.
 
 ## Next — autonomy that earns the name
 
