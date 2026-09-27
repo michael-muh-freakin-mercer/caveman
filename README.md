@@ -1,11 +1,23 @@
+<div align="center">
+
 # Walter
 
-**A manager agent that delegates the work and verifies the result. The model
-proposes; the kernel authorizes.**
+**A manager agent that delegates the work and verifies the result.**
 
-[Install](#install) · [Quick start](#quick-start) · [Architecture](#architecture) · [Roadmap](ROADMAP.md) · [Status](#status)
+*The model proposes. The kernel authorizes.*
 
-Python 3.11+ · Linux with Bubblewrap · OpenRouter · MIT · pre-1.0 (`0.1.0`)
+[![CI](https://github.com/who-is-michael-mercer/Walter/actions/workflows/ci.yml/badge.svg)](https://github.com/who-is-michael-mercer/Walter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-orange.svg)](ROADMAP.md)
+
+[Install](#install) · [Quick start](#quick-start) · [How it works](#how-a-goal-becomes-accepted-work) · [Architecture](#architecture) · [Roadmap](ROADMAP.md)
+
+<sub>Requires Linux with Bubblewrap · runs against OpenRouter</sub>
+
+</div>
+
+---
 
 You give Walter an objective. It decides what has to happen, hands each piece of
 work to a narrow worker agent, and checks what comes back against criteria it
@@ -161,6 +173,12 @@ closed on a missing isolation backend rather than falling back to the host.
 | `/usr/bin/prlimit` (util-linux) | Per-command CPU, memory, file-size, and process limits |
 | `git` | Candidate worktrees for `repo_reader` and `developer_sandbox` lanes |
 | An OpenRouter API key | The only configured model provider |
+
+Distributions disagree about where the dynamic loader lives — Arch keeps it in
+`/usr/lib`, Debian and Ubuntu in `/usr/lib64` — so the sandbox probes for it and
+reproduces whichever layout the host uses. Unprivileged user namespaces must be
+permitted; Ubuntu 24.04 restricts them through AppArmor, which the CI workflow
+relaxes explicitly.
 
 ---
 
@@ -549,6 +567,11 @@ tooling is configured. Several modules — `test_adapter.py`, `test_runtime.py`,
 `test_usage_model.py`, `test_live_smoke.py` — call
 `pytest.importorskip("agents")`, so SDK-dependent coverage silently disappears if
 the Agents SDK is not installed in the active environment.
+
+[CI](.github/workflows/ci.yml) runs the offline suite and the eval scenarios on
+every push and pull request. The runner installs Bubblewrap and libseccomp and
+relaxes the AppArmor user-namespace restriction, so the sandbox tests execute for
+real rather than being skipped.
 
 The readiness demo is a harmless fixture, not an authorization. It drives one
 candidate change through the real isolation backend, trusted validation,

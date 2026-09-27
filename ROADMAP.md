@@ -70,6 +70,10 @@ only:
 - Per-run usage budgets with clean exhaustion, and per-call usage accounting.
 - Offline operator surface: list, inspect, events, resume, approve, abandon,
   cleanup, readiness demo.
+- Continuous integration on every push and pull request, running the offline
+  suite and the eval scenarios. The runner installs Bubblewrap and libseccomp and
+  relaxes the AppArmor user-namespace restriction, so the sandbox tests execute
+  for real instead of being skipped.
 - Verification: offline suite green, 3/3 eval scenarios, readiness demo against
   real Bubblewrap, one live end-to-end run accepted through every gate for
   ~$0.38 and 16 model calls.
@@ -94,9 +98,6 @@ enough to run without flinching.
 - **Cost as a tested invariant.** Add *model calls per accepted artifact* to the
   eval runner with an asserted ceiling. Target: ≤6 median for a single-task
   objective.
-- **Continuous integration.** Offline suite on every push. The sandbox tests need
-  Bubblewrap and libseccomp on the runner; those get their own job, and no badge
-  goes on the README until it is genuinely green.
 
 ## Next — autonomy that earns the name
 
