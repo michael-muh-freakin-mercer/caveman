@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — 2026-09-27
+
+### Fixed
+- **Sandboxed commands now work on Debian/Ubuntu hosts.** The sandbox root
+  hardcoded `--symlink usr/lib /lib64`, which is Arch's layout; on Debian and
+  Ubuntu the dynamic loader lives in `/usr/lib64` (itself a symlink into
+  `/usr/lib/<multiarch>`), so every sandboxed command failed with
+  `bwrap: execvp /usr/bin/prlimit: No such file or directory` — an error that
+  names the binary rather than the unresolvable interpreter. The `/lib64` target
+  is now derived from the host's own loader directory (`_loader_dir_target`), with
+  the previous value as the fallback. Found by running the suite on an Ubuntu CI
+  runner. Note that `src/walter/sandbox.py` is a safety-path module, so this
+  change deserves the same review attention as any other control-plane edit.
+
+### Added
+- **Continuous integration** (`.github/workflows/ci.yml`): the offline suite and
+  the offline eval scenarios on Python 3.11 and 3.14, with the isolation backend
+  installed and verified before the tests run. No badge is published until the
+  workflow is green on the default branch.
+
 ## Unreleased — 2026-09-22 rehearsal follow-ups
 
 ### Added

@@ -561,3 +561,23 @@ def test_valid_active_grant_survives_reload(workspace):
     assert reloaded._grants[grant.id].lifecycle == "active"
     assert reloaded.inspect_grant(grant.id, worker_id="author").root == grant.root
     assert reloaded.read_file(grant.id, "hello.py", worker_id="author") == "VALUE = 1\n"
+
+
+def test_lib64_symlink_target_resolves_this_hosts_dynamic_loader():
+    """The sandbox must reproduce the loader layout of the host it runs on.
+
+    Hardcoding one distribution's layout makes every sandboxed command fail with
+    ``execvp <path>: No such file or directory`` on any host that arranges
+    ``/usr/lib`` and ``/usr/lib64`` differently, and the error names the binary
+    rather than the unresolvable interpreter.
+    """
+    from walter.sandbox import _loader_dir_target
+
+    target = _loader_dir_target()
+    assert target in {"usr/lib", "usr/lib64"}
+    loaders = {candidate: list((Path("/") / candidate).glob("ld-linux*"))
+               for candidate in ("usr/lib64", "usr/lib")}
+    if any(loaders.values()):
+        assert loaders[target], f"{target} holds no dynamic loader on this host"
+    else:  # no glibc loader anywhere: fall back to the historical target
+        assert target == "usr/lib"

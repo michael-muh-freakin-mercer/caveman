@@ -212,6 +212,30 @@ def _safe_relative(path: str) -> PurePosixPath:
     return candidate
 
 
+def _loader_dir_target() -> str:
+    """The ``/lib64`` symlink target that resolves to this host's dynamic loader.
+
+    Every binary the sandbox execs is dynamically linked, so the kernel resolves
+    its interpreter path inside the sandbox root before the program runs. Arch
+    keeps the loader in ``/usr/lib`` and makes ``/usr/lib64`` a symlink to it;
+    Debian and Ubuntu keep ``/usr/lib64`` as a real directory whose
+    ``ld-linux-<arch>.so.<n>`` points into ``/usr/lib/<multiarch>``. ``/usr`` is
+    bound wholesale, so reproducing whichever directory this host actually uses
+    works on both.
+
+    Getting this wrong fails every sandboxed command with ``execvp <path>: No
+    such file or directory``, which reads like a missing binary rather than an
+    unresolvable interpreter (found on Debian/Ubuntu, 2026-09-27).
+    """
+    for candidate in ("usr/lib64", "usr/lib"):
+        try:
+            if any((Path("/") / candidate).glob("ld-linux*")):
+                return candidate
+        except OSError:
+            continue
+    return "usr/lib"
+
+
 class WorkspaceManager:
     def __init__(self, repository: str | Path, state_root: str | Path | None = None,
                  dependency_root: str | Path | None = None,
@@ -874,7 +898,7 @@ class WorkspaceManager:
                     command = ["/usr/bin/bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc",
                     "--unshare-uts", "--unshare-cgroup-try", "--die-with-parent", "--new-session",
                     "--cap-drop", "ALL", "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin",
-                    "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib", "/lib64",
+                    "--symlink", "usr/lib", "/lib", "--symlink", _loader_dir_target(), "/lib64",
                     "--proc", "/proc", "--dev", "/dev", "--bind", str(scratch), "/tmp",
                     "--ro-bind", str(snapshot), "/workspace",
                     "--ro-bind", str(dependency), "/opt/walter-env", "--chdir", "/workspace",
