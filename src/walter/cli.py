@@ -143,9 +143,16 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
     session = SQLiteSession(session_id, _session_db())
 
     print(f"Walter ready. Session: {session_id}")
-    print("Commands: :clear resets this conversation, :quit exits.")
+    print("Commands: :new starts a fresh run, :clear resets this conversation, :quit exits.")
+    print("Follow-up messages continue the current run until it completes.")
     print("Operational state is durable. Provider trace export is disabled.")
 
+    # Interactive runs are a conversation, not a sequence of orphans: one
+    # durable run stays open across follow-ups ("keep going", "now fix the
+    # tests") until it completes or the operator explicitly starts a new one
+    # (2026-09-21 decision). A fresh run per input line used to strand empty
+    # sentinel-criterion runs in the durable ledger.
+    controller = None
     try:
         while True:
             try:
@@ -162,11 +169,18 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
                 await session.clear_session()
                 print("Session cleared.")
                 continue
+            if goal == ":new":
+                if controller is not None:
+                    controller.close()
+                    controller = None
+                print("Next message starts a fresh run.")
+                continue
 
-            controller = None
             try:
                 RuntimeConfig.from_env()  # Never orphan a run on missing provider configuration.
-                controller = _controller(goal)
+                if controller is None:
+                    controller = _controller(goal)
+                    print(f"Run ID: {controller.run_id}")
                 result, trace_id = await _execute(
                     build_walter(controller), goal, session=session,
                     session_id=session_id, max_turns=max_turns,
@@ -174,16 +188,18 @@ async def _run_interactive(session_id: str, max_turns: int) -> None:
                 _print_outcome(controller)
                 _print_manager_output(result)
                 print(f"\nLocal trace ID (provider export disabled): {trace_id}")
+                if controller.inspect().status != "active":
+                    controller.close()
+                    controller = None
             except KeyboardInterrupt:
                 print("\nRun interrupted.")
             except RuntimeConfigurationError as exc:
                 print(f"Walter configuration error: {exc}")
             except UsageBudgetExceeded as exc:
                 _report_usage_budget_exceeded(exc)
-            finally:
-                if controller is not None:
-                    controller.close()
     finally:
+        if controller is not None:
+            controller.close()
         await _close_session(session)
 
 
@@ -215,6 +231,8 @@ def _print_outcome(controller):
     print(f"Run ID: {run.id}\nDurable status: {run.status}")
     if run.status == "completed":
         print(run.final_result or "Completed through the kernel acceptance gate.")
+    elif run.status == "abandoned":
+        print("Run was abandoned offline. Durable tasks, decisions and events remain readable.")
     else:
         print("Run is not complete. Inspect durable tasks, blockers, and approvals with walter run inspect " + run.id)
 
@@ -250,6 +268,65 @@ def _local_human_principal() -> str:
     return f"local-os:{getpass.getuser()}:uid:{uid}"
 
 
+def _cleanup(run_id: str) -> None:
+    """Retire candidate worktrees, branches and grants for one terminal run.
+
+    Durable operational state is never touched. The run snapshot and its
+    append-only event log are the record of what happened and stay fully
+    readable after cleanup; only reclaimable filesystem and grant state goes.
+    """
+    from .sandbox import SandboxViolation, WorkspaceManager
+
+    store = _store()
+    try:
+        run = store.load(run_id)
+        if run.status == "active":
+            raise ValueError(
+                f"run {run_id} is still active; cleanup only retires workspaces for a "
+                "terminal run. Finish or abandon it first.")
+        try:
+            workspaces = WorkspaceManager(Path.cwd())
+            retired = workspaces.retire_run(run_id)
+        except SandboxViolation as exc:
+            # SandboxViolation subclasses OSError, which main() does not
+            # translate, so it would otherwise surface as a traceback.
+            raise RuntimeError(f"workspace retirement refused: {exc}") from exc
+        print(json.dumps({
+            "run_id": run_id,
+            "run_status": run.status,
+            "candidates": retired,
+            "durable_state": "unchanged",
+        }, indent=2))
+    finally:
+        store.close()
+
+
+def _abandon(run_id: str, reason: str) -> None:
+    """Close a work-free active run offline, without invoking the Manager model.
+
+    Only durable status changes: no provider calls, no workspace mutation. This
+    is the offline exit for runs whose plan holds no in-flight work and no
+    pending gate, which otherwise stay `active` forever. Refusals name the exact
+    in-flight task or pending gate, so the operator knows what still needs a
+    decision.
+    """
+    store = _store()
+    try:
+        from .orchestration import Orchestrator
+
+        core = Orchestrator(store)
+        run = core.abandon(run_id, reason, actor_id=_local_human_principal())
+        print(json.dumps({
+            "run_id": run.id,
+            "run_status": run.status,
+            "plan_status": run.plan.status,
+            "reason": reason,
+            "durable_state": "preserved",
+        }, indent=2))
+    finally:
+        store.close()
+
+
 def _operations(argv):
     parser = argparse.ArgumentParser(prog="walter run")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -266,12 +343,27 @@ def _operations(argv):
     approval.add_argument("approval_id")
     approval.add_argument("--deny", action="store_true")
     approval.add_argument("--reason", required=True)
+    cleanup = commands.add_parser("cleanup", help=(
+        "Retire candidate worktrees, branches and workspace grants for a terminal run. "
+        "Durable run and event state is never modified."))
+    cleanup.add_argument("run_id")
+    abandon = commands.add_parser("abandon", help=(
+        "Close a work-free active run offline (no provider calls). Refused while the run "
+        "holds in-flight work, a pending approval, or a pending capability request."))
+    abandon.add_argument("run_id")
+    abandon.add_argument("--reason", required=True)
     commands.add_parser("readiness-demo")
     args = parser.parse_args(argv)
     if args.command == "readiness-demo":
         from .readiness import run_readiness_demo
         report = run_readiness_demo(Path.cwd())
         print(report.model_dump_json(indent=2) if hasattr(report, "model_dump_json") else json.dumps(report, indent=2))
+        return
+    if args.command == "abandon":
+        _abandon(args.run_id, args.reason)
+        return
+    if args.command == "cleanup":
+        _cleanup(args.run_id)
         return
     if args.command == "resume":
         target = _resume_and_execute if args.execute else _resume

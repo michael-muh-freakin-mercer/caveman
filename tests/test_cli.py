@@ -1,11 +1,11 @@
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from walter import cli
 from walter.orchestration import Orchestrator
-from walter.store import SQLiteStore
 
 
 def setup_repository(tmp_path):
@@ -48,6 +48,39 @@ def test_offline_run_list_inspect_events_resume_and_approval(tmp_path, monkeypat
     approved = json.loads(capsys.readouterr().out)
     assert approved["approval_decisions"][request.id]["approved"] is True
     assert approved["approval_decisions"][request.id]["human_id"] == "local-os:fixture-user:uid:1234"
+
+
+def test_offline_abandon_closes_a_work_free_run_and_refuses_live_work(tmp_path, monkeypatch, capsys):
+    """`walter run abandon` is the offline, no-spend exit for stuck active runs."""
+    from walter.contracts import TaskPacket
+    from walter.models import TaskNode
+
+    setup_repository(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    store = cli._store()
+    core = Orchestrator(store)
+    run = core.create_run("offline abandon fixture", ["fixture accepted"])
+    live = core.create_run("still running", ["fixture accepted"])
+    core.add_tasks(live.id, [TaskNode(packet=TaskPacket(
+        task_id="a", role="writer", objective="Write", deliverable="report",
+        acceptance_criteria=["accurate"], stop_condition="deliver"))])
+    core.delegate(live.id, "a", "author")
+    store.close()
+
+    monkeypatch.setattr(cli.getpass, "getuser", lambda: "fixture-user")
+    monkeypatch.setattr(cli.os, "getuid", lambda: 1234)
+    with pytest.raises(ValueError, match="in-flight work: a"):
+        cli._operations(["abandon", live.id, "--reason", "close it anyway"])
+    assert capsys.readouterr().out == ""
+
+    cli._operations(["abandon", run.id, "--reason", "Superseded by a fresh run"])
+    closed = json.loads(capsys.readouterr().out)
+    assert closed["run_status"] == "abandoned"
+    assert closed["durable_state"] == "preserved"
+
+    cli._operations(["list"])
+    statuses = {item["id"]: item["status"] for item in json.loads(capsys.readouterr().out)}
+    assert statuses[run.id] == "abandoned" and statuses[live.id] == "active"
 
 
 def test_one_shot_builds_manager_around_new_durable_run(monkeypatch, capsys):
@@ -295,6 +328,8 @@ def test_interactive_reports_usage_budget_exceeded_and_continues(monkeypatch, ca
             pass
 
     class Controller:
+        run_id = "durable-run"
+
         def inspect(self):
             raise AssertionError("inspect should not run after budget failure")
 
@@ -319,3 +354,165 @@ def test_interactive_reports_usage_budget_exceeded_and_continues(monkeypatch, ca
     captured = capsys.readouterr()
     assert "Usage budget exceeded: Model-call budget exhausted" in captured.out
     assert observed["closed"] == 1
+
+
+def test_interactive_followups_continue_the_current_run(monkeypatch, capsys):
+    """Interactive mode keeps one durable run open across follow-ups until it
+    completes or the operator asks for a new one (2026-09-21 decision)."""
+    observed = {"created": 0, "closed": 0}
+
+    class Session:
+        def __init__(self, session_id, db):
+            pass
+
+        async def clear_session(self):
+            pass
+
+        def close(self):
+            pass
+
+    class Run:
+        id = "durable-run"
+        status = "active"
+        final_result = None
+
+    class Controller:
+        run_id = "durable-run"
+
+        def inspect(self):
+            return Run()
+
+        def close(self):
+            observed["closed"] += 1
+
+    def make_controller(goal):
+        observed["created"] += 1
+        return Controller()
+
+    executed = []
+
+    async def execute(walter, goal, **kwargs):
+        executed.append(goal)
+        return object(), "trace"
+
+    monkeypatch.setattr(cli, "SQLiteSession", Session)
+    monkeypatch.setattr(cli, "_controller", make_controller)
+    monkeypatch.setattr(cli.RuntimeConfig, "from_env", classmethod(lambda cls: object()))
+    monkeypatch.setattr(cli, "build_walter", lambda value: object())
+    monkeypatch.setattr(cli, "_execute", execute)
+
+    responses = iter(["first goal", "keep going", ":new", "fresh goal", ":quit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(responses))
+
+    import asyncio
+    asyncio.run(cli._run_interactive("fixture-session", 3))
+
+    assert executed == ["first goal", "keep going", "fresh goal"]
+    assert observed["created"] == 2   # "keep going" reused the open run
+    assert observed["closed"] == 2    # :new retired the first; exit retired the second
+    output = capsys.readouterr().out
+    assert ":new starts a fresh run" in output
+
+
+def _terminal_run_with_candidate(tmp_path, monkeypatch):
+    """A completed run owning one real candidate worktree and branch.
+
+    chdir first: cli._store() resolves the operational database from the
+    current working directory, so building the run before chdir would write
+    into whatever store the developer happens to be sitting in.
+    """
+    from walter.models import Event
+    from walter.sandbox import WorkspaceManager
+
+    setup_repository(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    store = cli._store()
+    core = Orchestrator(store)
+    run = core.create_run("cleanup fixture", ["fixture accepted"])
+    workspaces = WorkspaceManager(tmp_path)
+    grant = workspaces.create_candidate(run.id, "task", "author")
+    snapshot = store.load(run.id)
+    snapshot.status = "completed"
+    snapshot.final_result = "fixture complete"
+    store.save(snapshot, [Event(run_id=run.id, kind="test.forced_terminal")], snapshot.version)
+    store.close()
+    return run.id, grant
+
+
+def _branches(tmp_path):
+    return subprocess.run(["git", "-C", str(tmp_path), "branch", "--list",
+                           "walter-candidate/*"], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_cleanup_refuses_an_active_run_and_leaves_its_workspace(tmp_path, monkeypatch):
+    from walter.sandbox import WorkspaceManager
+
+    setup_repository(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    store = cli._store()
+    core = Orchestrator(store)
+    run = core.create_run("active fixture", ["fixture accepted"])
+    store.close()
+    grant = WorkspaceManager(tmp_path).create_candidate(run.id, "task", "author")
+
+    with pytest.raises(ValueError, match="still active"):
+        cli._operations(["cleanup", run.id])
+    # Refusal must not destroy anything.
+    assert Path(grant.root).is_dir()
+    assert grant.branch in _branches(tmp_path)
+
+
+def test_cleanup_retires_a_terminal_run_without_touching_durable_state(tmp_path, monkeypatch, capsys):
+    run_id, grant = _terminal_run_with_candidate(tmp_path, monkeypatch)
+    before = cli._store()
+    durable, events = before.load(run_id).model_dump_json(), before.events(run_id)
+    before.close()
+
+    cli._operations(["cleanup", run_id])
+    report = json.loads(capsys.readouterr().out)
+    assert report["run_status"] == "completed"
+    assert report["durable_state"] == "unchanged"
+    assert report["candidates"] == [{
+        "candidate_id": grant.candidate_id, "branch": grant.branch,
+        "worktree_removed": True, "branch_deleted": True,
+    }]
+    assert not Path(grant.root).exists()
+    assert grant.branch not in _branches(tmp_path)
+
+    # The run snapshot and the whole event log must survive byte-for-byte.
+    after = cli._store()
+    assert after.load(run_id).model_dump_json() == durable
+    assert after.events(run_id) == events
+    after.close()
+
+
+def test_cleanup_reclaims_a_branch_left_by_an_out_of_band_worktree_removal(tmp_path, monkeypatch, capsys):
+    """WorkspaceManager reconciles a vanished worktree to closed on construction.
+
+    That left the candidate branch and a prunable worktree registration behind
+    with nothing to reclaim them, so cleanup reported success having done
+    nothing.
+    """
+    import shutil
+
+    run_id, grant = _terminal_run_with_candidate(tmp_path, monkeypatch)
+    shutil.rmtree(grant.root)
+    assert grant.branch in _branches(tmp_path)
+
+    cli._operations(["cleanup", run_id])
+    report = json.loads(capsys.readouterr().out)
+    assert report["candidates"] == [{
+        "candidate_id": grant.candidate_id, "branch": grant.branch,
+        "worktree_removed": False, "branch_deleted": True,
+    }]
+    assert grant.branch not in _branches(tmp_path)
+    worktrees = subprocess.run(["git", "-C", str(tmp_path), "worktree", "list"],
+                               capture_output=True, text=True, check=True).stdout
+    assert "prunable" not in worktrees and grant.candidate_id not in worktrees
+
+    # Idempotent: a second pass reports nothing further to reclaim.
+    cli._operations(["cleanup", run_id])
+    again = json.loads(capsys.readouterr().out)
+    assert again["candidates"][0]["worktree_removed"] is False
+    assert again["candidates"][0]["branch_deleted"] is False

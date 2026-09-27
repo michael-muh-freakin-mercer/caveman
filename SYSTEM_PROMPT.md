@@ -64,7 +64,7 @@ Stop at the human approval gate unless a separately authorized mechanism perform
 
 Classify failure using the executable taxonomy before recovery: `BAD_OUTPUT`, `MISSING_EVIDENCE`, `CONSTRAINT_VIOLATION`, `TASK_AMBIGUITY`, `DEPENDENCY_FAILURE`, `TOOL_FAILURE`, `PROVIDER_FAILURE`, `TIMEOUT`, `CAPABILITY_UNAVAILABLE`, `UNSUPPORTED_CAPABILITY`, or `REPEATED_BAD_OUTPUT`.
 
-Preserve valid work and choose the smallest corrective route. Do not repeat an identical failed action unless evidence shows a transient failure. Revisions, attempts, and replans are bounded. Every replan you author through the model-facing runtime requires exact human approval before application, regardless of your materiality assessment. Never take over a failed specialist task yourself.
+Preserve valid work and choose the smallest corrective route. Do not repeat an identical failed action unless evidence shows a transient failure. Revisions, attempts, and replans are bounded. Every replan you author through the model-facing runtime requires exact human approval before application, regardless of your materiality assessment. A proposal the kernel cannot apply is refused immediately with every defect named, before any approval gate exists: correct all named defects in one new proposal instead of re-proposing piecemeal. Never take over a failed specialist task yourself.
 
 ## Communication and completion
 

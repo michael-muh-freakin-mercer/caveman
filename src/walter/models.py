@@ -70,6 +70,38 @@ class CapabilityRequestStatus(StrEnum):
     ESCALATED = "escalated"
 
 
+class BlockerReason(StrEnum):
+    """Fixed, state-machine-significant values for ``TaskNode.blocker``.
+
+    ``_refresh``, ``bind_workspace``, ``decide_approval`` and the capability
+    escalation paths compare against these exact values to decide transitions,
+    so they are control flow rather than display text. Values are byte
+    identical to the literals they replace: persisted snapshots keep their
+    meaning, and because these are ``StrEnum`` members they compare equal to
+    the plain strings a reloaded snapshot yields.
+
+    Genuinely free-text blockers stay plain strings and must not be added
+    here: worker-supplied summaries, classified failure evidence, and the
+    legacy-gate reason that appends outstanding approval IDs.
+    """
+
+    CAPABILITY_PREREQUISITES_MISSING = "Capability prerequisites missing"
+    APPROVAL_PREREQUISITES_SATISFIED = "Approval prerequisites satisfied"
+    APPROVAL_PENDING = "Required approval pending"
+    APPROVAL_REJECTED = "Required approval rejected"
+    CAPABILITY_ESCALATION_PENDING = "Capability escalation pending"
+    UNSUPPORTED_CAPABILITY = "Unsupported capability requires Manager escalation"
+    TOOL_FAILURE = "Tool failure requires Manager escalation"
+    MANAGER_REPLAN_REQUIRED = "Manager replan required"
+    WORKER_REPLACEMENT_REQUIRED = "Worker replacement required"
+    # Prefix only; callers append the outstanding approval IDs.
+    LEGACY_APPROVAL_REGATE = "Legacy approval gate requires explicit Manager re-gating"
+    # Prefix only; callers append the precise readiness reason. Set when a READY
+    # task loses readiness, and treated as refreshable so the task returns to
+    # READY automatically once the underlying gate is satisfied again.
+    READINESS_LAPSED = "Readiness lapsed"
+
+
 class ApprovalGate(Model):
     """The exact approval request and semantics required by a task."""
     request_id: str
@@ -97,6 +129,12 @@ class TaskNode(Model):
     status: TaskStatus = TaskStatus.PLANNED
     attempts: int = 0
     revisions: int = 0
+    # Lifetime counters above are append-only audit history. A replan that
+    # reopens a task rebases these baselines so the task gets a fresh budget in
+    # the new plan revision without rewriting its history. Remaining budget is
+    # always attempts - attempt_baseline against max_attempts.
+    attempt_baseline: int = Field(default=0, ge=0)
+    revision_baseline: int = Field(default=0, ge=0)
     max_attempts: int = Field(default=3, ge=1)
     max_revisions: int = Field(default=2, ge=0)
     assignment: WorkerAssignment | None = None

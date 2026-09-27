@@ -32,6 +32,16 @@ def packet(task_id="task"):
     )
 
 
+async def _call_tool(function_tool, **arguments):
+    """Invoke a Manager tool through the real SDK FunctionTool boundary."""
+    from agents.tool_context import ToolContext
+
+    payload = json.dumps(arguments)
+    context = ToolContext(None, tool_name=function_tool.name, tool_call_id="call-1",
+                          tool_arguments=payload)
+    return await function_tool.on_invoke_tool(context, payload)
+
+
 def controller_for(task, tmp_path=None):
     core = Orchestrator(SQLiteStore())
     run = core.create_run("fixture", ["accepted fixture"])
@@ -52,15 +62,20 @@ class RecordingWorkspaceManager(WorkspaceManager):
         return CommandResult(0, "1 passed\n", "")
 
 
+def _git_fixture(repository):
+    """Initialize the fixture repository and commit its current contents."""
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
+                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+
+
 def _developer_pytest_controller(tmp_path):
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
     (repository / "tests").mkdir()
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     core = Orchestrator(SQLiteStore())
     run = core.create_run("scoped pytest", ["A candidate test file passes"])
     core.add_tasks(run.id, [TaskNode(
@@ -245,12 +260,7 @@ def test_developer_revision_gets_fresh_workspace_and_cleans_old_candidate(tmp_pa
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run([
-        "git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-        "user.email=fixture@example.invalid", "commit", "-qm", "fixture",
-    ], check=True)
+    _git_fixture(repository)
     core = Orchestrator(SQLiteStore())
     run = core.create_run("developer revision", ["A revised candidate is submitted"])
     core.add_tasks(run.id, [TaskNode(
@@ -301,6 +311,79 @@ def test_developer_candidate_with_changed_test_file_uses_scoped_pytest(tmp_path,
     assert argv[:3] == ["python3", "-m", "pytest"]
     assert "tests/test_candidate.py" in argv
     assert "tests" not in argv
+
+
+def test_candidate_and_regression_pytest_checks_run_separate_scopes(tmp_path, monkeypatch):
+    """pytest_candidate covers the candidate's tests; pytest_regression covers
+    the pre-existing suite, so a change that breaks old tests cannot pass by
+    adding only its own green file (2026-09-21 decision)."""
+    repository = tmp_path / "fixture"
+    (repository / "tests").mkdir(parents=True)
+    (repository / "README.md").write_text("# Fixture\n")
+    (repository / "tests" / "test_existing.py").write_text("def test_old():\n    assert True\n")
+    _git_fixture(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("split pytest", ["Candidate and regression suites pass"])
+    core.add_tasks(run.id, [TaskNode(
+        packet=packet(), capability=CapabilityProfile.DEVELOPER_SANDBOX,
+        required_checks=["pytest_candidate", "pytest_regression"],
+    )])
+    manager = RecordingWorkspaceManager(repository)
+    controller = DurableController(core, run.id, manager)
+
+    async def candidate(**kwargs):
+        workspace_id = controller.inspect().tasks[kwargs["task_id"]].workspace_id
+        manager.write_file(workspace_id, "tests/test_candidate.py",
+                           "def test_ok():\n    assert True\n",
+                           worker_id=kwargs["worker_id"])
+        return WorkerResult(task_id="task", status="completed", summary="candidate",
+                            deliverable="bounded candidate")
+
+    monkeypatch.setattr(controller, "_invoke", candidate)
+    asyncio.run(controller.delegate("task"))
+    controller.validate("task")
+
+    task = controller.inspect().tasks["task"]
+    validations = controller.inspect().artifacts[task.artifact_ids[-1]].validations
+    by_check = {v.check: v for v in validations}
+    assert by_check["pytest_candidate"].passed and by_check["pytest_regression"].passed
+    assert len(manager.executions) == 2
+    candidate_argv, regression_argv = (manager.executions[0][2], manager.executions[1][2])
+    assert "tests/test_candidate.py" in candidate_argv
+    assert "tests/test_existing.py" not in candidate_argv
+    assert "tests/test_existing.py" in regression_argv
+    assert "tests/test_candidate.py" not in regression_argv
+
+
+def test_regression_check_fails_honestly_without_preexisting_tests(tmp_path, monkeypatch):
+    repository = tmp_path / "fixture"
+    repository.mkdir()
+    (repository / "README.md").write_text("# Fixture\n")
+    _git_fixture(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("regression scope", ["Regression suite passes"])
+    core.add_tasks(run.id, [TaskNode(
+        packet=packet(), capability=CapabilityProfile.DEVELOPER_SANDBOX,
+        required_checks=["pytest_regression"],
+    )])
+    manager = RecordingWorkspaceManager(repository)
+    controller = DurableController(core, run.id, manager)
+
+    async def candidate(**kwargs):
+        workspace_id = controller.inspect().tasks[kwargs["task_id"]].workspace_id
+        manager.write_file(workspace_id, "src/module.py", "VALUE = 2\n",
+                           worker_id=kwargs["worker_id"])
+        return WorkerResult(task_id="task", status="completed", summary="candidate",
+                            deliverable="bounded candidate")
+
+    monkeypatch.setattr(controller, "_invoke", candidate)
+    asyncio.run(controller.delegate("task"))
+    controller.validate("task")
+    validation = controller.inspect().artifacts[
+        controller.inspect().tasks["task"].artifact_ids[-1]].validations[-1]
+    assert validation.check == "pytest_regression" and not validation.passed
+    assert "No pre-existing test files" in validation.evidence
+    assert manager.executions == []
 
 
 def test_developer_candidate_without_changed_test_files_fails_validation(tmp_path, monkeypatch):
@@ -425,6 +508,130 @@ def test_material_replan_waits_for_exact_approval_and_rejection_cannot_apply():
         controller.apply_replan(proposal.id)
 
 
+def test_invalid_replan_proposal_binds_no_approval_gate():
+    """Validation runs before the approval request, so a bad proposal costs no review.
+
+    The pygtrie rehearsal burned all three replans on kernel-invalid proposals
+    (task-id collision, bad dependency map) and paid a human approval round-trip
+    for each, because the gate binds to the exact proposal.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    before = controller.inspect()
+    with pytest.raises(ValueError, match="Invalid replan proposal"):
+        controller.propose_replan(
+            trigger="collide with the live plan", evidence=["gap"],
+            add=[packet("task")], remove=[], reopen=[],
+            dependencies={}, risks=[],
+        )
+    with pytest.raises(ValueError, match="Invalid replan proposal"):
+        controller.propose_replan(
+            trigger="depend on nothing", evidence=["gap"], add=[], remove=[], reopen=[],
+            dependencies={"task": ["ghost"]}, risks=[],
+        )
+    after = controller.inspect()
+    assert after.plan.revision == before.plan.revision
+    assert after.approvals == {} and after.replans == {}
+    # The same lane proposed correctly still gets exactly one gate.
+    proposal, approval = controller.propose_replan(
+        trigger="add an independent lane", evidence=["coverage gap"],
+        add=[packet("valid")], remove=[], reopen=[], dependencies={}, risks=[],
+    )
+    assert approval is not None
+    assert len(controller.inspect().approvals) == 1
+
+
+def test_replan_tool_refuses_an_invalid_proposal_without_recording_a_gate():
+    """The Manager-facing tool boundary refuses before any approval exists.
+
+    The SDK turns a tool exception into an error string for the model rather
+    than raising, so assert on the returned refusal text and prove the durable
+    state is untouched: no approval gate, no persisted proposal.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    tools = {item.name: item for item in controller.tools()}
+
+    async def scenario():
+        refusal = await _call_tool(tools["replan_tasks"], trigger="collide with the live plan",
+                                   evidence=["gap"], add=[packet("task").model_dump()],
+                                   remove=[], reopen=[], dependencies_json="{}", risks=[])
+        assert "Invalid replan proposal" in refusal and "fresh unique task" in refusal
+        assert controller.inspect().approvals == {} and controller.inspect().replans == {}
+        return json.loads(await _call_tool(
+            tools["replan_tasks"], trigger="add an independent lane", evidence=["coverage gap"],
+            add=[packet("valid").model_dump()], remove=[], reopen=[],
+            dependencies_json="{}", risks=[]))
+    payload = asyncio.run(scenario())
+    assert payload["approval"]["status"] == "pending"
+    state = controller.inspect()
+    assert len(state.approvals) == 1
+    assert list(state.replans) == [payload["proposal"]["id"]]
+
+
+def test_read_only_lane_review_does_not_require_candidate_inspection(tmp_path, monkeypatch):
+    """A scout lane's empty diff is expected: its reported content is reviewed.
+
+    Demanding an inspected candidate file failed every read-only lane in the
+    pygtrie rehearsal, because a read-only grant can never produce a diff.
+    """
+    repository = tmp_path / "fixture"
+    repository.mkdir()
+    (repository / "README.md").write_text("# Fixture\n")
+    _git_fixture(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("scout the layout", ["A cited layout report exists"])
+    core.add_tasks(run.id, [TaskNode(packet=packet(), capability=CapabilityProfile.REPO_READER,
+                                     required_checks=["result_schema"])])
+    workspaces = RecordingWorkspaceManager(repository)
+    controller = DurableController(core, run.id, workspaces)
+
+    async def scout(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="layout report",
+                            deliverable="Top-level: README.md, tests/; tests run via pytest")
+
+    monkeypatch.setattr(controller, "_invoke", scout)
+    asyncio.run(controller.delegate("task"))
+    assert controller.inspect().tasks["task"].workspace_id
+    controller.validate("task")
+
+    observed = {}
+
+    async def reviewer(**kwargs):
+        observed.update(kwargs)
+        return ReviewResult(passed=True, evidence=["report names files this repo contains"],
+                            reason="content reviewed against the repository")
+
+    monkeypatch.setattr(controller, "_invoke", reviewer)
+    asyncio.run(controller.review("task"))
+    state = controller.inspect()
+    review = state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1]
+    assert review.passed
+    assert "did not inspect" not in review.evidence
+    assert "read-only investigation report" in observed["instructions"]
+
+
+def test_developer_lane_review_still_requires_candidate_inspection(tmp_path, monkeypatch):
+    """The inspection requirement survives for lanes that can change files."""
+    controller, _ = _developer_pytest_controller(tmp_path)
+
+    async def candidate(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="candidate",
+                            deliverable="bounded candidate")
+
+    monkeypatch.setattr(controller, "_invoke", candidate)
+    asyncio.run(controller.delegate("task"))
+    controller.validate("task")
+
+    async def uninspected(**kwargs):
+        return ReviewResult(passed=True, evidence=["looks fine"], reason="no files read")
+
+    monkeypatch.setattr(controller, "_invoke", uninspected)
+    asyncio.run(controller.review("task"))
+    state = controller.inspect()
+    review = state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1]
+    assert not review.passed
+    assert "did not inspect any candidate file" in review.evidence
+
+
 def test_exact_approved_material_replan_applies_and_stale_one_fails():
     controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
     stale, stale_approval = controller.propose_replan(
@@ -510,10 +717,7 @@ def test_capability_escalation_pending_and_denied_never_grants_tools(tmp_path, m
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, observed = _controller_with_capability_request(monkeypatch, repository)
     assert observed["tools"] == []
     run = controller.inspect()
@@ -541,10 +745,7 @@ def test_developer_escalation_without_executable_check_is_denied_before_allocati
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(
         monkeypatch, repository, checks=["result_schema"]
     )
@@ -562,10 +763,7 @@ def test_exact_approved_capability_request_applies_persisted_profile(tmp_path, m
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(monkeypatch, repository)
     _, approval = controller.request_capability_change(request.id, "Review exact sandbox grant")
     controller.core.decide_approval(controller.run_id, approval.id, True,
@@ -602,10 +800,7 @@ def test_repo_reader_escalation_reuses_exact_workspace_with_read_only_tools(tmp_
     repository = tmp_path / "fixture"
     repository.mkdir()
     (repository / "README.md").write_text("# Fixture\n")
-    subprocess.run(["git", "init", "-q", str(repository)], check=True)
-    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(repository), "-c", "user.name=Fixture", "-c",
-                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"], check=True)
+    _git_fixture(repository)
     controller, request, _ = _controller_with_capability_request(
         monkeypatch, repository, requested="repo_reader"
     )
@@ -690,3 +885,252 @@ def test_invoke_passes_configured_budget_to_worker_model(monkeypatch):
     model = captured["model"]
     assert isinstance(model, UsageRecordingModel)
     assert model.budget is budget
+
+
+def test_invoke_resolves_configuration_once_per_controller(monkeypatch):
+    from walter import runtime
+    from walter.usage import UsageBudget
+    from walter.usage_model import UsageRecordingModel
+
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    budget = UsageBudget(max_calls=5)
+    captured = {}
+    resolutions = []
+
+    def counting_from_env(cls):
+        resolutions.append(1)
+        return runtime.RuntimeConfig(
+            "openrouter", "key", "https://openrouter.ai/api/v1", "manager", "worker", budget
+        )
+
+    monkeypatch.setattr(runtime.RuntimeConfig, "from_env", classmethod(counting_from_env))
+    monkeypatch.setattr(runtime, "build_models", lambda config: (object(), object()))
+    monkeypatch.setattr(runtime, "_agent", lambda **kwargs: captured.update(kwargs) or kwargs)
+
+    class Result:
+        final_output = "ok"
+
+    async def fake_run(*args, **kwargs):
+        return Result()
+
+    monkeypatch.setattr("walter.adapter.Runner.run", fake_run)
+
+    for _ in range(2):
+        asyncio.run(controller._invoke(
+            name="Worker", instructions="do the task", output_type=str, tools=[],
+            input="payload", task_id="task", worker_id="worker-1", role="worker"))
+
+    assert len(resolutions) == 1
+    model = captured["model"]
+    assert isinstance(model, UsageRecordingModel)
+    assert model.budget is budget
+
+
+def test_validate_task_reports_the_actual_check_outcome():
+    """A mutating tool result must say whether the check it just ran passed.
+
+    The compact receipt introduced for token economy reports only task and
+    artifact status, so a Manager that ran validate_task could not tell a
+    recorded failure from a pass without a full inspect_run.
+    """
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    assignment = core.delegate(controller.run_id, "task", "worker")
+    core.start(controller.run_id, "task")
+    core.submit(controller.run_id, "task", assignment.id, "worker",
+        WorkerResult(task_id="task", status="completed", summary="done",
+                     deliverable="an inspectable result"))
+    tools = {tool.name: tool for tool in controller.tools()}
+    payload = json.loads(asyncio.run(_call_tool(tools["validate_task"], task_id="task")))
+    assert payload["validations"] == [{"check": "result_schema", "passed": True}]
+    assert payload["run"]["tasks"]["task"]["status"] == "REVIEWING"
+
+
+def test_validate_task_surfaces_a_failure_with_actionable_evidence(tmp_path):
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repository, check=True)
+    (repository / "calc.py").write_text("def add(a, b):\n    return a + b\n")
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"],
+                   cwd=repository, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-qm", "base"], cwd=repository, check=True)
+    workspaces = RecordingWorkspaceManager(repository)
+    core = Orchestrator(SQLiteStore())
+    run = core.create_run("fixture", ["accepted fixture"])
+    core.add_tasks(run.id, [TaskNode(packet=packet(),
+        capability=CapabilityProfile.DEVELOPER_SANDBOX, required_checks=["pytest"])])
+    controller = DurableController(core, run.id, workspaces)
+    grant = workspaces.create_candidate(run.id, "task", "author")
+    core.bind_workspace(run.id, "task", grant.id)
+    assignment = core.delegate(run.id, "task", "author")
+    core.start(run.id, "task")
+    fingerprint = workspaces.freeze(grant.id)
+    core.submit(run.id, "task", assignment.id, "author",
+        WorkerResult(task_id="task", status="completed", summary="done",
+                     deliverable="claimed complete"),
+        workspace_fingerprint=fingerprint)
+    tools = {tool.name: tool for tool in controller.tools()}
+    payload = json.loads(asyncio.run(_call_tool(tools["validate_task"], task_id="task")))
+    outcome = payload["validations"][0]
+    assert outcome == {"check": "pytest", "passed": False,
+                       "evidence": "No candidate test files were added or changed; "
+                                   "a developer candidate must include tests"}
+    assert payload["run"]["tasks"]["task"]["attempts_remaining"] == 2
+    # The kernel must still refuse acceptance, and name the failing gate.
+    with pytest.raises(ValueError, match="failed: pytest"):
+        core.accept(run.id, "task", reason="ignore", workspace_fingerprint=fingerprint)
+
+
+def test_registering_an_unchanged_input_again_is_a_no_op(tmp_path):
+    """A later planning round may repeat a path it already registered."""
+    controller = _repository_controller(tmp_path)
+    first = controller.register_repository_inputs(["calc.py"])
+    both = controller.register_repository_inputs(["calc.py", "test_calc.py"])
+    assert both["calc.py"] == first["calc.py"]
+    run = controller.inspect()
+    assert set(run.available_inputs) == {"calc.py", "test_calc.py"}
+    assert [event.kind for event in controller.core.store.events(controller.run_id)].count(
+        "input.registered") == 2
+
+
+def test_registering_a_changed_input_reports_the_digest_conflict(tmp_path):
+    controller = _repository_controller(tmp_path)
+    controller.register_repository_inputs(["calc.py"])
+    repository = controller.workspaces.repository
+    (repository / "calc.py").write_text("def add(a, b):\n    return a - b\n")
+    with pytest.raises(ValueError, match="immutable but the repository file now"):
+        controller.register_repository_inputs(["calc.py"])
+    assert len(controller.inspect().available_inputs) == 1
+
+
+def test_validation_outcome_extracts_stream_tails_from_executor_evidence():
+    """Executable checks record a JSON blob; slicing it would cut mid-field."""
+    evidence = json.dumps({"argv": ["python3", "-m", "pytest"], "returncode": 1,
+                           "stdout": "x" * 4000 + "1 failed", "stderr": ""})
+    record = SimpleNamespace(check="pytest", passed=False, evidence=evidence)
+    outcome = DurableController._validation_outcome([record])[0]
+    assert outcome["check"] == "pytest" and outcome["passed"] is False
+    assert outcome["returncode"] == 1
+    assert outcome["stdout"].endswith("1 failed") and len(outcome["stdout"]) == 1200
+    assert "stderr" not in outcome
+
+
+def test_failed_attempt_workspace_is_dirty_and_retry_gets_a_fresh_one(tmp_path, monkeypatch):
+    """The escalation-reuse branch must fire only for a never-executed workspace.
+
+    A worker that fails before submitting leaves a partially-modified worktree
+    behind; reusing it (and its worker identity) for the retry contradicts
+    replace_workspace's fresh-isolation contract (2026-09-21 decision).
+    """
+    repository = tmp_path / "fixture"
+    repository.mkdir()
+    (repository / "README.md").write_text("# Fixture\n")
+    _git_fixture(repository)
+    controller, request, _ = _controller_with_capability_request(monkeypatch, repository)
+    _, approval = controller.request_capability_change(request.id, "Review exact sandbox grant")
+    controller.core.decide_approval(controller.run_id, approval.id, True,
+                                    "human", "approve isolated candidate workspace")
+    controller.apply_capability_change(request.id)
+    approved_workspace = controller.inspect().tasks["task"].workspace_id
+    approved_worker = controller.workspaces.inspect_grant(approved_workspace).worker_id
+
+    async def scenario():
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def hanging(**kwargs):
+            started.set()
+            await release.wait()
+            raise RuntimeError("provider connection dropped")
+
+        monkeypatch.setattr(controller, "_invoke", hanging)
+        first = asyncio.create_task(controller.delegate("task"))
+        await started.wait()
+        # Dirty the workspace mid-attempt, as a real failure would.
+        controller.workspaces.write_file(approved_workspace, "half.py", "x = (\n",
+                                         worker_id=approved_worker)
+        assignment = controller.inspect().tasks["task"].assignment
+        failure = controller.core.fail_assignment(
+            controller.run_id, "task", assignment.id, assignment.worker_id,
+            FailureClass.PROVIDER_FAILURE, "manager observed dropped provider call")
+        controller.core.recover(controller.run_id, failure.id,
+                                "retry with a fresh isolated workspace")
+        release.set()
+        with pytest.raises(Exception):
+            await first
+
+    asyncio.run(scenario())
+    assert controller.workspaces.inspect_grant(approved_workspace).used is True
+
+    async def candidate(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="implemented",
+                            deliverable="approved workspace candidate")
+
+    monkeypatch.setattr(controller, "_invoke", candidate)
+    asyncio.run(controller.delegate("task"))
+    after = controller.inspect()
+    fresh = after.tasks["task"].workspace_id
+    assert fresh != approved_workspace
+    assert after.tasks["task"].assignment.worker_id != approved_worker
+    assert any(event.kind == "workspace.replaced"
+               for event in controller.core.store.events(controller.run_id))
+    with pytest.raises(Exception):
+        controller.workspaces.inspect_grant(approved_workspace)
+
+
+def test_concurrent_update_is_retried_once_then_translated(monkeypatch):
+    """A cross-operator collision (e.g. `walter run approve` mid-run) must not
+    reach the Manager as an opaque tool error (2026-09-21 decision)."""
+    from walter.store import ConcurrentUpdate
+
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    tools = {tool.name: tool for tool in controller.tools()}
+    criteria = ["A measurable criterion for the collision test"]
+
+    calls = {"count": 0}
+    original = controller.core.set_completion_criteria
+
+    def flaky(run_id, value):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise ConcurrentUpdate("Run changed; reload before applying this operation")
+        return original(run_id, value)
+
+    monkeypatch.setattr(controller.core, "set_completion_criteria", flaky)
+    payload = json.loads(asyncio.run(
+        _call_tool(tools["set_completion_criteria"], criteria=criteria)))
+    assert calls["count"] == 2
+    assert payload["run_id"] == controller.run_id  # retried transparently
+
+    def always(run_id, value):
+        raise ConcurrentUpdate("Run changed; reload before applying this operation")
+
+    monkeypatch.setattr(controller.core, "set_completion_criteria", always)
+    payload = json.loads(asyncio.run(
+        _call_tool(tools["set_completion_criteria"],
+                   criteria=["Another measurable criterion for the collision test"])))
+    assert payload["error"] == "concurrent_update"
+    assert "Another operator just changed this run" in payload["message"]
+
+
+def test_receipt_reports_the_budget_remaining_in_this_plan_revision():
+    controller = controller_for(TaskNode(packet=packet(), required_checks=["result_schema"]))
+    core = controller.core
+    for attempt in range(3):
+        core.delegate(controller.run_id, "task", f"worker-{attempt}")
+        core.start(controller.run_id, "task")
+        core.fail(controller.run_id, "task", FailureClass.TIMEOUT, "interrupted")
+        core.recover(controller.run_id, controller.inspect().failures[-1].id, "retry")
+    exhausted = json.loads(controller._receipt())["tasks"]["task"]
+    assert exhausted["attempts"] == 3 and exhausted["attempts_remaining"] == 0
+
+    proposal, approval = controller.propose_replan(
+        trigger="Materially different plan", evidence=["operator narrowed scope"],
+        add=[], remove=[], reopen=["task"])
+    core.decide_approval(controller.run_id, approval.id, True, "human", "approved")
+    controller.apply_replan(proposal.id)
+    reopened = json.loads(controller._receipt())["tasks"]["task"]
+    # Lifetime history is preserved; the new revision states a usable budget.
+    assert reopened["attempts"] == 3 and reopened["attempts_remaining"] == 3
+    assert core.delegate(controller.run_id, "task", "fresh-worker").task_id == "task"

@@ -40,6 +40,7 @@ Two SQLite databases with distinct roles live in gitignored `.local/`: `walter-s
 - Canonical task states are defined in OPERATING_MODEL.md. Only `ACCEPTED` upstream work satisfies dependencies.
 - New CLI runs start with a sentinel completion criterion; the Manager must call `set_completion_criteria` before planning or delegation.
 - `walter run resume` is offline and only converts interrupted `DELEGATED`/`RUNNING` work to `FAILED` with `TIMEOUT` evidence; add `--execute` to invoke the model. Only `--execute` needs provider config.
+- `walter run abandon <run_id> --reason "<why>"` is the offline, no-spend exit for an active run that holds no in-flight task, no pending approval, and no pending capability request. It sets run/plan status to `abandoned`, appends a `run.abandoned` event, and preserves all durable history; `walter run cleanup` accepts an abandoned run as terminal.
 - `--trace-sensitive` is a reserved no-op: provider trace export and sensitive payloads are always disabled.
 - `docs/walter-bootstrap-master-blueprint.md` supersedes older bootstrap docs and lifecycle terminology (DEC-001); `docs/IMPLEMENTATION_STATE.md` tracks current verified evidence.
 - Target-project artifacts belong in their target repositories, not here, unless the task is to improve Walter itself. Candidate development uses Manager-created worktrees; ordinary grants cannot mutate the live checkout, safety/authority paths, secrets, or control-plane modules.

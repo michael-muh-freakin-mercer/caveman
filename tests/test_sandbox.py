@@ -95,6 +95,10 @@ def test_default_grant_cannot_write_or_delete_safety_boundary(workspace):
     protected = [
         "PERMISSIONS.md", "SYSTEM_PROMPT.md", "src/walter/sandbox.py",
         "src/walter/orchestration.py",
+        # Cost control, the worker contract and the launch surface decide
+        # authority just as much as the kernel does.
+        "src/walter/usage.py", "src/walter/usage_model.py",
+        "src/walter/contracts.py", "src/walter/__init__.py", "pyproject.toml",
     ]
     # Missing protected paths are still protected from creation.
     for path in protected:
@@ -134,6 +138,38 @@ def _core_verifier(core):
             category=run.approvals[approval_id].category,
         )
     return verify
+
+
+def test_reserved_safety_facility_is_inert_at_production_construction_sites(tmp_path):
+    """The safety-grant path is a reserved facility (2026-09-21 decision).
+
+    No Manager tool, CLI command, or construction site injects an
+    approval_verifier, so the shipped runtime can only ever deny. This test
+    pins that posture: if a construction site ever starts injecting a
+    verifier, it fails until the security design review TOOLS.md requires
+    has happened and this test is deliberately updated.
+    """
+    from walter import cli, readiness
+    import inspect as _inspect
+
+    for source in (cli, readiness):
+        assert "approval_verifier" not in _inspect.getsource(source), (
+            f"{source.__name__} now injects an approval verifier; the reserved "
+            "safety facility requires a design review before being wired")
+
+    repo = tmp_path / "fixture"
+    repo.mkdir()
+    (repo / "hello.py").write_text("VALUE = 1\n")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Fixture", "-c",
+                    "user.email=fixture@example.invalid", "commit", "-qm", "fixture"],
+                   check=True)
+    manager = WorkspaceManager(repo)  # constructed exactly as production does
+    with pytest.raises(SandboxViolation, match="Manager approval verifier"):
+        manager.create_safety_candidate(
+            "run", "safety-task", "safety-author", "a" * 64,
+            ("src/walter/sandbox.py",), "write")
 
 
 def test_safety_candidate_denies_untrusted_or_forged_approval(workspace):
@@ -286,7 +322,6 @@ def test_path_aware_state_and_secret_policy(workspace):
 def test_symlinks_hardlinks_live_checkout_and_worker_identity(workspace):
     manager, grant, repo = workspace
     root = Path(grant.root)
-    before = manager.fingerprint(grant.id)
     (root / "escape").symlink_to("/etc", target_is_directory=True)
     (root / "link").symlink_to(repo / "hello.py")
     os.link(repo / "hello.py", root / "hard")
@@ -444,6 +479,27 @@ def test_build_template_compiles_to_scratch_without_candidate_writes(workspace):
     assert not list(Path(grant.root).rglob("__pycache__"))
 
 
+def test_inventory_limits_fit_ordinary_repositories_and_listing_reads_no_contents(workspace):
+    """2026-09-21 decision: limits raised (50 MB / 100k files) and
+    list/status/changed_paths no longer read every file's bytes."""
+    import walter.sandbox as sandbox
+
+    assert sandbox.MAX_FILE_BYTES == 50_000_000
+    assert sandbox.MAX_FILES == 100_000
+
+    manager, grant, _ = workspace
+    # A 3 MB file was refused under the old 2 MB bound; it is ordinary now.
+    manager.write_file(grant.id, "data.bin", "x" * 3_000_000, worker_id="author")
+    inventory = manager._inventory(manager._get(grant.id), contents=False)
+    assert inventory["data.bin"][2] == b""      # policy checked, bytes not read
+    assert "data.bin" in manager.list_files(grant.id, worker_id="author")
+    assert "data.bin" in manager.changed_paths(grant.id, worker_id="author")
+    # Identity and diff still see real bytes.
+    assert "x" * 100 in manager.diff(grant.id)
+    full = manager._inventory(manager._get(grant.id))
+    assert len(full["data.bin"][2]) == 3_000_000
+
+
 def test_timeout_and_failed_execution_do_not_change_candidate(workspace):
     manager, grant, _ = workspace
     manager.write_file(
@@ -505,3 +561,23 @@ def test_valid_active_grant_survives_reload(workspace):
     assert reloaded._grants[grant.id].lifecycle == "active"
     assert reloaded.inspect_grant(grant.id, worker_id="author").root == grant.root
     assert reloaded.read_file(grant.id, "hello.py", worker_id="author") == "VALUE = 1\n"
+
+
+def test_lib64_symlink_target_resolves_this_hosts_dynamic_loader():
+    """The sandbox must reproduce the loader layout of the host it runs on.
+
+    Hardcoding one distribution's layout makes every sandboxed command fail with
+    ``execvp <path>: No such file or directory`` on any host that arranges
+    ``/usr/lib`` and ``/usr/lib64`` differently, and the error names the binary
+    rather than the unresolvable interpreter.
+    """
+    from walter.sandbox import _loader_dir_target
+
+    target = _loader_dir_target()
+    assert target in {"usr/lib", "usr/lib64"}
+    loaders = {candidate: list((Path("/") / candidate).glob("ld-linux*"))
+               for candidate in ("usr/lib64", "usr/lib")}
+    if any(loaders.values()):
+        assert loaders[target], f"{target} holds no dynamic loader on this host"
+    else:  # no glibc loader anywhere: fall back to the historical target
+        assert target == "usr/lib"

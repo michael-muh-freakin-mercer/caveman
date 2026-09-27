@@ -4,6 +4,7 @@ import json
 
 import pytest
 from agents import Runner, set_tracing_disabled
+from agents.items import ToolCallOutputItem
 
 from fakes import message_step, responder_step, scripted_model, tool_step
 from walter import runtime
@@ -155,4 +156,93 @@ def test_worker_provider_failure_preserves_durable_consistency(tmp_path, monkeyp
     # The failed task stays gated until explicit recovery.
     with pytest.raises(ValueError, match="not eligible"):
         asyncio.run(controller.delegate("a"))
+    controller.close()
+
+
+def test_kernel_refuses_out_of_order_manager_calls_and_the_run_still_completes(tmp_path, monkeypatch):
+    """The central design claim, exercised through the real SDK tool boundary.
+
+    The model proposes and the kernel authorizes. Nothing tested that end to
+    end: a scripted Manager that calls tools out of order must be refused by
+    the kernel, must learn why from the tool result, must not corrupt durable
+    state, and must still be able to complete the run afterwards. Weak workers
+    and weak Managers do exactly this in real runs.
+    """
+    set_tracing_disabled(True)
+    store = SQLiteStore(tmp_path / "operations.db")
+    core = Orchestrator(store)
+    run = core.create_run("Offline gate-order objective", [INITIAL_COMPLETION_CRITERION])
+    controller = DurableController(core, run.id)
+
+    def finish_step(call):
+        state = controller.inspect()
+        return tool_step("finish_run", {
+            "summary": "Demo run completed after the kernel refused every premature call.",
+            "criterion_evidence_json": json.dumps(
+                {CRITERION: [state.tasks["a"].artifact_ids[-1]]}),
+        }, call_id="call-finish-ok")
+
+    manager = scripted_model([
+        tool_step("set_completion_criteria", {"criteria": [CRITERION]}, call_id="c1"),
+        tool_step("plan_tasks", {"packets": [PACKET], "capabilities": ["model_only"],
+                                 "checks": [["result_schema"]]}, call_id="c2"),
+        # Premature completion: no task has been accepted yet.
+        tool_step("finish_run", {"summary": "done already",
+                                 "criterion_evidence_json": json.dumps({CRITERION: []})},
+                  call_id="c3"),
+        tool_step("delegate_task", {"task_id": "a"}, call_id="c4"),
+        # Premature acceptance: a candidate exists but carries no evidence.
+        tool_step("accept_task", {"task_id": "a", "reason": "looks fine to me"},
+                  call_id="c5"),
+        tool_step("validate_task", {"task_id": "a"}, call_id="c6"),
+        # Still premature: validated, but no independent review.
+        tool_step("accept_task", {"task_id": "a", "reason": "validation passed"},
+                  call_id="c7"),
+        tool_step("review_task", {"task_id": "a"}, call_id="c8"),
+        tool_step("accept_task", {"task_id": "a", "reason": "Validation and review passed"},
+                  call_id="c9"),
+        responder_step(finish_step),
+        message_step("Run completed after three refusals."),
+    ])
+    worker = scripted_model([
+        message_step(json.dumps(WORKER_RESULT)),
+        message_step(json.dumps(REVIEW_RESULT)),
+    ])
+
+    monkeypatch.setattr(runtime.RuntimeConfig, "from_env",
+                        classmethod(lambda cls: _offline_config()))
+    monkeypatch.setattr(runtime, "build_models", lambda config: (manager, worker))
+
+    agent = runtime.build_walter(controller)
+    result = asyncio.run(Runner.run(agent, input="Drive the gates out of order", max_turns=30))
+
+    # Every scripted step ran, so no refusal aborted the run.
+    manager.assert_complete()
+    worker.assert_complete()
+    assert result.final_output == "Run completed after three refusals."
+
+    # The kernel's reason reached the model, not a generic failure.
+    outputs = [str(item.output) for item in result.new_items
+               if isinstance(item, ToolCallOutputItem)]
+    refusals = [text for text in outputs if "An error occurred while running the tool" in text]
+    assert len(refusals) == 3, outputs
+    assert any("Required work remains unresolved" in text for text in refusals)
+    assert any("Validation gates failed" in text and "result_schema" in text
+               for text in refusals)
+    assert any("Independent review required" in text for text in refusals)
+
+    # Durable state records exactly one acceptance, and the run completed.
+    final = controller.inspect()
+    assert final.status == "completed"
+    assert final.tasks["a"].status == "ACCEPTED"
+    assert len(final.acceptances) == 1
+    assert final.accepted_artifacts == [final.tasks["a"].artifact_ids[-1]]
+    # A refused mutation must leave no trace beyond the model's own transcript.
+    kinds = [event.kind for event in store.events(run.id)]
+    assert kinds.count("artifact.accepted") == 1
+    assert kinds.count("run.completed") == 1
+
+    # Snapshot and append-only log still agree after the refusals.
+    events = store.events(run.id)
+    assert [event.sequence for event in events] == list(range(1, final.event_cursor + 1))
     controller.close()

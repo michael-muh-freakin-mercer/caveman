@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased — 2026-09-27
+
+### Fixed
+- **Sandboxed commands now work on Debian/Ubuntu hosts.** The sandbox root
+  hardcoded `--symlink usr/lib /lib64`, which is Arch's layout; on Debian and
+  Ubuntu the dynamic loader lives in `/usr/lib64` (itself a symlink into
+  `/usr/lib/<multiarch>`), so every sandboxed command failed with
+  `bwrap: execvp /usr/bin/prlimit: No such file or directory` — an error that
+  names the binary rather than the unresolvable interpreter. The `/lib64` target
+  is now derived from the host's own loader directory (`_loader_dir_target`), with
+  the previous value as the fallback. Found by running the suite on an Ubuntu CI
+  runner. Note that `src/walter/sandbox.py` is a safety-path module, so this
+  change deserves the same review attention as any other control-plane edit.
+
+### Added
+- **Continuous integration** (`.github/workflows/ci.yml`): the offline suite and
+  the offline eval scenarios on Python 3.11 and 3.14, with the isolation backend
+  installed and verified before the tests run. No badge is published until the
+  workflow is green on the default branch.
+
+## Unreleased — 2026-09-22 rehearsal follow-ups
+
+### Added
+- **Offline run abandonment:** `walter run abandon <run_id> --reason "<why>"` (kernel `Orchestrator.abandon`) closes an active run that holds no in-flight task, no pending approval, and no pending capability request, without any provider call. Every other terminal route needs the Manager model or demands accepted artifacts, so such runs previously stayed `active` forever. The transition records `run.abandoned` with the reason and local operator principal, preserves all durable history, and is refused with the exact blocking task or gate named.
+
+### Changed
+- **Replan proposals are validated before they bind an approval gate (follow-up 1):** `Orchestrator.validate_replan` runs the same structural rules application enforces — unknown reopen/remove/dependency references, non-fresh or id-colliding additions, capability/executable-check violations, a dependency map that breaks the resulting plan graph, and an exhausted replan budget — and reports every defect in one message. `DurableController.propose_replan` validates before `request_approval`, so a kernel-invalid proposal no longer consumes a human review round-trip, and `apply_replan` re-validates against current state because upstream facts can move while the gate is open.
+- **`finish_run` rejection names the accepted evidence shape (follow-up 3):** the completion gate now states that `criterion_evidence` maps each completion criterion verbatim to nonempty arrays of accepted artifact IDs, and echoes the required keys, the available accepted artifact IDs, and an example instead of failing once per mis-formatted attempt.
+- **Read-only lanes are reviewable (follow-up 2):** `repo_reader` candidates cannot change files, so their diff is empty by construction and the "reviewer inspected no candidate file" rule failed every scout lane. That rule now applies only to lanes that can change files; a read-only lane is reviewed on its reported content, verified against the repository with the same read-only tools, and the reviewer's instructions say so.
+
+## Unreleased — 2026-09-21 decisions
+
+### Changed
+- **Strict validation evidence (Decision 2):** a recorded check failure on the current candidate bytes permanently blocks that candidate; re-running to green no longer supersedes it. Correction requires a revised candidate.
+- **Split pytest scopes (Decision 1):** new `pytest_candidate` (candidate's changed tests; `pytest` remains as its legacy alias) and `pytest_regression` (the pre-existing suite the candidate did not touch), so breaking existing tests can no longer hide behind new green ones. Regression records an honest failure when there is nothing to run or the suite exceeds the sandbox budget.
+- **Dirty-workspace retries (Decision 3):** grants now carry a `used` marker set when an attempt begins; the escalation workspace-reuse branch fires only for never-executed candidates, so a retry after a failed attempt gets a fresh isolated workspace as `replace_workspace` contracts.
+- **Interactive mode continuity (Decision 4):** follow-up messages continue the open run instead of spawning an orphan run per input line; `:new` explicitly starts a fresh run.
+- **Sandbox inventory limits raised (Decision 5):** 2 MB / 10k files → 50 MB / 100k files (256 MB snapshot cap); `list_files`, `status`, and `changed_paths` no longer read every file's bytes. Symlinks remain forbidden pending a dedicated security design.
+- **Operator-collision UX (Decision 7):** a cross-process `ConcurrentUpdate` reaching a Manager tool is retried once for atomic mutations and otherwise translated into a plain-language `concurrent_update` result instead of an opaque tool error.
+
+### Fixed
+- **Nested agents never called their tools (found by the 2026-09-22 live rehearsal):** with the SDK's `output_type` structured output, the OpenRouter chat-completions path suppresses tool calling entirely, so every worker/reviewer answered directly without invoking its granted tools. `_invoke` now requests schema-shaped JSON in prose and validates it client-side; verified live that workers then use their tools.
+
+### Reserved
+- **Safety-boundary grant path (Decision 6):** `create_safety_candidate` is formally a reserved facility — no Manager tool, CLI command, or construction site injects an approval verifier, so the shipped runtime can only deny. Wiring it requires a fresh security design review (see TOOLS.md).
+
 ## Unreleased
 
 ### Added

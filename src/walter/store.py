@@ -5,9 +5,10 @@ import hashlib
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from pydantic import ValidationError
-from .models import Event, Run, now
+from .models import BlockerReason, Event, Run, now
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,9 @@ class SQLiteStore:
                 })
             task["approval_ids"] = unresolved
             if unresolved:
-                task["blocker"] = "Legacy approval gate requires explicit Manager re-gating: " + ", ".join(unresolved)
+                # Raw-JSON context: use .value so the payload stays plain strings.
+                task["blocker"] = (BlockerReason.LEGACY_APPROVAL_REGATE.value + ": "
+                                   + ", ".join(unresolved))
                 if task.get("status") in {"READY", "DELEGATED", "RUNNING", "SUBMITTED", "REVIEWING"}:
                     task["status"] = "BLOCKED"
             elif task["approval_gates"]:
@@ -142,8 +145,9 @@ class SQLiteStore:
                         unsatisfied.append(request["status"])
                 if unsatisfied and task.get("status") == "READY":
                     task["status"] = "BLOCKED"
-                    task["blocker"] = ("Required approval rejected" if "rejected" in unsatisfied
-                        else "Required approval pending")
+                    task["blocker"] = (BlockerReason.APPROVAL_REJECTED.value
+                                       if "rejected" in unsatisfied
+                                       else BlockerReason.APPROVAL_PENDING.value)
             if not unresolved:
                 task["approval_ids"] = []
         document["schema_version"] = 2
@@ -174,6 +178,23 @@ class SQLiteStore:
     def close(self):
         with self._lock:
             self.connection.close()
+
+    @contextmanager
+    def transaction(self):
+        """Serialize a whole read-modify-write against other in-process callers.
+
+        ``load`` and ``save`` are individually thread-safe, but a caller that
+        loads a snapshot, mutates it and saves it is only protected by the
+        optimistic version check.  The Agents SDK executes several tool calls
+        from one model turn concurrently (async tools on the event loop, sync
+        tools on ``asyncio.to_thread`` worker threads), so that window is
+        routinely contended and produced spurious ``ConcurrentUpdate`` errors.
+        Holding this reentrant lock across the whole sequence removes the
+        in-process race while leaving the version check to protect against
+        other processes.
+        """
+        with self._lock:
+            yield
 
     def _load_snapshot(self, run_id: str, payload: str) -> Run:
         """Validate a snapshot, pruning only unknown fields written by newer code shapes.
@@ -252,6 +273,11 @@ class SQLiteStore:
 
     def events(self, run_id: str) -> list[Event]:
         with self._lock:
+            # An unknown run must not read as an existing run with no history:
+            # `walter run events <typo>` printed an empty list and exited 0.
+            if self.connection.execute(
+                    "SELECT 1 FROM runs WHERE id=?", (run_id,)).fetchone() is None:
+                raise KeyError(run_id)
             events = []
             for expected, (sequence, payload) in enumerate(self.connection.execute(
                     "SELECT sequence,payload FROM events WHERE run_id=? ORDER BY sequence", (run_id,)), 1):

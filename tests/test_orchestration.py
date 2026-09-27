@@ -1,8 +1,9 @@
 import pytest
 from walter.contracts import CapabilityRequestPayload, TaskPacket, WorkerResult
-from walter.models import (ApprovalStatus, CapabilityProfile, CapabilityRequestStatus, Event,
+from walter.models import (ApprovalStatus, BlockerReason, CapabilityProfile, CapabilityRequestStatus, Event,
     FailureClass, ReplanProposal, TaskNode, TaskStatus)
-from walter.orchestration import (EXECUTABLE_DEVELOPER_CHECKS, GateError, Orchestrator)
+from walter.orchestration import (EXECUTABLE_DEVELOPER_CHECKS, REFRESHABLE_BLOCKERS, GateError,
+    Orchestrator)
 from walter.store import SQLiteStore
 
 
@@ -59,6 +60,26 @@ def test_dependency_requires_acceptance_and_completion_evidence(kernel):
         core.start(rid, "a")
 
 
+def test_completion_rejection_names_the_accepted_evidence_format(kernel):
+    """Prose evidence is refused, and the refusal states the accepted shape.
+
+    The Manager previously rejected the same call twice before discovering that
+    evidence must be accepted artifact IDs (pygtrie rehearsal finding), so the
+    message carries the required keys, the available artifact IDs and an example.
+    """
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    artifact = accepted(core, rid)
+    before = core.get_run(rid)
+    with pytest.raises(GateError) as excinfo:
+        core.complete(rid, "done", criterion_evidence={"accurate": ["tests pass in the candidate"]})
+    message = str(excinfo.value)
+    assert "artifact IDs" in message
+    assert artifact.id in message
+    assert '["accurate"]' in message
+    assert core.get_run(rid) == before
+
+
 def test_inputs_graph_and_atomic_failure(kernel):
     core, rid = kernel
     a = task()
@@ -76,7 +97,12 @@ def test_inputs_graph_and_atomic_failure(kernel):
         core.register_input(rid, "source", "changed")
 
 
-def test_validation_failure_cannot_self_certify(kernel):
+def test_validation_failure_cannot_be_revalidated_to_green(kernel):
+    """Strict evidence rule (2026-09-21 decision): a recorded failure on the
+    current content bytes permanently blocks that candidate. Environment
+    problems raise SandboxUnavailable instead of recording a failure, so a
+    recorded failure is real or flaky — never re-runnable to green. The route
+    forward is a revised candidate, not another roll of the dice."""
     core, rid = kernel
     core.add_tasks(rid, [task(required_checks=["tests"], review_required=False)])
     artifact = candidate(core, rid)
@@ -85,8 +111,10 @@ def test_validation_failure_cannot_self_certify(kernel):
     core.validate(rid, artifact.id, "tests", False, "exit 1", "executor")
     with pytest.raises(GateError):
         core.accept(rid, "a", "manager", "ignore failed tests")
-    core.validate(rid, artifact.id, "tests", True, "exit 0 after environment correction", "executor")
-    core.accept(rid, "a", "manager", "Tests pass")
+    core.validate(rid, artifact.id, "tests", True, "exit 0 on re-run", "executor")
+    with pytest.raises(GateError, match="failed: tests"):
+        core.accept(rid, "a", "manager", "second run passed")
+    assert core.get_run(rid).artifacts[artifact.id].validations[0].passed is False
 
 
 def test_revision_lineage_limits_and_failure_routing(kernel):
@@ -142,19 +170,46 @@ def test_replan_is_atomic_and_bounded(kernel):
     core, rid = kernel
     core.add_tasks(rid, [task()])
     bad = ReplanProposal(base_revision=0, trigger="bad graph", evidence=["test"], dependencies={"a":["missing"]})
-    core.propose_replan(rid, bad)
     before = core.get_run(rid)
-    with pytest.raises(GateError):
-        core.apply_replan(rid, bad.id)
+    # Refused at authoring time -- before any approval gate could bind to it.
+    with pytest.raises(GateError, match="Unknown dependency"):
+        core.propose_replan(rid, bad)
     assert core.get_run(rid) == before
+    assert bad.id not in before.replans
     for revision in range(3):
         proposal = ReplanProposal(base_revision=revision, trigger="reopen", evidence=["new facts"], reopen=["a"])
         core.propose_replan(rid, proposal)
         core.apply_replan(rid, proposal.id)
-    proposal = ReplanProposal(base_revision=3, trigger="again", evidence=["new facts"], reopen=["a"])
+    exhausted = ReplanProposal(base_revision=3, trigger="again", evidence=["new facts"], reopen=["a"])
+    with pytest.raises(GateError, match="replan budget exhausted"):
+        core.propose_replan(rid, exhausted)
+
+
+def test_propose_replan_reports_every_defect_at_once(kernel):
+    """One rejection message, so one corrected proposal instead of many gates."""
+    core, rid = kernel
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    core.add_tasks(rid, [task()])
+    proposal = ReplanProposal(base_revision=0, trigger="multi-defect", evidence=["e"],
+        reopen=["ghost"], add=[task("calc.py")])
+    with pytest.raises(GateError) as excinfo:
+        core.propose_replan(rid, proposal)
+    message = str(excinfo.value)
+    assert "reopen references unknown task ghost" in message
+    assert "collides with a registered input name" in message
+
+
+def test_apply_replan_revalidates_state_that_drifted_after_proposal(kernel):
+    """A proposal valid at authoring time is re-checked against current state."""
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    proposal = ReplanProposal(base_revision=0, trigger="add lane", evidence=["gap"], add=[task("b")])
     core.propose_replan(rid, proposal)
-    with pytest.raises(GateError):
+    core.add_tasks(rid, [task("b")])
+    before = core.get_run(rid)
+    with pytest.raises(GateError, match="fresh unique task"):
         core.apply_replan(rid, proposal.id)
+    assert core.get_run(rid) == before
 
 
 def test_approvals_exact_scope_immutable_and_completion_gate(kernel):
@@ -195,7 +250,10 @@ def test_capability_approval_and_fingerprint(kernel):
 
 def test_developer_sandbox_requires_executable_check_on_initial_plan(kernel):
     core, rid = kernel
-    assert EXECUTABLE_DEVELOPER_CHECKS == frozenset({"compile", "pytest"})
+    # pytest is the legacy alias of pytest_candidate; the regression scope
+    # (2026-09-21 decision) is a distinct named check.
+    assert {"compile", "pytest", "pytest_candidate", "pytest_regression"} == set(
+        EXECUTABLE_DEVELOPER_CHECKS)
     assert "unittest" not in EXECUTABLE_DEVELOPER_CHECKS
     with pytest.raises(GateError, match="compile or pytest"):
         core.add_tasks(rid, [task(capability=CapabilityProfile.DEVELOPER_SANDBOX,
@@ -209,10 +267,9 @@ def test_replan_rejects_schema_only_developer_addition_atomically(kernel):
     proposal = ReplanProposal(base_revision=0, trigger="Need implementation", evidence=["Gap"],
         add=[task("developer", capability=CapabilityProfile.DEVELOPER_SANDBOX,
             workspace_id="workspace", required_checks=["result_schema"])])
-    core.propose_replan(rid, proposal)
     before = core.get_run(rid)
     with pytest.raises(GateError, match="compile or pytest"):
-        core.apply_replan(rid, proposal.id)
+        core.propose_replan(rid, proposal)
     assert core.get_run(rid) == before
 
 
@@ -264,6 +321,46 @@ def test_resume_no_silent_rerun(kernel):
         core.delegate(rid, "a", "author")
     core.recover(rid, run.failures[-1].id, "Interrupted assignment inspected; safe to retry")
     core.delegate(rid, "a", "author")
+
+
+def test_abandon_closes_a_work_free_run_offline(kernel):
+    """The offline exit for runs that hold no in-flight work and no open gate."""
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    accepted(core, rid)
+    run = core.abandon(rid, "Superseded by a fresh run", actor_id="local-os:fixture")
+    assert run.status == "abandoned" and run.plan.status == "abandoned"
+    events = core.store.events(rid)
+    assert events[-1].kind == "run.abandoned"
+    assert events[-1].data["reason"] == "Superseded by a fresh run"
+    assert events[-1].data["actor_id"] == "local-os:fixture"
+    # Accepted history survives, and the run is terminal for every mutation.
+    assert run.tasks["a"].status == TaskStatus.ACCEPTED
+    assert run.artifacts[run.tasks["a"].artifact_ids[-1]].status == "accepted"
+    with pytest.raises(GateError, match="terminal"):
+        core.start(rid, "a")
+
+
+def test_abandon_refuses_runs_that_still_hold_work(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    core.delegate(rid, "a", "author")
+    with pytest.raises(GateError, match="in-flight work: a"):
+        core.abandon(rid, "close it anyway")
+    assert core.get_run(rid).status == "active"
+
+
+def test_abandon_refuses_pending_gates_and_empty_reasons(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    request = core.request_approval(rid, "promote", {"candidate": "one"}, "needs a decision")
+    with pytest.raises(GateError, match="pending approval gates"):
+        core.abandon(rid, "no open gates remain")
+    with pytest.raises(GateError, match="audit-worthy reason"):
+        core.abandon(rid, "   ")
+    assert core.get_run(rid).status == "active"
+    core.decide_approval(rid, request.id, True, "human", "scope checked")
+    assert core.abandon(rid, "gate decided and work retired").status == "abandoned"
 
 
 def test_task_approval_gate_is_typed_and_exact(kernel):
@@ -651,7 +748,7 @@ def test_escalate_unsupported_capability_blocks_task(kernel):
     run = core.get_run(rid)
     assert decision.action == "ESCALATE"
     assert run.tasks["a"].status == TaskStatus.BLOCKED
-    assert run.tasks["a"].blocker == "Unsupported capability requires Manager escalation"
+    assert run.tasks["a"].blocker == BlockerReason.UNSUPPORTED_CAPABILITY
 
 
 def test_escalate_tool_failure_blocks_task(kernel):
@@ -664,7 +761,7 @@ def test_escalate_tool_failure_blocks_task(kernel):
     run = core.get_run(rid)
     assert decision.action == "ESCALATE"
     assert run.tasks["a"].status == TaskStatus.BLOCKED
-    assert run.tasks["a"].blocker == "Tool failure requires Manager escalation"
+    assert run.tasks["a"].blocker == BlockerReason.TOOL_FAILURE
 
 
 def test_replan_recovery_blocks_task_until_manager_replans(kernel):
@@ -677,7 +774,7 @@ def test_replan_recovery_blocks_task_until_manager_replans(kernel):
     run = core.get_run(rid)
     assert decision.action == "REPLAN"
     assert run.tasks["a"].status == TaskStatus.BLOCKED
-    assert run.tasks["a"].blocker == "Manager replan required"
+    assert run.tasks["a"].blocker == BlockerReason.MANAGER_REPLAN_REQUIRED
     proposal = ReplanProposal(base_revision=0, trigger="Ambiguity resolved", evidence=["Operator clarified scope"], reopen=["a"])
     core.propose_replan(rid, proposal)
     core.apply_replan(rid, proposal.id)
@@ -716,7 +813,7 @@ def test_recovery_revise_and_replace_record_blockers(kernel):
     run = core.get_run(rid)
     assert decision.action == "REPLACE"
     assert run.tasks["a"].status == TaskStatus.REPLACED
-    assert run.tasks["a"].blocker == "Worker replacement required"
+    assert run.tasks["a"].blocker == BlockerReason.WORKER_REPLACEMENT_REQUIRED
 
 
 def tamper(core, rid, mutate):
@@ -821,3 +918,231 @@ def test_complete_revalidates_accepted_lineage(kernel):
         core.complete(rid, "done", criterion_evidence={"accurate": [b.id]})
     tamper(core, rid, lambda run: run.artifacts[a.id].input_artifact_ids.clear())
     core.complete(rid, "done", criterion_evidence={"accurate": [b.id]})
+
+
+def test_replan_invalidates_consumers_declared_through_required_inputs(kernel):
+    """Consumers must be resolved exactly as _input_artifact_ids resolves them.
+
+    A task may name its upstream through required_inputs instead of
+    dependencies. If the replan sweep ignores that edge, the consumer stays
+    ACCEPTED while its accepted artifact cites superseded provenance, which the
+    completion gate can only reject -- the run becomes unfinishable.
+    """
+    core, rid = kernel
+    upstream = task("a")
+    middle = task("b")
+    middle.packet.required_inputs = ["a"]
+    downstream = task("c")
+    downstream.packet.required_inputs = ["b"]
+    core.add_tasks(rid, [upstream, middle, downstream])
+    artifacts = {tid: accepted(core, rid, tid) for tid in ("a", "b", "c")}
+
+    proposal = ReplanProposal(base_revision=0, trigger="Source invalid",
+        evidence=["Upstream contradiction"], reopen=["a"])
+    core.propose_replan(rid, proposal)
+    core.apply_replan(rid, proposal.id)
+
+    run = core.get_run(rid)
+    assert run.tasks["a"].status == TaskStatus.READY
+    assert run.tasks["b"].status == TaskStatus.PLANNED
+    assert run.tasks["c"].status == TaskStatus.PLANNED
+    assert all(run.artifacts[a.id].status == "superseded" for a in artifacts.values())
+    assert run.accepted_artifacts == []
+
+
+def test_replan_reopen_restores_a_bounded_attempt_budget(kernel):
+    """Reopening is the documented escape from an exhausted attempt budget.
+
+    The lifetime counters stay monotonic for audit; only the budget baseline
+    moves, so the new plan revision gets exactly max_attempts again.
+    """
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    for attempt in range(3):
+        core.delegate(rid, "a", f"worker-{attempt}")
+        core.start(rid, "a")
+        core.fail(rid, "a", FailureClass.TIMEOUT, f"attempt {attempt} interrupted")
+        core.recover(rid, core.get_run(rid).failures[-1].id, "retry after interruption")
+    exhausted = core.get_run(rid).tasks["a"]
+    assert exhausted.attempts == 3 and exhausted.status == TaskStatus.BLOCKED
+    with pytest.raises(GateError, match=r"Attempt budget exhausted \(3/3\)"):
+        core.delegate(rid, "a", "blocked-worker")
+
+    proposal = ReplanProposal(base_revision=0, trigger="Materially different plan",
+        evidence=["Operator narrowed the objective"], reopen=["a"])
+    core.propose_replan(rid, proposal)
+    core.apply_replan(rid, proposal.id)
+    reopened = core.get_run(rid).tasks["a"]
+    assert reopened.status == TaskStatus.READY
+    assert reopened.attempts == 3 and reopened.attempt_baseline == 3
+
+    for attempt in range(3):
+        core.delegate(rid, "a", f"revision-worker-{attempt}")
+        core.start(rid, "a")
+        core.fail(rid, "a", FailureClass.TIMEOUT, f"retry {attempt} interrupted")
+        core.recover(rid, core.get_run(rid).failures[-1].id, "retry after interruption")
+    assert core.get_run(rid).tasks["a"].attempts == 6
+    with pytest.raises(GateError, match=r"Attempt budget exhausted \(3/3\)"):
+        core.delegate(rid, "a", "worker-final")
+
+
+def test_replan_additions_cannot_preinflate_their_budget(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    inflated = task("b")
+    inflated.attempt_baseline = 5
+    proposal = ReplanProposal(base_revision=0, trigger="Add work", evidence=["e"],
+        add=[inflated])
+    with pytest.raises(GateError, match="fresh unique task"):
+        core.propose_replan(rid, proposal)
+    with pytest.raises(GateError, match="fresh unique tasks"):
+        core.add_tasks(rid, [inflated])
+
+
+def test_recover_rejects_an_unknown_failure_id(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task()])
+    with pytest.raises(GateError, match="Unknown failure"):
+        core.recover(rid, "not-a-failure", "reason")
+
+
+def test_acceptance_names_the_unsatisfied_validation_gates(kernel):
+    core, rid = kernel
+    core.add_tasks(rid, [task(required_checks=["pytest", "compile"], review_required=False)])
+    artifact = candidate(core, rid)
+    with pytest.raises(GateError, match="missing: compile, pytest"):
+        core.accept(rid, "a", "manager", "no evidence yet")
+    core.validate(rid, artifact.id, "pytest", False, "3 failed", "executor")
+    core.validate(rid, artifact.id, "compile", True, "exit 0", "executor")
+    with pytest.raises(GateError, match="failed: pytest"):
+        core.accept(rid, "a", "manager", "ignore the failure")
+    # Strict evidence rule: a later pass never supersedes a recorded failure
+    # on the same bytes; the failure stays durable and decisive.
+    core.validate(rid, artifact.id, "pytest", True, "exit 0 on re-run", "executor")
+    with pytest.raises(GateError, match="failed: pytest"):
+        core.accept(rid, "a", "manager", "second run passed")
+    assert core.get_run(rid).artifacts[artifact.id].validations[0].passed is False
+
+
+def test_task_ids_cannot_shadow_registered_inputs_or_artifacts(kernel):
+    """Task IDs, input names and artifact IDs are one reference namespace.
+
+    _input_artifact_ids resolves a reference against tasks before inputs, so a
+    colliding task ID retargeted an already-satisfied required_inputs entry.
+    The consumer stayed READY in the snapshot while delegation began failing.
+    """
+    core, rid = kernel
+    consumer = task("consumer")
+    consumer.packet.required_inputs = ["calc.py"]
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    core.add_tasks(rid, [consumer])
+    assert core.get_run(rid).tasks["consumer"].status == TaskStatus.READY
+
+    with pytest.raises(GateError, match="collides with a registered input name"):
+        core.add_tasks(rid, [task("calc.py")])
+
+    producer = accepted(core, rid, "consumer")
+    proposal = ReplanProposal(base_revision=0, trigger="Add colliding work",
+        evidence=["e"], add=[task(producer.id)])
+    with pytest.raises(GateError, match="collides with an artifact ID"):
+        core.propose_replan(rid, proposal)
+    # register_input already guards the opposite direction.
+    with pytest.raises(GateError, match="immutable"):
+        core.register_input(rid, "consumer", "sha256:bbb")
+
+
+def test_blocker_reasons_persist_as_plain_strings_and_gate_refresh(kernel):
+    """The two properties the BlockerReason refactor depends on.
+
+    First, a reason must round-trip through the snapshot as a plain string that
+    still compares equal to its enum member -- the kernel compares durable
+    blockers to decide transitions, and a reloaded snapshot yields str, not the
+    enum. Second, REFRESHABLE_BLOCKERS must be the only set _refresh will
+    promote from; any other reason requires an explicit Manager action.
+    """
+    core, rid = kernel
+    core.add_tasks(rid, [task("escalated"), task("replanned")])
+    for tid, classification in (("escalated", FailureClass.CAPABILITY_UNAVAILABLE),
+                                ("replanned", FailureClass.TASK_AMBIGUITY)):
+        core.delegate(rid, tid, "author")
+        core.start(rid, tid)
+        failure = core.fail(rid, tid, classification, "runtime evidence")
+        core.recover(rid, failure.id, "route it")
+
+    reloaded = core.store.load(rid)
+    blocker = reloaded.tasks["escalated"].blocker
+    assert blocker == BlockerReason.CAPABILITY_ESCALATION_PENDING
+    # Persisted as a plain string, so the value is what older builds and
+    # operators already see -- not an enum repr.
+    assert type(blocker) is str
+    assert f'"blocker":"{BlockerReason.CAPABILITY_ESCALATION_PENDING.value}"' in (
+        reloaded.model_dump_json())
+
+    # Neither blocker is refreshable, so no amount of gate re-evaluation
+    # promotes these tasks; only explicit recovery or replan does.
+    assert BlockerReason.CAPABILITY_ESCALATION_PENDING not in REFRESHABLE_BLOCKERS
+    assert BlockerReason.MANAGER_REPLAN_REQUIRED not in REFRESHABLE_BLOCKERS
+    core.register_input(rid, "unrelated.py", "sha256:abc")  # triggers _refresh
+    still = core.get_run(rid)
+    assert still.tasks["escalated"].status == TaskStatus.BLOCKED
+    assert still.tasks["replanned"].status == TaskStatus.BLOCKED
+
+
+def test_refresh_demotes_ready_tasks_whose_readiness_lapsed(kernel):
+    """_refresh only promoted, so the snapshot could advertise stale readiness.
+
+    A READY task whose gates no longer hold was refused by delegate() while
+    inspect_run still reported READY. It is now demoted with the precise
+    reason, and returns to READY on its own once the gate is satisfied again.
+    In-flight work is never demoted.
+    """
+    core, rid = kernel
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    consumer, inflight = task("consumer"), task("inflight")
+    consumer.packet.required_inputs = ["calc.py"]
+    inflight.packet.required_inputs = ["calc.py"]
+    core.add_tasks(rid, [consumer, inflight])
+    core.delegate(rid, "inflight", "author")
+    core.start(rid, "inflight")
+    assert core.get_run(rid).tasks["consumer"].status == TaskStatus.READY
+    assert core.get_run(rid).tasks["inflight"].status == TaskStatus.RUNNING
+
+    # Remove the input out of band, then run any mutation that calls _refresh.
+    tamper(core, rid, lambda run: run.available_inputs.pop("calc.py"))
+    core.register_input(rid, "unrelated.py", "sha256:bbb")
+
+    run = core.get_run(rid)
+    assert run.tasks["consumer"].status == TaskStatus.BLOCKED
+    assert run.tasks["consumer"].blocker == (
+        BlockerReason.READINESS_LAPSED + ": Required input is unavailable: calc.py")
+    # The event carries the precise reason, not the prefixed blocker.
+    blocked = [event for event in core.store.events(rid)
+               if event.kind == "task.blocked" and event.data["task_id"] == "consumer"]
+    assert blocked[-1].data["reason"] == "Required input is unavailable: calc.py"
+    # Active work keeps its assignment; its gates are re-checked at submission.
+    assert run.tasks["inflight"].status == TaskStatus.RUNNING
+
+    # Satisfying the gate again re-promotes without any explicit recovery.
+    core.register_input(rid, "calc.py", "sha256:aaa")
+    recovered = core.get_run(rid)
+    assert recovered.tasks["consumer"].status == TaskStatus.READY
+    assert recovered.tasks["consumer"].blocker is None
+    core.delegate(rid, "consumer", "worker")
+
+
+def test_refresh_leaves_ready_tasks_and_other_states_alone(kernel):
+    """The demote branch must not disturb tasks that are genuinely ready."""
+    core, rid = kernel
+    core.add_tasks(rid, [task("ready"), task("blocked")])
+    core.delegate(rid, "blocked", "author")
+    core.start(rid, "blocked")
+    failure = core.fail(rid, "blocked", FailureClass.TASK_AMBIGUITY, "ambiguous objective")
+    core.recover(rid, failure.id, "Route ambiguity to explicit replan")
+
+    core.register_input(rid, "trigger.py", "sha256:ccc")  # triggers _refresh
+    run = core.get_run(rid)
+    assert run.tasks["ready"].status == TaskStatus.READY
+    assert run.tasks["ready"].blocker is None
+    # A non-refreshable blocker is not promoted and not rewritten.
+    assert run.tasks["blocked"].status == TaskStatus.BLOCKED
+    assert run.tasks["blocked"].blocker == BlockerReason.MANAGER_REPLAN_REQUIRED
