@@ -69,10 +69,10 @@ export default async function SettingsPage() {
             </Panel>
             <Panel title="Sandbox" description="Generated code runs isolated from Caveman and your secrets.">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-fg-soft">Isolation backend</span>
+                <span className="text-fg-soft">Isolation on the API server</span>
                 <StatusPill tone={system.data.sandbox.available ? "ok" : "bad"}>{system.data.sandbox.available ? "Available" : "Unavailable"}</StatusPill>
               </div>
-              <p className="mt-3 text-xs text-muted">Supported toolchains: {system.data.capabilities.sandbox_toolchains.join(", ")}. Live previews: not available.</p>
+              <p className="mt-3 text-xs text-muted">Workers verify isolation themselves and refuse to start without it. Supported toolchains: {system.data.capabilities.sandbox_toolchains.join(", ")}. Live previews: not available.</p>
             </Panel>
           </>
         ) : (

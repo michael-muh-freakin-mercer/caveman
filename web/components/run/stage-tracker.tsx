@@ -16,8 +16,8 @@ export function StageTracker({ stage, state }: { stage: Stage; state: RunState }
               className={`h-1.5 rounded-full ${complete ? "bg-ok/80" : active ? "bg-ember" : "bg-line-strong"}`}
               aria-hidden="true"
             />
-            <p className={`mt-2 flex items-center gap-1 truncate text-xs ${active ? "text-fg" : complete ? "text-fg-soft" : "text-faint"}`}>
-              {complete ? <Check className="h-3 w-3 shrink-0 text-ok" aria-hidden="true" /> : null}
+            <p className={`mt-2 flex items-center gap-1 truncate text-[0.68rem] sm:text-xs ${active ? "text-fg" : complete ? "text-fg-soft" : "text-faint"}`}>
+              {complete ? <Check className="hidden h-3 w-3 shrink-0 text-ok sm:block" aria-hidden="true" /> : null}
               {item.label}
               <span className="sr-only">{complete ? " (done)" : active ? " (current)" : " (upcoming)"}</span>
             </p>

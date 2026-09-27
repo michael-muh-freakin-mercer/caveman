@@ -81,7 +81,7 @@ export function UsagePanel({ usage, onBudget, canEdit }: { usage: UsageView; onB
           <tbody>
             {Object.entries(usage.by_model).map(([model, entry]) => (
               <tr key={model} className="border-t border-line">
-                <td className="max-w-0 truncate py-1.5 pr-2 font-mono text-fg-soft" title={model}>{model}</td>
+                <td className="max-w-0 truncate py-1.5 pr-2 font-mono text-fg-soft" title={model}>{model.includes("/") ? model.slice(model.indexOf("/") + 1) : model}</td>
                 <td className="py-1.5 text-right tabular-nums text-fg-soft">{entry.calls}</td>
                 <td className="py-1.5 text-right tabular-nums text-fg-soft">{entry.calls_without_cost === entry.calls ? "not reported" : formatUsd(entry.cost_usd, { complete: entry.calls_without_cost === 0 })}</td>
               </tr>

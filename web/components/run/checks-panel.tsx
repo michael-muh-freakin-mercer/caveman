@@ -26,6 +26,11 @@ export function ChecksPanel({ tasks, artifacts, executing }: { tasks: TaskView[]
         return (
           <li key={task.id} className="py-3 first:pt-0 last:pb-0">
             <p className="text-sm font-medium text-fg">{task.title}</p>
+            {task.artifact_ids.length > 1 ? (
+              <p className="mt-0.5 text-xs text-muted">
+                Showing version {task.artifact_ids.length}. Earlier versions and their failed checks are listed under Artifacts and Failures.
+              </p>
+            ) : null}
             <ul className="mt-2 space-y-1.5">
               {task.required_checks.map((check) => {
                 const status = checkDisplayStatus(check.status, task.state, executing);
