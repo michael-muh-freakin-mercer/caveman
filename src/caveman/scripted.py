@@ -284,7 +284,7 @@ class ScriptedProvider:
             self._pairs.pop(job_key, None)
 
     def __call__(self, config: runtime.RuntimeConfig) -> tuple:
-        job_key = config.manager_model
+        job_key = config.api_key
         with self._lock:
             if job_key not in self._pairs:
                 run_id, kind = self._jobs[job_key]
@@ -296,6 +296,7 @@ class ScriptedProvider:
 
 
 def scripted_config(job_key: str, budget) -> runtime.RuntimeConfig:
-    return runtime.RuntimeConfig(provider=PROVIDER, api_key="scripted-executor-has-no-key",
-                                 base_url="https://scripted.invalid", manager_model=job_key,
-                                 worker_model=job_key, budget=budget)
+    # The job key rides in api_key (never displayed or recorded); model names stay readable.
+    return runtime.RuntimeConfig(provider=PROVIDER, api_key=job_key,
+                                 base_url="https://scripted.invalid", manager_model="scripted-manager",
+                                 worker_model="scripted-specialist", budget=budget)

@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/* Caveman design tokens. Dark-first: near-black ground, charcoal surfaces,
+   slate structure, electric orange for action, cool cyan for system signal. */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --color-ink: #08090b;
+  --color-ground: #0b0c0f;
+  --color-surface: #111317;
+  --color-surface-2: #16191e;
+  --color-surface-3: #1c2026;
+  --color-line: #252a31;
+  --color-line-strong: #343a43;
+  --color-fg: #eceef1;
+  --color-fg-soft: #c3c8d0;
+  --color-muted: #8b95a4;
+  --color-faint: #5d6673;
+
+  --color-ember: #ff6a1f;
+  --color-ember-hot: #ff8445;
+  --color-ember-deep: #c94a0c;
+  --color-glacier: #2fd4ee;
+  --color-glacier-deep: #0e8ea3;
+
+  --color-ok: #3ddc97;
+  --color-bad: #f87171;
+  --color-warn: #fbbf24;
+  --color-review: #a78bfa;
+
+  --radius-card: 14px;
+  --shadow-lift: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 20px 40px -24px rgb(0 0 0 / 0.8);
+  --shadow-ember: 0 0 0 1px rgb(255 106 31 / 0.35), 0 12px 40px -12px rgb(255 106 31 / 0.45);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    background: var(--color-ground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--color-ground);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: rgb(255 106 31 / 0.35);
+    color: #fff;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-glacier);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Fine stone grain: a static, low-opacity noise field. Texture, not decoration. */
+  .stone {
+    position: relative;
+    isolation: isolate;
+  }
+  .stone::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  .hairline-grid {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 75%);
+  }
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-lift);
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes flow-line {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.animate-flow {
+  stroke-dasharray: 4 8;
+  animation: flow-line 1.4s linear infinite;
+}
