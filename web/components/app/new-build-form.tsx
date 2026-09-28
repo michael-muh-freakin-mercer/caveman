@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
 
+const GITHUB_REPOSITORY = /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}?(\.git)?\/?$/;
+
 const MODE_LABELS: Record<string, string> = {
   automatic: "Automatic",
   budget: "Budget",
@@ -36,9 +38,10 @@ export function NewBuildForm({
   const [target, setTarget] = useState("");
   const [budget, setBudget] = useState(String(defaultBudget));
   const [mode, setMode] = useState("automatic");
+  const [repository, setRepository] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ids = { prompt: useId(), stack: useId(), constraints: useId(), target: useId(), budget: useId(), mode: useId(), error: useId() };
+  const ids = { prompt: useId(), stack: useId(), constraints: useId(), target: useId(), budget: useId(), mode: useId(), repository: useId(), error: useId() };
 
   useEffect(() => {
     // Recover a prompt typed before signing in, if it did not arrive in the URL.
@@ -52,6 +55,10 @@ export function NewBuildForm({
     event.preventDefault();
     if (prompt.trim().length < 3) {
       setError("Describe what you want to build.");
+      return;
+    }
+    if (repository.trim() && !GITHUB_REPOSITORY.test(repository.trim())) {
+      setError("Use a public GitHub repository address like https://github.com/owner/repo.");
       return;
     }
     setBusy(true);
@@ -69,6 +76,7 @@ export function NewBuildForm({
             deployment_target: target.trim() || undefined,
             budget_usd: Number(budget) || undefined,
             model_mode: mode,
+            repository_url: projectId ? undefined : repository.trim() || undefined,
           },
         }),
       });
@@ -137,6 +145,15 @@ export function NewBuildForm({
               ))}
             </select>
           </div>
+          {projectId ? null : (
+            <div className="sm:col-span-2">
+              <label htmlFor={ids.repository} className="text-xs text-muted">Start from a public GitHub repository</label>
+              <input id={ids.repository} type="url" inputMode="url" value={repository} onChange={(e) => setRepository(e.target.value)} maxLength={300} placeholder="https://github.com/owner/repo" className={`${input} h-10`} />
+              <p className="mt-1.5 text-xs text-faint">
+                Caveman copies the default branch&rsquo;s files (not its history) into a new project. Symlinks and submodules are refused; secret-looking files are left out.
+              </p>
+            </div>
+          )}
           <p className="text-xs leading-relaxed text-muted sm:col-span-2">
             Automatic uses the models the server is configured with. The run pauses safely if it reaches its budget.
           </p>
@@ -157,7 +174,7 @@ export function NewBuildForm({
           className="inline-flex h-12 items-center gap-2 rounded-xl bg-ember px-7 text-base font-semibold text-ink hover:bg-ember-hot disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
-          {busy ? "Starting…" : "Build it"}
+          {busy ? (repository.trim() && !projectId ? "Importing…" : "Starting…") : "Build it"}
           {busy ? null : <ArrowRight className="h-5 w-5" aria-hidden="true" />}
         </button>
       </div>

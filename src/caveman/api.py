@@ -49,6 +49,8 @@ class BuildSettings(BaseModel):
     deployment_target: str | None = Field(default=None, max_length=200)
     budget_usd: float | None = Field(default=None, gt=0)
     model_mode: Literal["automatic", "budget", "balanced", "quality"] = "automatic"
+    # New projects only: start from a public GitHub repository's files.
+    repository_url: str | None = Field(default=None, max_length=300)
 
 
 class BuildRequest(BaseModel):
@@ -69,6 +71,7 @@ class BuildRequest(BaseModel):
 class ProjectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     description: str = Field(default="", max_length=2000)
+    repository_url: str | None = Field(default=None, max_length=300)
 
 
 class ApprovalDecisionRequest(BaseModel):
@@ -313,17 +316,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         budget = body.settings.budget_usd or settings.default_budget_usd
         if budget > settings.max_budget_usd:
             raise HTTPException(422, f"The maximum budget per run is ${settings.max_budget_usd:.2f}.")
+        repository_url = (body.settings.repository_url or "").strip() or None
         if body.project_id:
+            if repository_url:
+                raise HTTPException(422, "An existing project already has its files; "
+                                         "start a new project to import a repository.")
             project = platform.get_project(user, body.project_id)
             if project is None:
                 raise HTTPException(404, "Project not found.")
         else:
             name = (body.name or "").strip() or project_name_from_prompt(body.prompt)
             project_id = new_id()
-            engine.init_project_repo(project_id, name, body.prompt)
+            source = new_project_repo(project_id, name, body.prompt, repository_url)
             try:
                 project = platform.create_project(user, name, body.prompt,
-                                                  body.settings.model_dump(exclude_none=True),
+                                                  {**body.settings.model_dump(exclude_none=True), **source},
                                                   project_id=project_id)
             except Exception:
                 shutil.rmtree(engine.project_repo(project_id).parent, ignore_errors=True)
@@ -336,6 +343,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"run_id": run.id, "project_id": project.id, "run": summary(record)}
 
     # Projects ---------------------------------------------------------
+
+    def new_project_repo(project_id: str, name: str, description: str, repository_url: str | None) -> dict:
+        """Create the project repository, empty or from a public GitHub repository."""
+        if not repository_url:
+            engine.init_project_repo(project_id, name, description)
+            return {}
+        from . import importer
+        try:
+            imported = importer.import_repository(
+                repository_url, engine.project_repo(project_id), name, api_url=settings.github_api_url,
+                max_mb=settings.import_max_mb, max_files=settings.import_max_files)
+        except importer.RepositoryImportError as exc:
+            shutil.rmtree(engine.project_repo(project_id).parent, ignore_errors=True)
+            raise HTTPException(exc.status, str(exc)) from None
+        except Exception:
+            shutil.rmtree(engine.project_repo(project_id).parent, ignore_errors=True)
+            raise
+        return {"repository_url": imported.url,
+                "source": {"url": imported.url, "commit": imported.commit, "branch": imported.branch,
+                           "files": imported.files, "dropped": list(imported.dropped)}}
 
     def project_view(project, runs: list[RunRecord]) -> dict:
         summaries = [summary(r) for r in runs]
@@ -358,8 +385,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/projects", status_code=201)
     def create_project(body: ProjectRequest, user: User):
         project_id = new_id()
-        engine.init_project_repo(project_id, body.name.strip(), body.description)
-        project = platform.create_project(user, body.name.strip(), body.description, project_id=project_id)
+        source = new_project_repo(project_id, body.name.strip(), body.description,
+                                  (body.repository_url or "").strip() or None)
+        try:
+            project = platform.create_project(user, body.name.strip(), body.description, source,
+                                              project_id=project_id)
+        except Exception:
+            shutil.rmtree(engine.project_repo(project_id).parent, ignore_errors=True)
+            raise
         return project_view(project, [])
 
     @app.get("/api/projects/{project_id}")

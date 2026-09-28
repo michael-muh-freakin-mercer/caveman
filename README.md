@@ -180,6 +180,13 @@ end-to-end journeys.
   later tasks start from that branch, so dependent work builds and is tested on
   top of accepted work. A task built on an outdated base is rebuilt on the new
   one with its previous attempt carried over.
+- Existing code: a new project can start from a public GitHub repository.
+  Trusted API code checks GitHub's metadata (public, within the size limit),
+  makes a shallow HTTPS-only clone without hooks, submodules or credentials,
+  refuses symlinks and submodules, leaves out secret-looking files, and starts
+  the project from one local commit of the kept files (no upstream history or
+  remote). The planner of every run is shown the project's current files, so
+  follow-up runs and imports build on what is there.
 - Delivery: when the kernel completes a run, Caveman archives the integration
   head (verified against the kernel's recorded commits) plus a build report.
 - Publish to GitHub (when GitHub sign-in is configured): on explicit request,
@@ -232,8 +239,9 @@ No deployment is performed by anything in this repository.
 - Operational state is SQLite on a shared volume; Postgres is used only for auth.
 - GitHub publishing is tested against a local stand-in for GitHub; the
   OAuth scope upgrade and token retrieval path has not been exercised against
-  github.com from this environment. No live previews yet; existing-repository
-  import is not built.
+  github.com from this environment. Repository import is tested against a local
+  upstream (this environment cannot reach arbitrary github.com repositories) and
+  supports public repositories only. No live previews yet.
 - Some providers do not report cost for every call; Caveman shows cost as
   incomplete instead of estimating it.
 

@@ -95,6 +95,9 @@ class Settings:
     max_recoveries: int = 3
     scripted_step_delay: float = 0.25
     github_api_url: str = "https://api.github.com"
+    # Starting a project from a public GitHub repository (0 disables imports).
+    import_max_mb: int = 100
+    import_max_files: int = 5000
     # Optional routing profiles: mode -> (manager/planner model, specialist model).
     # "automatic" always exists and uses WALTER_MODEL / WALTER_WORKER_MODEL.
     model_profiles: tuple[tuple[str, str, str], ...] = ()
@@ -161,6 +164,8 @@ class Settings:
             model_profiles=_profiles(values),
             github_api_url=(values.get("CAVEMAN_GITHUB_API_URL") or "https://api.github.com").strip(),
             metrics_token=(values.get("CAVEMAN_METRICS_TOKEN") or "").strip() or None,
+            import_max_mb=_int(values, "CAVEMAN_IMPORT_MAX_MB", 100, minimum=0),
+            import_max_files=_int(values, "CAVEMAN_IMPORT_MAX_FILES", 5000),
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,
             default_max_model_calls=_int(values, "CAVEMAN_DEFAULT_MAX_MODEL_CALLS", 300),

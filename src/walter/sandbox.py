@@ -596,6 +596,19 @@ class WorkspaceManager:
             self._git("-C", str(self.repository), "update-ref", INTEGRATION_REF, head, "")
             return head
 
+    def tracked_files(self, revision: str | None = None) -> list[str]:
+        """Policy-visible files at ``revision`` (default: integration head, else HEAD)."""
+        with self._lock:
+            if revision is None:
+                found = self._git_result("-C", str(self.repository), "rev-parse", "--verify",
+                                         "--quiet", INTEGRATION_REF + "^{commit}")
+                revision = found.stdout.strip() if found.returncode == 0 else "HEAD"
+            listing = self._git_result("-C", str(self.repository), "-c", "core.quotePath=false",
+                                       "ls-tree", "-r", "-z", "--name-only", "--full-tree", revision)
+        if listing.returncode:
+            return []
+        return sorted(path for path in listing.stdout.split("\0") if path and not _excluded(path))
+
     def _commit_candidate(self, grant: WorkspaceGrant, message: str) -> str:
         """Commit exactly the candidate's policy-visible inventory onto its base.
 

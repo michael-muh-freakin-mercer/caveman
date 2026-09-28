@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-28 — Existing code
+
+- New projects can start from a public GitHub repository (`repository_url` on `POST /api/builds` and `POST /api/projects`; "Start from a public GitHub repository" in the New build form). `src/caveman/importer.py` accepts only `https://github.com/<owner>/<repo>`, checks public visibility and size through GitHub's API before downloading, clones shallow over HTTPS only (`GIT_ALLOW_PROTOCOL=https`) with no hooks, templates, tags, submodules or credentials, inspects the tree before checkout, refuses symlinks, submodules and other special entries, drops paths the sandbox treats as state or secrets, and commits the kept files as the project's single first commit, discarding upstream history, refs and remote. Caveman's `.local/` is excluded through `.git/info/exclude`, leaving the project's own `.gitignore` untouched. The source (URL, upstream commit, branch, counts) is recorded in the project settings and shown on the project page.
+- The workflow planner now receives a listing of the project's current files (integration head, else `HEAD`; policy-visible paths only, capped at 200), so follow-up runs and imported projects are planned against existing code. `WorkspaceManager.tracked_files()` provides it.
+
 ## 2026-09-28 — Publish to GitHub
 
 - Decision: publishing is a promotion performed only on the user's explicit request for one exact target (new repository name, visibility, verified integration commit). The user's click on the confirmation dialog is the human authorization; it is recorded in the platform `publications` table (the kernel refuses mutations on completed runs). Repository scope is requested incrementally at that moment; OAuth tokens are encrypted at rest (Better Auth `encryptOAuthTokens`), read server-side by a dedicated route, used once by the API, passed to git through environment config (never argv or repo config), and redacted from errors. Only newly created repositories are pushed to, so nothing is overwritten.

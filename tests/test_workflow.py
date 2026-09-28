@@ -123,3 +123,30 @@ def test_failed_review_routes_through_kernel_recovery(driver, monkeypatch):
     assert failure.classification.value == "BAD_OUTPUT" and "Missing detail" in failure.evidence
     assert run.recoveries[0].action == "REVISE" and run.tasks["spec"].attempts == 2
     assert json.loads(run.artifacts[run.tasks["spec"].artifact_ids[0]].reviews[0].evidence)["passed"] is False
+
+
+class _Files:
+    def __init__(self, files):
+        self.files = files
+
+    def tracked_files(self):
+        return self.files
+
+
+def test_planner_sees_the_projects_existing_files(driver, monkeypatch):
+    workflow, _ = driver
+    inputs = []
+    good = plan([{"packet": packet("a"), "capability": "model_only", "checks": ["result_schema"], "covers": [0, 1]}])
+
+    async def invoke(**kwargs):
+        inputs.append(kwargs["input"])
+        return good
+    monkeypatch.setattr(workflow.controller, "_invoke", invoke)
+    monkeypatch.setattr(workflow.controller, "workspaces", _Files([".gitignore", "README.md"]), raising=False)
+    asyncio.run(workflow.plan())
+    assert "already contains" not in inputs[0]  # a fresh project has nothing worth listing
+
+    workflow.controller.workspaces = _Files([".gitignore", "README.md", "src/app.py"]
+                                            + [f"pkg/m{i}.py" for i in range(250)])
+    assert "- src/app.py" in workflow._existing_files()
+    assert "and 53 more files" in workflow._existing_files()

@@ -270,11 +270,19 @@ export interface RunDetail extends RunSummary {
   publication?: { repository: string; url: string; commit: string; private: boolean; created_at: string } | null;
 }
 
+export interface ProjectSource {
+  url: string;
+  commit: string;
+  branch: string;
+  files: number;
+  dropped: string[];
+}
+
 export interface ProjectView {
   id: string;
   name: string;
   description: string;
-  settings: Record<string, unknown>;
+  settings: Record<string, unknown> & { source?: ProjectSource };
   created_at: string;
   updated_at: string;
   run_count: number;
