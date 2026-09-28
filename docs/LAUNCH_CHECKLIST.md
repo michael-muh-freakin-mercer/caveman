@@ -33,7 +33,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 4. Security review
 - [ ] 👥 External review or pen test: sandbox, browser-to-API proxy and CSP, authentication, repository import, GitHub token handling, account deletion
 - [x] 🤖 Secret scanning in CI (`scripts/check_secrets.py`, `.secrets.baseline`)
-- [ ] 🤖 Written threat model in the docs
+- [x] 🤖 Written threat model in the docs (`docs/THREAT_MODEL.md`)
 
 ### 5. Email
 - [ ] 🧑 Resend account, sending domain verified (SPF and DKIM)
