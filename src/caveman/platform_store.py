@@ -116,6 +116,7 @@ class RunRecord:
     budget_usd: float
     max_model_calls: int
     created_at: str
+    model_mode: str = "automatic"
 
 
 @dataclass(frozen=True)
@@ -154,6 +155,10 @@ class PlatformStore:
         if str(path) != ":memory:":
             self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.executescript(SCHEMA)
+        # Additive migrations for databases created by earlier versions.
+        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
+        if "model_mode" not in columns:
+            self.connection.execute("ALTER TABLE runs ADD COLUMN model_mode TEXT NOT NULL DEFAULT 'automatic'")
 
     def close(self) -> None:
         with self._lock:
@@ -215,17 +220,20 @@ class PlatformStore:
     @staticmethod
     def _run(row) -> RunRecord:
         return RunRecord(row["id"], row["project_id"], row["owner_id"], row["prompt"],
-                         row["executor"], row["budget_usd"], row["max_model_calls"], row["created_at"])
+                         row["executor"], row["budget_usd"], row["max_model_calls"], row["created_at"],
+                         row["model_mode"])
 
     def create_run(self, run_id: str, project_id: str, owner_id: str, prompt: str, *,
-                   executor: str, budget_usd: float, max_model_calls: int) -> RunRecord:
+                   executor: str, budget_usd: float, max_model_calls: int,
+                   model_mode: str = "automatic") -> RunRecord:
         with self._write() as db:
             owner = db.execute("SELECT owner_id FROM projects WHERE id=?", (project_id,)).fetchone()
             if owner is None or owner[0] != owner_id:
                 raise PermissionError("Project does not belong to this user")
-            db.execute("INSERT INTO runs VALUES(?,?,?,?,?,?,?,?)",
+            db.execute("INSERT INTO runs(id,project_id,owner_id,prompt,executor,budget_usd,max_model_calls,"
+                       "created_at,model_mode) VALUES(?,?,?,?,?,?,?,?,?)",
                        (run_id, project_id, owner_id, prompt, executor, budget_usd,
-                        max_model_calls, _now()))
+                        max_model_calls, _now(), model_mode))
             db.execute("UPDATE projects SET updated_at=? WHERE id=?", (_now(), project_id))
         return self.run_by_id(run_id)
 

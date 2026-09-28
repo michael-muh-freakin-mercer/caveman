@@ -11,12 +11,12 @@ import type { AccountSpending, SystemView } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Settings" };
 
-const MODES = [
-  { name: "Automatic", body: "Caveman uses the models configured on the server.", available: true },
-  { name: "Budget", body: "Prefer the most economical capable models.", available: false },
-  { name: "Balanced", body: "Trade cost against quality per task.", available: false },
-  { name: "Maximum Quality", body: "Prefer the strongest models regardless of cost.", available: false },
-];
+const MODES: Record<string, { name: string; body: string }> = {
+  automatic: { name: "Automatic", body: "Caveman uses the models configured on the server." },
+  budget: { name: "Budget", body: "Economical models for planning and specialist work." },
+  balanced: { name: "Balanced", body: "A middle ground between cost and quality." },
+  quality: { name: "Maximum Quality", body: "The strongest configured models, regardless of cost." },
+};
 
 export default async function SettingsPage() {
   const user = await requireUser("/app/settings");
@@ -48,15 +48,18 @@ export default async function SettingsPage() {
         </Panel>
         {system.ok ? (
           <>
-            <Panel title="Models" description="Model routing happens on the server; you never need to pick a model.">
+            <Panel title="Models" description="Routing happens on the server. Pick a mode per build in its advanced settings.">
               <ul className="space-y-3">
-                {MODES.map((mode) => (
-                  <li key={mode.name} className="flex items-start justify-between gap-4 rounded-lg border border-line p-3">
-                    <div>
-                      <p className="text-sm font-medium text-fg">{mode.name}</p>
-                      <p className="text-xs text-muted">{mode.body}</p>
+                {system.data.model_modes.map((mode) => (
+                  <li key={mode.mode} className="flex items-start justify-between gap-4 rounded-lg border border-line p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-fg">{MODES[mode.mode]?.name ?? mode.mode}</p>
+                      <p className="text-xs text-muted">{MODES[mode.mode]?.body}</p>
+                      {mode.available && mode.worker_model ? (
+                        <p className="mt-1 truncate font-mono text-[0.7rem] text-faint">{mode.manager_model} · {mode.worker_model}</p>
+                      ) : null}
                     </div>
-                    <StatusPill tone={mode.available ? "ok" : "neutral"}>{mode.available ? "Active" : "Coming later"}</StatusPill>
+                    <StatusPill tone={mode.available ? "ok" : "neutral"}>{mode.available ? "Available" : "Not configured"}</StatusPill>
                   </li>
                 ))}
               </ul>

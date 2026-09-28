@@ -583,3 +583,68 @@ def test_push_failure_messages_never_contain_the_token(tmp_path):
     with pytest.raises(PublishError) as raised:
         push(repo, "0" * 40, f"https://x-access-token:{token}@invalid.invalid/r.git", token)
     assert token not in str(raised.value)
+
+
+def test_model_modes_are_offered_only_when_configured(tmp_path, monkeypatch):
+    from caveman.config import Settings as S
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-not-real")
+    settings = S.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_DATA_DIR": str(tmp_path),
+                           "CAVEMAN_MODELS_BUDGET": "manager=deepseek/deepseek-chat,worker=qwen/qwen3-coder"})
+    with pytest.raises(SettingsError, match="CAVEMAN_MODELS_QUALITY"):
+        S.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_MODELS_QUALITY": "worker=x"})
+    with TestClient(create_app(settings)) as client:
+        modes = {m["mode"]: m for m in client.get("/api/system", headers=ALICE).json()["model_modes"]}
+        assert modes["budget"]["available"] and modes["budget"]["worker_model"] == "qwen/qwen3-coder"
+        assert modes["automatic"]["available"] and not modes["quality"]["available"]
+        refused = client.post("/api/builds", json={"prompt": "Build x", "settings": {"model_mode": "quality"}},
+                              headers=ALICE)
+        assert refused.status_code == 422
+        made = client.post("/api/builds", json={"prompt": "Build x", "settings": {"model_mode": "budget"}},
+                           headers=ALICE)
+        assert made.status_code == 201 and made.json()["run"]["model_mode"] == "budget"
+
+
+def test_worker_routes_models_by_the_runs_mode(settings, monkeypatch):
+    from dataclasses import replace as dc_replace
+    from walter import runtime
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-not-real")
+    routed = dc_replace(settings, executor="provider", model_profiles=(("budget", "m-budget", "w-budget"),))
+    with TestClient(create_app(routed)) as client:
+        run_id = client.post("/api/builds", json={"prompt": "Build x", "settings": {"model_mode": "budget"}},
+                             headers=ALICE).json()["run_id"]
+    worker = Worker(routed)
+    try:
+        platform = worker.platform
+        job = platform.claim("w", 30)
+        config, _ = worker._config(job, platform.run_by_id(run_id))
+    finally:
+        worker.close()
+    assert (config.manager_model, config.worker_model) == ("m-budget", "w-budget")
+    assert isinstance(config, runtime.RuntimeConfig) and config.budget.max_calls == 300
+
+
+@needs_sandbox
+def test_one_worker_process_runs_several_jobs_concurrently(settings):
+    from dataclasses import replace
+    parallel = replace(settings, worker_concurrency=2, scripted_step_delay=0.05)
+    with TestClient(create_app(parallel)) as client:
+        runs = [build(client, prompt=p)["run_id"] for p in ("Booking one", "Booking two #node")]
+
+        async def scenario():
+            worker = Worker(parallel)
+            try:
+                loop = asyncio.create_task(worker.run_forever(poll_seconds=0.05))
+                for _ in range(400):
+                    await asyncio.sleep(0.05)
+                    states = [client.get(f"/api/runs/{r}", headers=ALICE).json()["state"] for r in runs]
+                    if all(state == "complete" for state in states):
+                        break
+                worker.stop()
+                await loop
+            finally:
+                worker.close()
+            return states
+        assert asyncio.run(scenario()) == ["complete", "complete"]
+        started = [client.get(f"/api/runs/{r}", headers=ALICE).json()["jobs"][0]["started_at"] for r in runs]
+        finished = [client.get(f"/api/runs/{r}", headers=ALICE).json()["jobs"][0]["finished_at"] for r in runs]
+    assert max(started) < min(finished)  # the two jobs overlapped

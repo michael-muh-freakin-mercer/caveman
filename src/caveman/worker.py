@@ -89,7 +89,13 @@ class Worker:
         self._stopping.set()
 
     async def run_forever(self, poll_seconds: float = 1.0) -> None:
-        logger.info("Caveman worker %s started (executor: %s)", self.worker_id, self.settings.executor)
+        logger.info("Caveman worker %s started (executor: %s, orchestration: %s, concurrency: %s)",
+                    self.worker_id, self.settings.executor, self.settings.orchestration,
+                    self.settings.worker_concurrency)
+        await asyncio.gather(*(self._slot(poll_seconds) for _ in range(self.settings.worker_concurrency)))
+
+    async def _slot(self, poll_seconds: float) -> None:
+        """One execution slot. Jobs are leased, so slots never share a job."""
         while not self._stopping.is_set():
             ran = await self.run_once()
             if not ran:
@@ -131,6 +137,10 @@ class Worker:
             self._scripted.prepare(key, job.run_id, job.kind)
             return scripted_config(key, _merge_budget(None, budget_usd, max_calls)), key
         config = runtime.RuntimeConfig.from_env()
+        profiles = {mode: (manager, worker) for mode, manager, worker in self.settings.model_profiles}
+        if record.model_mode in profiles:
+            manager, worker = profiles[record.model_mode]
+            config = replace(config, manager_model=manager, worker_model=worker)
         return replace(config, budget=_merge_budget(config.budget, budget_usd, max_calls)), None
 
     async def execute(self, job: Job) -> None:

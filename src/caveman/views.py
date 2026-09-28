@@ -647,6 +647,7 @@ class Projector:
             "prompt": self.redact(record.prompt, limit=4000),
             "executor": record.executor,
             "orchestration": self.settings.orchestration,
+            "model_mode": record.model_mode,
             "status": run.status,
             **self.run_state(run, jobs),
             "stage": self.stage(run),

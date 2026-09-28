@@ -16,6 +16,8 @@ export type RunState =
   | "cancelled"
   | "complete";
 
+export type ModelMode = "automatic" | "budget" | "balanced" | "quality";
+
 export type Stage = "understand" | "plan" | "build" | "review" | "deliver";
 
 export type TaskState =
@@ -284,6 +286,7 @@ export interface SystemView {
   version: string;
   executor: "provider" | "scripted";
   orchestration: "workflow" | "manager";
+  model_modes: { mode: ModelMode; available: boolean; manager_model: string | null; worker_model: string | null }[];
   provider: { configured: boolean; provider?: string; manager_model?: string; worker_model?: string; problem?: string };
   sandbox: { available: boolean; bubblewrap: boolean; prlimit: boolean };
   budget: { default_usd: number; max_usd: number; default_max_model_calls: number; warning_ratio: number };

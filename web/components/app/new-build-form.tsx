@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
 
+const MODE_LABELS: Record<string, string> = {
+  automatic: "Automatic",
+  budget: "Budget",
+  balanced: "Balanced",
+  quality: "Maximum Quality",
+};
+
 export function NewBuildForm({
   initialPrompt,
   projectId,
@@ -12,6 +19,7 @@ export function NewBuildForm({
   defaultBudget,
   maxBudget,
   disabledReason,
+  modes = ["automatic"],
 }: {
   initialPrompt: string;
   projectId: string | null;
@@ -19,6 +27,7 @@ export function NewBuildForm({
   defaultBudget: number;
   maxBudget: number;
   disabledReason: string | null;
+  modes?: string[];
 }) {
   const router = useRouter();
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -26,9 +35,10 @@ export function NewBuildForm({
   const [constraints, setConstraints] = useState("");
   const [target, setTarget] = useState("");
   const [budget, setBudget] = useState(String(defaultBudget));
+  const [mode, setMode] = useState("automatic");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ids = { prompt: useId(), stack: useId(), constraints: useId(), target: useId(), budget: useId(), error: useId() };
+  const ids = { prompt: useId(), stack: useId(), constraints: useId(), target: useId(), budget: useId(), mode: useId(), error: useId() };
 
   useEffect(() => {
     // Recover a prompt typed before signing in, if it did not arrive in the URL.
@@ -58,6 +68,7 @@ export function NewBuildForm({
             constraints: constraints.trim() || undefined,
             deployment_target: target.trim() || undefined,
             budget_usd: Number(budget) || undefined,
+            model_mode: mode,
           },
         }),
       });
@@ -118,9 +129,17 @@ export function NewBuildForm({
             <label htmlFor={ids.budget} className="text-xs text-muted">Budget ceiling (USD, max {maxBudget})</label>
             <input id={ids.budget} type="number" min="0.5" max={maxBudget} step="0.5" value={budget} onChange={(e) => setBudget(e.target.value)} className={`${input} h-10`} />
           </div>
-          <div className="text-xs leading-relaxed text-muted sm:pt-5">
-            Models are chosen automatically by the server. The run pauses safely if it reaches its budget.
+          <div>
+            <label htmlFor={ids.mode} className="text-xs text-muted">Model mode</label>
+            <select id={ids.mode} value={mode} onChange={(e) => setMode(e.target.value)} className={`${input} h-10`}>
+              {modes.map((item) => (
+                <option key={item} value={item}>{MODE_LABELS[item] ?? item}</option>
+              ))}
+            </select>
           </div>
+          <p className="text-xs leading-relaxed text-muted sm:col-span-2">
+            Automatic uses the models the server is configured with. The run pauses safely if it reaches its budget.
+          </p>
         </div>
       </details>
 

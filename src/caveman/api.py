@@ -48,6 +48,7 @@ class BuildSettings(BaseModel):
     constraints: str | None = Field(default=None, max_length=2000)
     deployment_target: str | None = Field(default=None, max_length=200)
     budget_usd: float | None = Field(default=None, gt=0)
+    model_mode: Literal["automatic", "budget", "balanced", "quality"] = "automatic"
 
 
 class BuildRequest(BaseModel):
@@ -265,7 +266,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def system(_user: User):
         provider = _provider_status() if settings.executor == EXECUTOR_PROVIDER else {
             "configured": True, "provider": "scripted test executor"}
-        return {"version": __version__, "executor": settings.executor,
+        modes = [{"mode": "automatic", "available": True, "manager_model": provider.get("manager_model"),
+                  "worker_model": provider.get("worker_model")}]
+        configured = {mode: (manager, worker) for mode, manager, worker in settings.model_profiles}
+        for mode in ("budget", "balanced", "quality"):
+            manager, worker = configured.get(mode, (None, None))
+            modes.append({"mode": mode, "available": mode in configured,
+                          "manager_model": manager, "worker_model": worker})
+        return {"version": __version__, "executor": settings.executor, "model_modes": modes,
                 "orchestration": settings.orchestration, "provider": provider,
                 "sandbox": _sandbox_status(),
                 "budget": {"default_usd": settings.default_budget_usd, "max_usd": settings.max_budget_usd,
@@ -299,6 +307,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                          "so builds cannot start. An operator needs to set "
                                          "OPENROUTER_API_KEY for the Caveman worker.")
         require_account_allowance(user)
+        modes = {"automatic"} | {mode for mode, _, _ in settings.model_profiles}
+        if body.settings.model_mode not in modes:
+            raise HTTPException(422, f"The model mode '{body.settings.model_mode}' is not configured on this server.")
         budget = body.settings.budget_usd or settings.default_budget_usd
         if budget > settings.max_budget_usd:
             raise HTTPException(422, f"The maximum budget per run is ${settings.max_budget_usd:.2f}.")
@@ -319,7 +330,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise
         run = engine.create_run(body.prompt, _constraints(body.settings))
         record = platform.create_run(run.id, project.id, user, body.prompt, executor=settings.executor,
-                                     budget_usd=budget, max_model_calls=settings.default_max_model_calls)
+                                     budget_usd=budget, max_model_calls=settings.default_max_model_calls,
+                                     model_mode=body.settings.model_mode)
         platform.enqueue(run.id, "start")
         return {"run_id": run.id, "project_id": project.id, "run": summary(record)}
 

@@ -33,6 +33,7 @@ export default async function NewBuildPage({ searchParams }: { searchParams: Pro
           defaultBudget={system.ok ? system.data.budget.default_usd : 5}
           maxBudget={system.ok ? system.data.budget.max_usd : 100}
           disabledReason={disabledReason}
+          modes={system.ok ? system.data.model_modes.filter((m) => m.available).map((m) => m.mode) : ["automatic"]}
         />
       </div>
     </div>

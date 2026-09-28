@@ -227,7 +227,8 @@ No deployment is performed by anything in this repository.
   managed-sandbox backend can replace it; for a public multi-tenant service,
   that is recommended before launch.
 - OpenRouter is the only configured model provider (any tool-calling model on it,
-  e.g. Kimi, DeepSeek, Qwen). Model modes beyond "Automatic" are not built yet.
+  e.g. Kimi, DeepSeek, Qwen). Model modes (Budget, Balanced, Maximum Quality)
+  are offered only when an operator configures them (`CAVEMAN_MODELS_*`).
 - Operational state is SQLite on a shared volume; Postgres is used only for auth.
 - GitHub publishing is tested against a local stand-in for GitHub; the
   OAuth scope upgrade and token retrieval path has not been exercised against
