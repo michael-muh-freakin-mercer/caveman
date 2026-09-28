@@ -183,10 +183,12 @@ class PlatformStore:
         if str(path) != ":memory:":
             self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.executescript(SCHEMA)
-        # Additive migrations for databases created by earlier versions.
-        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
-        if "model_mode" not in columns:
-            self.connection.execute("ALTER TABLE runs ADD COLUMN model_mode TEXT NOT NULL DEFAULT 'automatic'")
+        # Additive migrations for databases created by earlier versions, under the
+        # write lock and re-checked, since API and workers start together.
+        with self._write() as db:
+            columns = {row[1] for row in db.execute("PRAGMA table_info(runs)")}
+            if "model_mode" not in columns:
+                db.execute("ALTER TABLE runs ADD COLUMN model_mode TEXT NOT NULL DEFAULT 'automatic'")
 
     def close(self) -> None:
         with self._lock:

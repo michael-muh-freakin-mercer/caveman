@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Concurrent first start
+
+- Fix: `SQLiteStore` read `user_version == 0` and then created its tables without holding the write lock, so when the API and a worker opened a fresh database at the same moment one of them crashed with `table runs already exists` (a worker crash left every E2E build unexecuted in CI). Schema creation, the v1→v2 migration and the platform store's additive column migration now take the write lock and re-check before acting. A regression test opens both stores from eight processes released by a barrier; it reproduces the crash on the old code.
+
 ## 2026-09-28 — PostgreSQL for operational state
 
 - `CAVEMAN_DATABASE_URL` puts the kernel's run store and the platform store in PostgreSQL (schemas `<CAVEMAN_DATABASE_SCHEMA>_ops` / `_platform`). `walter.pg` presents a psycopg connection with the SQLite calls the stores make: `BEGIN IMMEDIATE` becomes a transaction holding a per-schema advisory lock (single-writer semantics preserved, so the optimistic version check and the job queue behave identically across hosts), `?` placeholders and `rowid` are translated, and rows read by index or name. `PostgresStore` subclasses `SQLiteStore`; `walter.store.open_store` and `Settings.open_operations_store/open_platform_store` select the backend.

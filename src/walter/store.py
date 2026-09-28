@@ -50,16 +50,7 @@ class SQLiteStore:
             raise ValueError(f"Unsupported operational schema {version}")
         try:
             if version == 0:
-                self.connection.executescript("""
-                CREATE TABLE runs(id TEXT PRIMARY KEY, version INTEGER NOT NULL, snapshot TEXT NOT NULL);
-                CREATE TABLE events(run_id TEXT NOT NULL REFERENCES runs(id), sequence INTEGER NOT NULL,
-                  payload TEXT NOT NULL, PRIMARY KEY(run_id,sequence));
-                CREATE TABLE schema_migration_backups(
-                  run_id TEXT NOT NULL, from_version INTEGER NOT NULL, to_version INTEGER NOT NULL,
-                  snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL,
-                  PRIMARY KEY(run_id,from_version,to_version));
-                PRAGMA user_version=2;
-                """)
+                self._create_schema()
             elif version == 1:
                 self._migrate_v1_to_v2()
             else:
@@ -69,6 +60,30 @@ class SQLiteStore:
                   PRIMARY KEY(run_id,from_version,to_version))""")
         except BaseException:
             self.connection.close()
+            raise
+
+    def _create_schema(self):
+        """Create the current schema under the write lock.
+
+        Several processes (API and workers) open a fresh database at once; the
+        version is re-read after taking the lock so only the first creates it.
+        """
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            if self.connection.execute("PRAGMA user_version").fetchone()[0] == 0:
+                for statement in (
+                    "CREATE TABLE runs(id TEXT PRIMARY KEY, version INTEGER NOT NULL, snapshot TEXT NOT NULL)",
+                    "CREATE TABLE events(run_id TEXT NOT NULL REFERENCES runs(id), sequence INTEGER NOT NULL, "
+                    "payload TEXT NOT NULL, PRIMARY KEY(run_id,sequence))",
+                    "CREATE TABLE schema_migration_backups(run_id TEXT NOT NULL, from_version INTEGER NOT NULL, "
+                    "to_version INTEGER NOT NULL, snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL, "
+                    "PRIMARY KEY(run_id,from_version,to_version))",
+                    f"PRAGMA user_version={self.SCHEMA_VERSION}",
+                ):
+                    self.connection.execute(statement)
+            self.connection.execute("COMMIT")
+        except BaseException:
+            self.connection.execute("ROLLBACK")
             raise
 
     @staticmethod
@@ -158,6 +173,10 @@ class SQLiteStore:
         with self._lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
+                if self.connection.execute("PRAGMA user_version").fetchone()[0] != 1:
+                    # Another process migrated while this one waited for the lock.
+                    self.connection.execute("COMMIT")
+                    return
                 self.connection.execute("""CREATE TABLE IF NOT EXISTS schema_migration_backups(
                   run_id TEXT NOT NULL, from_version INTEGER NOT NULL, to_version INTEGER NOT NULL,
                   snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL,
