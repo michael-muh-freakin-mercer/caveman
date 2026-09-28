@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import { NewBuildForm } from "@/components/app/new-build-form";
 import { load } from "@/lib/load";
 import { requireUser } from "@/lib/session";
-import type { ProjectView, SystemView } from "@/lib/types";
+import type { EstimateView, ProjectView, SystemView } from "@/lib/types";
 
 export const metadata: Metadata = { title: "New build" };
 
 export default async function NewBuildPage({ searchParams }: { searchParams: Promise<{ prompt?: string; project?: string }> }) {
   const { prompt, project } = await searchParams;
   const user = await requireUser("/app/new");
-  const [system, projectResult] = await Promise.all([
+  const [system, estimate, projectResult] = await Promise.all([
     load<SystemView>(user.id, "system"),
+    load<EstimateView>(user.id, "estimate"),
     project && /^[0-9a-f]{32}$/.test(project) ? load<ProjectView>(user.id, `projects/${project}`) : Promise.resolve(null),
   ]);
   const disabledReason = !system.ok
@@ -34,6 +35,7 @@ export default async function NewBuildPage({ searchParams }: { searchParams: Pro
           maxBudget={system.ok ? system.data.budget.max_usd : 100}
           disabledReason={disabledReason}
           modes={system.ok ? system.data.model_modes.filter((m) => m.available).map((m) => m.mode) : ["automatic"]}
+          estimate={estimate.ok ? estimate.data : null}
         />
       </div>
     </div>

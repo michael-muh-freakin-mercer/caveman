@@ -850,3 +850,42 @@ def test_maintenance_retires_finished_work_without_losing_deliveries(client, set
     second = build(client, prompt="Add cancellation #follow-up", project_id=first["project_id"])
     drain(settings)
     assert client.get(f"/api/runs/{second['run_id']}", headers=ALICE).json()["state"] == "complete"
+
+
+def test_cost_history_reports_only_real_completed_spend_per_mode():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    from caveman.accounts import cost_history
+
+    now = datetime(2026, 9, 28, tzinfo=timezone.utc)
+    runs, records = {}, []
+
+    def add(run_id, mode, costs, status="completed", age_days=1):
+        records.append(SimpleNamespace(id=run_id, model_mode=mode,
+                                       created_at=(now - timedelta(days=age_days)).isoformat()))
+        runs[run_id] = SimpleNamespace(status=status, usage_records=[
+            SimpleNamespace(raw_usage={"cost": c} if c is not None else {}) for c in costs])
+
+    for i, cost in enumerate([0.04, 0.06, 0.09, 0.09, 0.10, 0.15, 2.00]):
+        add(f"a{i}", "automatic", [cost / 2, cost / 2])
+    add("unknown", "automatic", [0.05, None])           # a call reported no cost
+    add("blocked", "automatic", [9.0], status="active")  # not completed
+    add("old", "automatic", [9.0], age_days=45)          # outside the window
+    for i in range(3):
+        add(f"b{i}", "budget", [0.01])
+    engine = SimpleNamespace(load=lambda run_id: runs[run_id])
+    platform = SimpleNamespace(all_runs=lambda: records)
+
+    history = cost_history(engine, platform, now=now)
+    automatic = history["modes"]["automatic"]
+    assert automatic["builds"] == 7 and automatic["median_usd"] == 0.09
+    assert automatic["low_usd"] == 0.06 and automatic["high_usd"] == 0.15  # the $2 outlier sets no bound
+    assert history["modes"]["budget"] == {"builds": 3, "median_usd": None, "low_usd": None, "high_usd": None}
+
+
+def test_estimate_endpoint_returns_ceiling_and_allowance(client):
+    body = client.get("/api/estimate", headers=ALICE).json()
+    assert body["modes"] == {} and body["default_budget_usd"] == 5.0
+    assert body["account"]["remaining_usd"] == body["account"]["limit_usd"]
+    assert client.get("/api/estimate").status_code == 401

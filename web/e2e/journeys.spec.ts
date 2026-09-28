@@ -27,6 +27,10 @@ test("the dashboard requires authentication and keeps the destination", async ({
 
 test("journeys 2, 3 and 6: a real run is created, streams progress, and delivers", async ({ page }) => {
   await signUp(page);
+  // Before starting: the scripted executor reports no cost, so there is no history to quote, only limits.
+  await page.goto("/app/new");
+  await expect(page.getByTestId("cost-estimate")).toContainText("No cost history for Automatic builds yet");
+  await expect(page.getByTestId("cost-estimate")).toContainText("This build stops at $5.00");
   const runId = await startBuild(page, "Build me a booking app for a tattoo studio");
 
   // Journey 2: the run exists in the backend and the dashboard shows it.

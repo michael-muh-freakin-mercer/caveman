@@ -1,3 +1,4 @@
+import { CostEstimate } from "@/components/app/cost-estimate";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -33,5 +34,34 @@ describe("NewBuildForm repository import", () => {
   it("offers no import for a run in an existing project", () => {
     render(<NewBuildForm {...props} projectId={"a".repeat(32)} projectName="Demo" />);
     expect(screen.queryByLabelText("Start from a public GitHub repository")).toBeNull();
+  });
+});
+
+describe("cost estimate", () => {
+  const estimate = {
+    window_days: 30,
+    min_builds: 5,
+    modes: {
+      automatic: { builds: 10, median_usd: 0.09, low_usd: 0.04, high_usd: 0.15 },
+      budget: { builds: 2, median_usd: null, low_usd: null, high_usd: null },
+    },
+    default_budget_usd: 5,
+    max_budget_usd: 100,
+    account: { remaining_usd: 24.5, limit_usd: 25, remaining_calls: 2900 },
+  };
+
+  it("shows what recent builds cost, the ceiling and the allowance", () => {
+    render(<CostEstimate estimate={estimate} mode="automatic" modeLabel="Automatic" budget={5} />);
+    const box = screen.getByTestId("cost-estimate");
+    expect(box).toHaveTextContent("Recent Automatic builds here cost about $0.09");
+    expect(box).toHaveTextContent("most between $0.04 and $0.15; 10 builds in the last 30 days");
+    expect(box).toHaveTextContent("This build stops at $5.00. You have $24.50 of $25.00 left this month.");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("admits when there is too little history, and warns when the allowance is below the ceiling", () => {
+    render(<CostEstimate estimate={estimate} mode="budget" modeLabel="Budget" budget={30} />);
+    expect(screen.getByTestId("cost-estimate")).toHaveTextContent("No cost history for Budget builds yet");
+    expect(screen.getByRole("status")).toHaveTextContent("may pause before finishing");
   });
 });

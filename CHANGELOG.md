@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-28 — Cost estimate before a build
+
+- The new-build form shows what recent builds on this server actually cost in the chosen model mode (median and the 10th–90th percentile range of completed runs whose every call reported a cost, last 30 days), the build's ceiling, and the account's allowance left this month, with a warning when the allowance is below the ceiling. With fewer than 5 such builds it says there is no history instead of guessing.
+- `GET /api/estimate` serves these figures (aggregates only, cached for five minutes).
+
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.
