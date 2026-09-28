@@ -23,6 +23,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from walter.pg import PostgresConnection, is_postgres_url
+from walter.store import enable_wal
 
 JOB_ACTIVE = ("queued", "running")
 
@@ -80,6 +81,12 @@ CREATE TABLE IF NOT EXISTS workflow_state(
   state_json TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS rate_events(
+  owner_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_events_owner ON rate_events(owner_id, action, at);
 CREATE TABLE IF NOT EXISTS deliveries(
   run_id TEXT PRIMARY KEY REFERENCES runs(id),
   status TEXT NOT NULL,
@@ -181,7 +188,7 @@ class PlatformStore:
         self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA busy_timeout=5000")
         if str(path) != ":memory:":
-            self.connection.execute("PRAGMA journal_mode=WAL")
+            enable_wal(self.connection)
         self.connection.executescript(SCHEMA)
         # Additive migrations for databases created by earlier versions, under the
         # write lock and re-checked, since API and workers start together.
@@ -209,6 +216,34 @@ class PlatformStore:
         with self._lock:
             return self.connection.execute(sql, params).fetchall()
 
+    # Limits -------------------------------------------------------------
+
+    def consume_rate(self, owner_id: str, action: str, limit: int, window_seconds: float,
+                     now: float | None = None) -> float | None:
+        """Record one ``action`` unless ``limit`` were already used in the window.
+
+        Returns None when allowed, otherwise the seconds until a slot frees up.
+        Kept in the shared database so the limit holds across API hosts.
+        """
+        now = time.time() if now is None else now
+        start = now - window_seconds
+        with self._write() as db:
+            db.execute("DELETE FROM rate_events WHERE owner_id=? AND action=? AND at < ?", (owner_id, action, start))
+            recent = [row[0] for row in db.execute(
+                "SELECT at FROM rate_events WHERE owner_id=? AND action=? ORDER BY at", (owner_id, action))]
+            if len(recent) >= limit:
+                return max(1.0, recent[len(recent) - limit] + window_seconds - now)
+            db.execute("INSERT INTO rate_events VALUES(?,?,?)", (owner_id, action, now))
+        return None
+
+    def active_build_count(self, owner_id: str) -> int:
+        """Runs of this owner with queued or running work."""
+        return self._query("SELECT COUNT(DISTINCT jobs.run_id) FROM jobs JOIN runs ON runs.id = jobs.run_id "
+                           "WHERE runs.owner_id=? AND jobs.status IN ('queued','running')", (owner_id,))[0][0]
+
+    def project_count(self, owner_id: str) -> int:
+        return self._query("SELECT COUNT(*) FROM projects WHERE owner_id=?", (owner_id,))[0][0]
+
     # Account erasure ----------------------------------------------------
 
     def delete_owner(self, owner_id: str) -> dict:
@@ -228,6 +263,7 @@ class PlatformStore:
             for table in ("publications", "workflow_state", "deliveries", "jobs"):
                 db.execute(f"DELETE FROM {table} WHERE run_id IN ({owned})", (owner_id,))
             db.execute("DELETE FROM publications WHERE owner_id=?", (owner_id,))
+            db.execute("DELETE FROM rate_events WHERE owner_id=?", (owner_id,))
             db.execute("DELETE FROM runs WHERE owner_id=?", (owner_id,))
             db.execute("DELETE FROM projects WHERE owner_id=?", (owner_id,))
         return {"runs": runs, "projects": projects}

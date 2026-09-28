@@ -739,3 +739,55 @@ def test_follow_up_run_builds_on_the_projects_integrated_work(client, settings):
     cancel = next(a for a in detail["artifacts"] if a["task_id"] == "cancel")
     assert cancel["changed_files"] == ["cancel.py", "test_cancel.py"]
     assert {"booking.py", "cancel.py"} <= set(detail["delivery"]["files"])
+
+
+def limited_client(settings, **limits):
+    from dataclasses import replace
+    return TestClient(create_app(replace(settings, **limits)))
+
+
+def test_build_rate_limit_is_per_user_and_says_when_to_retry(settings):
+    with limited_client(settings, builds_per_hour=2, max_concurrent_builds=10) as client:
+        build(client)
+        build(client)
+        refused = client.post("/api/builds", json={"prompt": "Build a third thing"}, headers=ALICE)
+        assert refused.status_code == 429 and "2 new builds per hour" in refused.json()["detail"]
+        assert int(refused.headers["Retry-After"]) > 3000
+        build(client, headers=MALLORY)  # other accounts are unaffected
+
+
+def test_concurrent_builds_projects_and_disk_are_capped(settings):
+    with limited_client(settings, max_concurrent_builds=1, max_projects=2, account_disk_mb=1) as client:
+        first = build(client)
+        busy = client.post("/api/builds", json={"prompt": "Build another thing"}, headers=ALICE)
+        assert busy.status_code == 429 and "1 builds running" in busy.json()["detail"]
+        client.post(f"/api/runs/{first['run_id']}/stop", headers=ALICE)
+        assert client.post("/api/projects", json={"name": "Second"}, headers=ALICE).status_code == 201
+        full = client.post("/api/projects", json={"name": "Third"}, headers=ALICE)
+        assert full.status_code == 403 and "2 projects" in full.json()["detail"]
+        (settings.projects_dir / first["project_id"] / "repo" / "big.bin").write_bytes(b"x" * (2 * 1024 * 1024))
+        disk = client.post("/api/builds", json={"prompt": "Build more", "project_id": first["project_id"]},
+                           headers=ALICE)
+        assert disk.status_code == 403 and "1 MB of storage" in disk.json()["detail"]
+
+
+def test_mutating_actions_are_rate_limited(settings):
+    with limited_client(settings, actions_per_minute=2) as client:
+        run_id = build(client)["run_id"]
+        assert client.post(f"/api/runs/{run_id}/stop", headers=ALICE).status_code == 202
+        assert client.post(f"/api/runs/{run_id}/stop", headers=ALICE).status_code == 409
+        limited = client.post(f"/api/runs/{run_id}/stop", headers=ALICE)
+        assert limited.status_code == 429 and "Retry-After" in limited.headers
+
+
+def test_rate_windows_slide_and_erasure_clears_them(client, settings):
+    platform = settings.open_platform_store()
+    try:
+        assert platform.consume_rate("alice", "build", 2, 60, now=1000) is None
+        assert platform.consume_rate("alice", "build", 2, 60, now=1010) is None
+        assert platform.consume_rate("alice", "build", 2, 60, now=1020) == 40
+        assert platform.consume_rate("alice", "build", 2, 60, now=1061) is None  # the first expired
+        platform.delete_owner("alice")
+        assert platform.consume_rate("alice", "build", 1, 60, now=1062) is None
+    finally:
+        platform.close()

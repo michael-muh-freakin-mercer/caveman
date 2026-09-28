@@ -15,6 +15,7 @@ sandboxed specialist) fetches it once, over HTTPS only, from github.com only:
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -77,12 +78,13 @@ def parse_url(url: str) -> Source:
     return Source(match["owner"], match["repo"])
 
 
-def repository_metadata(source: Source, api_url: str) -> dict:
-    """Public metadata from GitHub's API, fetched without any credential."""
-    request = urllib.request.Request(
-        f"{api_url.rstrip('/')}/repos/{source.owner}/{source.repo}",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "caveman-importer",
-                 "X-GitHub-Api-Version": "2022-11-28"})
+def repository_metadata(source: Source, api_url: str, token: str | None = None) -> dict:
+    """Public metadata from GitHub's API; an operator token only raises rate limits."""
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "caveman-importer",
+               "X-GitHub-Api-Version": "2022-11-28"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(f"{api_url.rstrip('/')}/repos/{source.owner}/{source.repo}", headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             return json.loads(response.read() or b"{}")
@@ -97,23 +99,31 @@ def repository_metadata(source: Source, api_url: str) -> dict:
         raise RepositoryImportError("GitHub could not be reached.", 502) from None
 
 
-def _environment() -> dict[str, str]:
+def _environment(token: str | None = None) -> dict[str, str]:
     environment = {**_GIT_ENV, "GIT_ALLOW_PROTOCOL": ALLOWED_PROTOCOLS, "GIT_LFS_SKIP_SMUDGE": "1"}
     environment.update({name: os.environ[name] for name in _PASSTHROUGH if os.environ.get(name)})
+    if token:
+        # Through environment config, never argv or the repository's config.
+        credential = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+        environment.update({"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.https://github.com/.extraHeader",
+                            "GIT_CONFIG_VALUE_0": f"Authorization: Basic {credential}"})
     return environment
 
 
-def _git(*args: str, cwd: Path | None = None, timeout: float = 60) -> str:
+def _git(*args: str, cwd: Path | None = None, timeout: float = 60, token: str | None = None) -> str:
     try:
         result = subprocess.run(
             ["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
              "-c", "core.symlinks=false", "-c", "submodule.recurse=false",
              "-c", "user.name=Caveman", "-c", "user.email=caveman@localhost", *args],
-            cwd=cwd, env=_environment(), capture_output=True, text=True, timeout=timeout)
+            cwd=cwd, env=_environment(token), capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise RepositoryImportError("Downloading the repository took too long.", 504) from None
     if result.returncode:
-        raise RepositoryImportError("Git could not import the repository: " + (result.stderr.strip()[-300:] or args[0]), 502)
+        message = result.stderr.strip()[-300:] or args[0]
+        if token:
+            message = message.replace(token, "[redacted]")
+        raise RepositoryImportError("Git could not import the repository: " + message, 502)
     return result.stdout
 
 
@@ -129,7 +139,7 @@ def _tree_size(path: Path) -> int:
 
 
 def import_repository(url: str, repo: Path, name: str, *, api_url: str, max_mb: int, max_files: int,
-                      clone_url: str | None = None) -> Imported:
+                      clone_url: str | None = None, token: str | None = None) -> Imported:
     """Create ``repo`` as a new project repository holding the kept files of ``url``.
 
     ``repo`` must not exist. On any failure it is removed again.
@@ -137,7 +147,7 @@ def import_repository(url: str, repo: Path, name: str, *, api_url: str, max_mb: 
     if max_mb <= 0:
         raise RepositoryImportError("Starting from an existing repository is disabled on this server.", 403)
     source = parse_url(url)
-    metadata = repository_metadata(source, api_url)
+    metadata = repository_metadata(source, api_url, token)
     if metadata.get("private") or metadata.get("visibility", "public") != "public":
         raise RepositoryImportError("Caveman can only start from public repositories.")
     size_kb = metadata.get("size")
@@ -150,16 +160,19 @@ def import_repository(url: str, repo: Path, name: str, *, api_url: str, max_mb: 
     if repo.exists():
         raise RepositoryImportError("The project repository already exists.", 409)
     try:
-        return _clone(source, repo, name, branch, clone_url or source.clone_url, max_mb, max_files)
+        return _clone(source, repo, name, branch, clone_url or source.clone_url, max_mb, max_files, token)
     except BaseException:
         shutil.rmtree(repo, ignore_errors=True)
         raise
 
 
 def _clone(source: Source, repo: Path, name: str, branch: str, clone_url: str,
-           max_mb: int, max_files: int) -> Imported:
+           max_mb: int, max_files: int, token: str | None = None) -> Imported:
+    # The token is used for the download only; no later command (and nothing
+    # written into the repository) carries it.
     _git("clone", "--quiet", "--no-checkout", "--depth=1", "--single-branch", "--no-tags",
-         "--template=", "--branch", branch, "--", clone_url, str(repo), timeout=CLONE_TIMEOUT_SECONDS)
+         "--template=", "--branch", branch, "--", clone_url, str(repo), timeout=CLONE_TIMEOUT_SECONDS,
+         token=token)
     if _tree_size(repo / ".git") > max_mb * 1024 * 1024:
         raise RepositoryImportError(f"That repository is larger than the {max_mb} MB import limit.")
     upstream = _git("rev-parse", "HEAD", cwd=repo).strip()

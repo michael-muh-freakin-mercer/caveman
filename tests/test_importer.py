@@ -41,7 +41,7 @@ def upstream(tmp_path):
 def local_github(monkeypatch, upstream):
     """Point the importer at the local upstream, keeping every other rule."""
     metadata = dict(PUBLIC)
-    monkeypatch.setattr(importer, "repository_metadata", lambda source, api_url: metadata)
+    monkeypatch.setattr(importer, "repository_metadata", lambda source, api_url, token=None: metadata)
     monkeypatch.setattr(importer, "ALLOWED_PROTOCOLS", "file")
     monkeypatch.setattr(importer.Source, "clone_url", property(lambda self: f"file://{upstream}"))
     return metadata
@@ -125,7 +125,7 @@ def test_private_oversized_and_disabled_imports_are_refused(tmp_path, local_gith
 
 
 def test_git_refuses_non_https_transport_by_default(tmp_path, monkeypatch, upstream):
-    monkeypatch.setattr(importer, "repository_metadata", lambda source, api_url: dict(PUBLIC))
+    monkeypatch.setattr(importer, "repository_metadata", lambda source, api_url, token=None: dict(PUBLIC))
     monkeypatch.setattr(importer.Source, "clone_url", property(lambda self: f"file://{upstream}"))
     with pytest.raises(importer.RepositoryImportError, match="Git could not import"):
         run_import(tmp_path)
@@ -193,3 +193,23 @@ def test_api_starts_projects_and_builds_from_an_imported_repository(tmp_path, lo
         assert response.status_code == 422 and "public" in response.json()["detail"]
         assert sorted(p.name for p in settings.projects_dir.iterdir()) == before
         assert len(client.get("/api/projects", headers=headers).json()["projects"]) == 2
+
+
+def test_import_token_rides_only_in_the_clone_environment(tmp_path, local_github, monkeypatch):
+    seen = {}
+    original = importer._environment
+
+    def spy(token=None):
+        environment = original(token)
+        if token:
+            seen.update(environment)
+        return environment
+    monkeypatch.setattr(importer, "_environment", spy)
+    importer.import_repository("https://github.com/octo/demo", tmp_path / "project" / "repo", "Demo",
+                               api_url="https://api.github.invalid", max_mb=50, max_files=100,
+                               token="ghp_" + "t" * 36)
+    assert seen["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraHeader"
+    assert "ghp_" not in seen["GIT_CONFIG_VALUE_0"]  # base64 credential, not the raw token
+    repo = tmp_path / "project" / "repo"
+    assert "ghp_" not in (repo / ".git" / "config").read_text()
+    assert "extraheader" not in (repo / ".git" / "config").read_text().lower()

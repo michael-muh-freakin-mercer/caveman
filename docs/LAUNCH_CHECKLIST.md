@@ -46,10 +46,10 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Pages and links in the app (data export and account deletion already exist)
 
 ### 7. Abuse and tenancy limits
-- [ ] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
-- [ ] 🤖 Per-account caps: disk, projects, concurrent builds
+- [x] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
+- [x] 🤖 Per-account caps: disk, projects, concurrent builds
 - [ ] 🤖 CAPTCHA or equivalent on sign-up
-- [ ] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
+- [x] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
 - [ ] 🧑 Prompt and content policy: what gets refused
 
 ### 8. Operations

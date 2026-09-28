@@ -6,6 +6,7 @@ call cap bounds calls whose cost the provider did not report.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
 from walter.usage import usage_cost
@@ -49,3 +50,24 @@ def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | 
         "warning": cost >= limit_usd * settings.budget_warning_ratio
                    or calls >= limit_calls * settings.budget_warning_ratio,
     }
+
+
+def _tree_bytes(path) -> int:
+    total = 0
+    for root, _, names in os.walk(path):
+        for name in names:
+            try:
+                total += os.lstat(os.path.join(root, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def account_disk_bytes(settings, platform, owner_id: str) -> int:
+    """Bytes held for an account: its project repositories and delivery archives."""
+    total = sum(_tree_bytes(settings.projects_dir / project.id) for project in platform.list_projects(owner_id))
+    for record in platform.list_runs(owner_id):
+        archive = settings.deliveries_dir / f"{record.id}.tar.gz"
+        if archive.exists():
+            total += archive.stat().st_size
+    return total

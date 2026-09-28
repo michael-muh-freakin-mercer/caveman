@@ -101,6 +101,16 @@ class Settings:
     # can run on several hosts. Unset: SQLite files in data_dir.
     database_url: str | None = None
     database_schema: str = "caveman"
+    # Per-account abuse limits. Rates are per user across all API hosts.
+    builds_per_hour: int = 20          # new builds and continuations
+    imports_per_hour: int = 5          # repository imports
+    actions_per_minute: int = 60       # approvals, stop, close, budget, delivery, publish
+    max_concurrent_builds: int = 2     # runs with queued or running work
+    max_projects: int = 100
+    account_disk_mb: int = 2048        # project repositories plus delivery archives
+    # Optional token for GitHub API and clone requests during imports; any
+    # token (no scopes needed) raises GitHub's anonymous 60-per-hour limit.
+    github_import_token: str | None = None
     # Starting a project from a public GitHub repository (0 disables imports).
     import_max_mb: int = 100
     import_max_files: int = 5000
@@ -189,6 +199,13 @@ class Settings:
             github_api_url=(values.get("CAVEMAN_GITHUB_API_URL") or "https://api.github.com").strip(),
             metrics_token=(values.get("CAVEMAN_METRICS_TOKEN") or "").strip() or None,
             import_max_mb=_int(values, "CAVEMAN_IMPORT_MAX_MB", 100, minimum=0),
+            github_import_token=(values.get("CAVEMAN_GITHUB_IMPORT_TOKEN") or "").strip() or None,
+            builds_per_hour=_int(values, "CAVEMAN_BUILDS_PER_HOUR", 20),
+            imports_per_hour=_int(values, "CAVEMAN_IMPORTS_PER_HOUR", 5),
+            actions_per_minute=_int(values, "CAVEMAN_ACTIONS_PER_MINUTE", 60),
+            max_concurrent_builds=_int(values, "CAVEMAN_MAX_CONCURRENT_BUILDS", 2),
+            max_projects=_int(values, "CAVEMAN_MAX_PROJECTS", 100),
+            account_disk_mb=_int(values, "CAVEMAN_ACCOUNT_DISK_MB", 2048),
             import_max_files=_int(values, "CAVEMAN_IMPORT_MAX_FILES", 5000),
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,

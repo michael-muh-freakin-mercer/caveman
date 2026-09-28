@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — Abuse and tenancy limits
+
+- Per-user rate limits kept in the platform database (so they hold across API hosts): new builds and continuations per hour, repository imports per hour, and other mutating actions per minute; over a limit the API answers 429 with `Retry-After`. Per-account caps on concurrent builds, projects and disk (project repositories plus archives). All configurable (`CAVEMAN_BUILDS_PER_HOUR`, `CAVEMAN_IMPORTS_PER_HOUR`, `CAVEMAN_ACTIONS_PER_MINUTE`, `CAVEMAN_MAX_CONCURRENT_BUILDS`, `CAVEMAN_MAX_PROJECTS`, `CAVEMAN_ACCOUNT_DISK_MB`). Rate records are erased with the account.
+- `CAVEMAN_GITHUB_IMPORT_TOKEN`: optional operator token for import metadata and clones (raises GitHub's anonymous rate limit); it reaches git only through environment config for the download and is never written to the project repository.
+- Fix: `PRAGMA journal_mode=WAL` fails immediately with "database is locked" while another process holds a new database file (SQLite applies no busy timeout to it), another way a concurrent first start could crash. `walter.store.enable_wal` skips the change when WAL is already on and retries briefly otherwise.
+
 ## 2026-09-28 — Concurrent first start
 
 - Fix: `SQLiteStore` read `user_version == 0` and then created its tables without holding the write lock, so when the API and a worker opened a fresh database at the same moment one of them crashed with `table runs already exists` (a worker crash left every E2E build unexecuted in CI). Schema creation, the v1→v2 migration and the platform store's additive column migration now take the write lock and re-check before acting. A regression test opens both stores from eight processes released by a barrier; it reproduces the crash on the old code.

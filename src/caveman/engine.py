@@ -16,7 +16,7 @@ from pathlib import Path
 from walter.adapter import INITIAL_COMPLETION_CRITERION
 from walter.models import ApprovalStatus, Event, Run
 from walter.orchestration import GateError, Orchestrator
-from walter.store import ConcurrentUpdate
+from walter.store import ConcurrentUpdate, enable_wal
 
 from .config import Settings
 
@@ -85,7 +85,7 @@ class Engine:
             # persistent on the database file and changes no kernel semantics.
             connection = sqlite3.connect(str(settings.operations_db))
             try:
-                connection.execute("PRAGMA journal_mode=WAL")
+                enable_wal(connection)
             finally:
                 connection.close()
         with self.core():  # creates the operational schema on first use

@@ -168,6 +168,10 @@ end-to-end journeys.
   per-call model usage, provider-reported cost and budget.
 - Exact-scope approvals: approve or reject a specific request; a changed request
   must be shown again.
+- Abuse limits per account, enforced by the API across hosts: builds and
+  imports per hour, actions per minute, concurrent builds, projects and disk
+  (all configurable, see `.env.example`). Over a rate limit the API answers
+  429 with `Retry-After`.
 - Budgets on by default: a USD ceiling on provider-reported cost plus a
   model-call ceiling per run and per account per month, with a warning at 80%
   and a safe pause at the limit. OpenRouter calls explicitly request cost

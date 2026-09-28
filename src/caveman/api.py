@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
+import math
 import re
 import shutil
 from contextlib import asynccontextmanager
@@ -33,7 +34,7 @@ from walter.orchestration import GateError
 
 from . import __version__
 from .config import EXECUTOR_PROVIDER, Settings
-from .accounts import account_usage
+from .accounts import account_disk_bytes, account_usage
 from .delivery import deliver_run
 from .engine import ApprovalScopeChanged, Engine
 from .platform_store import RunRecord, new_id
@@ -296,6 +297,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                      f"{usage['model_calls']} of {usage['max_model_calls']} model calls). "
                                      "New work starts again next month or when an operator raises the limit.")
 
+    def _wait(seconds: float) -> str:
+        minutes = math.ceil(seconds / 60)
+        return f"{math.ceil(seconds)} seconds" if seconds < 90 else f"{minutes} minutes"
+
+    def rate_limit(user: str, action: str, limit: int, window_seconds: float, label: str) -> None:
+        wait = platform.consume_rate(user, action, limit, window_seconds)
+        if wait is not None:
+            raise HTTPException(429, f"You've reached the limit of {limit} {label}. Try again in {_wait(wait)}.",
+                                headers={"Retry-After": str(math.ceil(wait))})
+
+    def act(user: str) -> None:
+        rate_limit(user, "action", settings.actions_per_minute, 60, "actions per minute")
+
+    def require_capacity(user: str, *, new_project: bool) -> None:
+        running = platform.active_build_count(user)
+        if running >= settings.max_concurrent_builds:
+            raise HTTPException(429, f"You already have {running} builds running, the most at once. "
+                                     "Wait for one to finish, or stop it, then try again.")
+        if new_project and platform.project_count(user) >= settings.max_projects:
+            raise HTTPException(403, f"You have reached the limit of {settings.max_projects} projects.")
+        if account_disk_bytes(settings, platform, user) >= settings.account_disk_mb * 1024 * 1024:
+            raise HTTPException(403, f"Your projects use more than your {settings.account_disk_mb} MB of storage. "
+                                     "Delete your account data or ask an operator to raise the limit.")
+
     @app.get("/api/account")
     def account(user: User):
         return {"spending": account_usage(engine, platform, settings, user)}
@@ -346,6 +371,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if budget > settings.max_budget_usd:
             raise HTTPException(422, f"The maximum budget per run is ${settings.max_budget_usd:.2f}.")
         repository_url = (body.settings.repository_url or "").strip() or None
+        require_capacity(user, new_project=not body.project_id)
+        rate_limit(user, "build", settings.builds_per_hour, 3600, "new builds per hour")
+        if repository_url and not body.project_id:
+            rate_limit(user, "import", settings.imports_per_hour, 3600, "repository imports per hour")
         if body.project_id:
             if repository_url:
                 raise HTTPException(422, "An existing project already has its files; "
@@ -382,7 +411,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             imported = importer.import_repository(
                 repository_url, engine.project_repo(project_id), name, api_url=settings.github_api_url,
-                max_mb=settings.import_max_mb, max_files=settings.import_max_files)
+                max_mb=settings.import_max_mb, max_files=settings.import_max_files,
+                token=settings.github_import_token)
         except importer.RepositoryImportError as exc:
             shutil.rmtree(engine.project_repo(project_id).parent, ignore_errors=True)
             raise HTTPException(exc.status, str(exc)) from None
@@ -413,6 +443,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/projects", status_code=201)
     def create_project(body: ProjectRequest, user: User):
+        if platform.project_count(user) >= settings.max_projects:
+            raise HTTPException(403, f"You have reached the limit of {settings.max_projects} projects.")
+        act(user)
+        if (body.repository_url or "").strip():
+            require_capacity(user, new_project=True)
+            rate_limit(user, "import", settings.imports_per_hour, 3600, "repository imports per hour")
         project_id = new_id()
         source = new_project_repo(project_id, body.name.strip(), body.description,
                                   (body.repository_url or "").strip() or None)
@@ -520,6 +556,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/runs/{run_id}/approvals/{approval_id}")
     def decide(run_id: str, approval_id: str, body: ApprovalDecisionRequest, user: User):
+        act(user)
         record = owned_run(user, run_id)
         approved = body.decision == "approve"
         reason = body.reason.strip() or ("Approved in Caveman after reviewing the exact scope." if approved
@@ -549,6 +586,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(422, "Follow-up instructions are not supported by this server yet. "
                                      "Continue without an instruction, or start a new build.")
         require_account_allowance(user)
+        if platform.active_job(record.id) is None:
+            require_capacity(user, new_project=False)
+            rate_limit(user, "build", settings.builds_per_hour, 3600, "new builds per hour")
         job, created = platform.enqueue(record.id, "continue", body.message.strip())
         if not created:
             raise HTTPException(409, "This run is already executing.")
@@ -556,6 +596,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/runs/{run_id}/stop", status_code=202)
     def stop_run(run_id: str, user: User):
+        act(user)
         record = owned_run(user, run_id)
         job = platform.request_cancel(record.id)
         if job is None:
@@ -564,6 +605,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/runs/{run_id}/abandon")
     def abandon_run(run_id: str, body: AbandonRequest, user: User):
+        act(user)
         record = owned_run(user, run_id)
         if platform.active_job(record.id) is not None:
             raise HTTPException(409, "Stop the run before closing it.")
@@ -572,6 +614,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.patch("/api/runs/{run_id}/budget")
     def set_budget(run_id: str, body: BudgetRequest, user: User):
+        act(user)
         record = owned_run(user, run_id)
         if body.budget_usd > settings.max_budget_usd:
             raise HTTPException(422, f"The maximum budget per run is ${settings.max_budget_usd:.2f}.")
@@ -590,6 +633,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/runs/{run_id}/delivery")
     def assemble_delivery(run_id: str, user: User):
+        act(user)
         record = owned_run(user, run_id)
         if engine.load(record.id).status != "completed":
             raise HTTPException(409, "Only a completed run can be delivered.")
@@ -601,6 +645,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/runs/{run_id}/publish", status_code=201)
     def publish(run_id: str, body: PublishRequest, user: User):
+        act(user)
         from .publish import REPO_NAME, GitHubClient, PublishError, push
 
         record = owned_run(user, run_id)

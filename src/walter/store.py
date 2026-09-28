@@ -5,6 +5,7 @@ import hashlib
 import logging
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from pydantic import ValidationError
@@ -34,6 +35,26 @@ def _drop_path(document: object, loc: tuple) -> None:
         del target[int(loc[-1])]
     else:
         target.pop(loc[-1], None)
+
+
+def enable_wal(connection: sqlite3.Connection, attempts: int = 50) -> None:
+    """Switch a database file to WAL mode, tolerating concurrent first opens.
+
+    SQLite does not apply the busy timeout to a journal-mode change, so while
+    another process holds the new file the change fails at once with
+    "database is locked"; retry briefly. WAL is persistent, so once any
+    process has switched the file this returns immediately.
+    """
+    for attempt in range(attempts):
+        try:
+            if connection.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal":
+                return
+            connection.execute("PRAGMA journal_mode=WAL")
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc) or attempt == attempts - 1:
+                raise
+            time.sleep(0.1)
 
 
 class SQLiteStore:
