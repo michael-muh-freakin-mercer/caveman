@@ -116,6 +116,47 @@ def _worker_exception_class(exc: BaseException):
     return FailureClass.TOOL_FAILURE
 
 
+def _tool_trace_hooks(role: str, task_id: str | None):
+    """Opt-in operator trace of a specialist's tool calls (WALTER_TOOL_TRACE=<file>).
+
+    Records tool names, argument and result sizes, and the first characters of
+    check results and errors, so turn usage can be tuned. File contents are not
+    recorded. Returns None when tracing is off.
+    """
+    import os
+    import time as _time
+
+    path = os.environ.get("WALTER_TOOL_TRACE", "").strip()
+    if not path:
+        return None
+    from agents import RunHooks
+
+    class _Trace(RunHooks):
+        def _write(self, record: dict) -> None:
+            record.update({"at": round(_time.time(), 3), "role": role, "task_id": task_id})
+            with open(path, "a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record) + "\n")
+
+        async def on_tool_start(self, context, agent, tool):
+            call = getattr(context, "tool_call", None)
+            raw = getattr(call, "arguments", None) or getattr(context, "tool_input", None)
+            text = raw if isinstance(raw, str) else json.dumps(raw, default=str) if raw is not None else ""
+            self._write({"event": "start", "tool": getattr(tool, "name", "?"), "input_chars": len(text)})
+
+        async def on_tool_end(self, context, agent, tool, result):
+            text = result if isinstance(result, str) else json.dumps(result, default=str)
+            name = getattr(tool, "name", "?")
+            record = {"event": "end", "tool": name, "result_chars": len(text)}
+            if name == "run_check" or "error" in text[:200].lower():
+                record["head"] = text[:200]
+            self._write(record)
+
+        async def on_llm_end(self, context, agent, response):
+            self._write({"event": "model"})
+
+    return _Trace()
+
+
 def workspace_tools(manager, workspace_id: str, worker_id: str, *, writable: bool, reads=None):
     """Closures bind authority; no model-controlled workspace or worker identifiers."""
     @tool
@@ -782,6 +823,7 @@ class DurableController:
             agent = runtime._agent(name=name, instructions=instructions,
                                    output_type=output_type, tools=tools, model=model)
         result = await Runner.run(agent, input=input, max_turns=config.worker_max_turns,
+                                  hooks=_tool_trace_hooks(role, task_id),
                                   run_config=RunConfig(trace_include_sensitive_data=runtime._trace_sensitive_enabled()))
         if structured:
             text = result.final_output if isinstance(result.final_output, str) else ""

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Specialist tool trace
+
+- `WALTER_TOOL_TRACE=<file>` (operator-only, opt-in) appends one JSON line per specialist model call and tool call: tool name, argument and result sizes, and the first 200 characters of check results and errors. File contents are never recorded. Used to tune turn budgets in the live campaign.
+
 ## 2026-09-28 — Security settings
 
 - Settings has a Security panel: signed-in devices (browser and system from the user agent), signing out one device or all others, and changing the password (which signs out other devices). Revocation goes through `POST /api/account/sessions`, which addresses sessions by id and keeps their tokens on the server, so page scripts never see another device's session token.
