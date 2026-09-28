@@ -58,6 +58,9 @@ def parse_args(argv):
                              "(by default the campaign stops, because the spend cap could not be enforced)")
     parser.add_argument("--auto-approve-capabilities", action="store_true",
                         help="Approve specialist capability requests automatically (campaign data only)")
+    parser.add_argument("--min-completion", type=float, default=None, metavar="RATE",
+                        help="Exit 1 if fewer than this share of requests complete (e.g. 1.0 for all); "
+                             "for CI, where a report alone would pass silently")
     return parser.parse_args(argv)
 
 
@@ -168,6 +171,10 @@ def main(argv=None) -> int:
             f"{row['elapsed_s']}s" if "elapsed_s" in row else ""))
     (args.out / f"{stamp}.md").write_text("\n".join(lines) + "\n")
     print(f"Report: {args.out / (stamp + '.md')}")
+    if args.min_completion is not None and summary["completion_rate"] < args.min_completion:
+        print(f"Completion {summary['completion_rate']:.0%} is below the required "
+              f"{args.min_completion:.0%}", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -1,6 +1,8 @@
 # Live-model campaigns
 
 Real OpenRouter models driving real Caveman builds (`scripts/live_campaign.py`).
+A small, budget-capped version runs on demand in CI: Actions → **Live smoke
+(real models, spends credits)** → Run workflow.
 Each report lists every request with its final state, tasks, failure classes,
 model calls, provider-reported cost and time.
 
