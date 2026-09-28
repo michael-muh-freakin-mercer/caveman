@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-28 — Compose deployment verified on PostgreSQL
+
+- `deploy/e2e.sh` builds the API and web images, starts `compose.yaml` with `deploy/compose.e2e.yaml` (Postgres for Better Auth and operational state, two workers sharing the job queue, scripted executor) and runs the 15 web journeys against it. A new CI job, `deploy`, runs it on every push.
+- The Playwright config takes `AUTH_DATABASE_URL` from the environment, so the journeys can run against Better Auth on Postgres locally, and `CAVEMAN_E2E_BASE_URL` to drive an already running stack.
+
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.

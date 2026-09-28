@@ -17,6 +17,9 @@ const python = process.env.CAVEMAN_PYTHON_BIN ?? join(repo, ".venv/bin");
 const apiPort = 8765;
 const webPort = 3100;
 const token = "e2e-service-token-0123456789abcdef0123456789";
+// Set by deploy/e2e.sh: the stack is already running (docker compose), so
+// Playwright only drives the browser against it.
+const external = process.env.CAVEMAN_E2E_BASE_URL;
 
 const shared = {
   CAVEMAN_API_TOKEN: token,
@@ -32,12 +35,12 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: `http://localhost:${webPort}`,
+    baseURL: external ?? `http://localhost:${webPort}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: [
+  webServer: external ? [] : [
     {
       // The worker runs beside the API; both stop when the tests finish.
       command: `sh -c '${python}/caveman worker & exec ${python}/caveman api --port ${apiPort}'`,
@@ -62,7 +65,8 @@ export default defineConfig({
         CAVEMAN_API_URL: `http://127.0.0.1:${apiPort}`,
         BETTER_AUTH_SECRET: "e2e-auth-secret-0123456789abcdef0123456789",
         BETTER_AUTH_URL: `http://localhost:${webPort}`,
-        AUTH_DATABASE_URL: join(dir, "auth.db"),
+        // A postgres:// URL runs the journeys against Better Auth on Postgres.
+        AUTH_DATABASE_URL: process.env.AUTH_DATABASE_URL ?? join(dir, "auth.db"),
         CAVEMAN_DEV_OUTBOX: join(dir, "outbox.jsonl"),
         CAVEMAN_E2E: "1",
       },

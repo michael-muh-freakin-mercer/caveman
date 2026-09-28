@@ -161,3 +161,38 @@ jobs:
           name: playwright-report
           path: web/playwright-report
           retention-days: 7
+  deploy:
+    name: compose deployment on PostgreSQL
+    # The real images (deploy/*.Dockerfile) as compose.yaml wires them, with
+    # auth and operational state in Postgres and two workers sharing the queue,
+    # driven through the same journeys as the e2e job.
+    runs-on: ubuntu-24.04
+    needs: [suite, web]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Allow unprivileged user namespaces
+        # The worker containers' Bubblewrap sandbox needs them, as on a VM.
+        run: |
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Install web dependencies and browser
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build, start and exercise the stack
+        env:
+          CI: "1"
+        run: deploy/e2e.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: deploy-playwright-report
+          path: web/playwright-report
+          retention-days: 7
