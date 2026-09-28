@@ -3,11 +3,17 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
+const description =
+  "Describe the software you want in plain English. Caveman plans the work, coordinates specialist agents, tests the result, fixes failures, and delivers the project.";
+
 export const metadata: Metadata = {
+  // Link previews need absolute image URLs; the public origin is the one auth already uses.
+  metadataBase: new URL(process.env.BETTER_AUTH_URL || "http://localhost:3000"),
   title: { default: "Caveman — Type what you want. Caveman builds it.", template: "%s · Caveman" },
-  description:
-    "Describe the software you want in plain English. Caveman plans the work, coordinates specialist agents, tests the result, fixes failures, and delivers the project.",
+  description,
   applicationName: "Caveman",
+  openGraph: { type: "website", siteName: "Caveman", description },
+  twitter: { card: "summary_large_image" },
 };
 
 // Rendered per request so Next.js can stamp its scripts with the CSP nonce set in proxy.ts.
