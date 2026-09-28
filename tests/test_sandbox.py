@@ -11,6 +11,7 @@ from walter.sandbox import (
     MAX_AGGREGATE_RSS,
     MAX_PROCESSES,
     MAX_SCRATCH_BYTES,
+    SAFETY_PATHS,
     SandboxUnavailable,
     SandboxViolation,
     SafetyApprovalVerification,
@@ -26,6 +27,7 @@ def workspace(tmp_path):
     repo.mkdir()
     (repo / "src/walter").mkdir(parents=True)
     (repo / "docs").mkdir()
+    (repo / "doctrine").mkdir()
     (repo / "tests").mkdir()
     (repo / "hello.py").write_text("VALUE = 1\n")
     (repo / "src/walter/sandbox.py").write_text("BOUNDARY = 'candidate source'\n")
@@ -38,7 +40,7 @@ def workspace(tmp_path):
     (repo / "secrets.yaml").write_text("token: never-expose\n")
     (repo / "token.json").write_text('{"token":"never-expose"}\n')
     (repo / ".env.example").write_text("FIXTURE_SECRET=replace-me\n")
-    (repo / "PERMISSIONS.md").write_text("fixture policy source\n")
+    (repo / "doctrine/PERMISSIONS.md").write_text("fixture policy source\n")
     (repo / "docs/credentials-guide.md").write_text("safe documentation\n")
     (repo / "keys.py").write_text("KEY_NAMES = []\n")
     (repo / "tokenizer.py").write_text("def tokenize(value): return value.split()\n")
@@ -54,7 +56,7 @@ def workspace(tmp_path):
 
 def test_candidate_source_and_safety_files_are_readable_and_fully_identified(workspace):
     manager, grant, repo = workspace
-    assert manager.read_file(grant.id, "PERMISSIONS.md", worker_id="author")
+    assert manager.read_file(grant.id, "doctrine/PERMISSIONS.md", worker_id="author")
     assert "candidate source" in manager.read_file(
         grant.id, "src/walter/sandbox.py", worker_id="author"
     )
@@ -93,7 +95,7 @@ def test_candidate_source_and_safety_files_are_readable_and_fully_identified(wor
 def test_default_grant_cannot_write_or_delete_safety_boundary(workspace):
     manager, grant, _ = workspace
     protected = [
-        "PERMISSIONS.md", "SYSTEM_PROMPT.md", "src/walter/sandbox.py",
+        "doctrine/PERMISSIONS.md", "doctrine/SYSTEM_PROMPT.md", "src/walter/sandbox.py",
         "src/walter/orchestration.py",
         # Cost control, the worker contract and the launch surface decide
         # authority just as much as the kernel does.
@@ -107,7 +109,7 @@ def test_default_grant_cannot_write_or_delete_safety_boundary(workspace):
         if Path(grant.root, path).exists():
             with pytest.raises(SandboxViolation):
                 manager.delete_file(grant.id, path, worker_id="author")
-    assert manager.read_file(grant.id, "PERMISSIONS.md", worker_id="author")
+    assert manager.read_file(grant.id, "doctrine/PERMISSIONS.md", worker_id="author")
     assert "src/walter/sandbox.py" in manager.list_files(grant.id, worker_id="author")
 
 
@@ -146,7 +148,7 @@ def test_reserved_safety_facility_is_inert_at_production_construction_sites(tmp_
     No Manager tool, CLI command, or construction site injects an
     approval_verifier, so the shipped runtime can only ever deny. This test
     pins that posture: if a construction site ever starts injecting a
-    verifier, it fails until the security design review TOOLS.md requires
+    verifier, it fails until the security design review doctrine/TOOLS.md requires
     has happened and this test is deliberately updated.
     """
     from walter import cli, readiness
@@ -248,7 +250,7 @@ def test_core_approved_safety_candidate_is_exact_bounded_and_single_use(workspac
     with pytest.raises(SandboxViolation, match="Exact scoped human approval required"):
         manager.create_safety_candidate(
             run.id, "safety-task", "safety-author", approval.id,
-            ("PERMISSIONS.md",), "write")
+            ("doctrine/PERMISSIONS.md",), "write")
     with pytest.raises(SandboxViolation, match="Exact scoped human approval required"):
         manager.create_safety_candidate(
             run.id, "safety-task", "safety-author", approval.id,
@@ -310,7 +312,7 @@ def test_path_aware_state_and_secret_policy(workspace):
             manager.read_file(grant.id, path, worker_id="author")
 
     # Candidate code/policy and harmless names are not confused with host secrets/state.
-    for path in ["PERMISSIONS.md", "src/walter/sandbox.py", "docs/credentials-guide.md",
+    for path in ["doctrine/PERMISSIONS.md", "src/walter/sandbox.py", "docs/credentials-guide.md",
                  "keys.py", ".env.example", "tokenizer.py", "secrets.example.yaml"]:
         assert manager.read_file(grant.id, path, worker_id="author")
     files = manager.list_files(grant.id, worker_id="author")
@@ -581,3 +583,11 @@ def test_lib64_symlink_target_resolves_this_hosts_dynamic_loader():
         assert loaders[target], f"{target} holds no dynamic loader on this host"
     else:  # no glibc loader anywhere: fall back to the historical target
         assert target == "usr/lib"
+
+
+def test_every_safety_path_names_a_file_in_this_repository():
+    # Protection is an exact path match, so moving a doctrine or control-plane
+    # file without updating SAFETY_PATHS would silently leave it unprotected.
+    repo = Path(__file__).resolve().parents[1]
+    missing = sorted(path for path in SAFETY_PATHS if not (repo / path).is_file())
+    assert not missing, f"SAFETY_PATHS names files that do not exist: {missing}"

@@ -27,11 +27,11 @@ RUN test -x /usr/bin/bwrap && test -x /usr/bin/prlimit
 RUN useradd --create-home --uid 10001 caveman
 WORKDIR /app
 
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY src ./src
 # The Manager's doctrine is loaded from the checkout at runtime.
-COPY SYSTEM_PROMPT.md AGENTS.md CHARTER.md OPERATING_MODEL.md PERMISSIONS.md AGENT_CREATION.md \
-     TASK_PROTOCOL.md QA_PROTOCOL.md FAILURE_RECOVERY.md MEMORY.md TOOLS.md STATE_MODEL.md ./
+COPY AGENTS.md ./
+COPY doctrine ./doctrine
 
 RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \

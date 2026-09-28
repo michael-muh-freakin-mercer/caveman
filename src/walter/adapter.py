@@ -19,8 +19,8 @@ from .usage_model import UsageRecordingModel
 
 
 def load_system_prompt() -> str:
-    """Load the repo-root SYSTEM_PROMPT.md and return its stripped text."""
-    prompt_path = Path(__file__).resolve().parents[2] / "SYSTEM_PROMPT.md"
+    """Load doctrine/SYSTEM_PROMPT.md from the checkout and return its stripped text."""
+    prompt_path = Path(__file__).resolve().parents[2] / "doctrine" / "SYSTEM_PROMPT.md"
     if not prompt_path.exists():
         raise RuntimeError(
             f"Walter system prompt not found at {prompt_path}. "

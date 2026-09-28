@@ -1083,7 +1083,7 @@ def test_controller_instructions_combine_prompt_appendix_and_run_id():
 
 def test_load_system_prompt_returns_repo_prompt_stripped_and_non_empty():
     prompt = load_system_prompt()
-    repo_prompt = (Path(__file__).resolve().parents[1] / "SYSTEM_PROMPT.md").read_text(
+    repo_prompt = (Path(__file__).resolve().parents[1] / "doctrine" / "SYSTEM_PROMPT.md").read_text(
         encoding="utf-8"
     )
     assert prompt == repo_prompt.strip()

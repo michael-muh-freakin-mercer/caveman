@@ -1215,7 +1215,7 @@ class Orchestrator:
             if defects:
                 raise GateError("Invalid replan proposal: " + "; ".join(defects))
             # The flag is the caller's declared authority. A trusted programmatic
-            # caller may apply a low-impact proposal directly (OPERATING_MODEL.md);
+            # caller may apply a low-impact proposal directly (doctrine/OPERATING_MODEL.md);
             # the model-facing path never sets this itself -- DurableController
             # derives it from _replan_materiality and re-derives it before
             # applying, so the model cannot route around the gate.
