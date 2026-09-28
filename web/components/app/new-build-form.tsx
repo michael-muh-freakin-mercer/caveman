@@ -98,7 +98,11 @@ export function NewBuildForm({
 
   return (
     <form method="post" onSubmit={submit} className="mx-auto max-w-3xl" aria-describedby={error ? ids.error : undefined}>
-      {projectName ? <p className="mb-3 text-sm text-muted">New run in <span className="text-fg">{projectName}</span></p> : null}
+      {projectName ? (
+        <p className="mb-3 text-sm text-muted">
+          New run in <span className="text-fg">{projectName}</span>. Caveman starts from this project&rsquo;s current code and builds on it.
+        </p>
+      ) : null}
       <label htmlFor={ids.prompt} className="sr-only">
         What do you want to build?
       </label>

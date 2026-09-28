@@ -1,4 +1,4 @@
-import { CheckCircle2, Download, FileText, FolderOpen, Layers } from "lucide-react";
+import { CheckCircle2, Download, FileText, FolderOpen, Layers, MessageSquarePlus } from "lucide-react";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { duration, formatUsd } from "@/lib/format";
@@ -31,6 +31,9 @@ export function CompletionPanel({ run, githubEnabled = false, onPublished }: { r
             {githubEnabled || run.publication ? (
               <PublishPanel run={run} onPublished={onPublished ?? (async () => undefined)} />
             ) : null}
+            <Link href={`/app/new?project=${run.project_id}`} className={buttonClass("secondary", "md")}>
+              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" /> Ask for changes
+            </Link>
             <Link href={`/app/projects/${run.project_id}`} className={buttonClass("secondary", "md")}>
               <FolderOpen className="h-4 w-4" aria-hidden="true" /> Open Project
             </Link>

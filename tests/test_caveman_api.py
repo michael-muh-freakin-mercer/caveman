@@ -715,3 +715,21 @@ def test_orphans_left_by_an_interrupted_erasure_are_purged(client, settings):
             assert core.store.run_ids() == [kept]
     finally:
         platform.close()
+
+
+@needs_sandbox
+def test_follow_up_run_builds_on_the_projects_integrated_work(client, settings):
+    first = build(client)
+    drain(settings)
+    second = build(client, prompt="Add cancellation to the booking app #follow-up", project_id=first["project_id"])
+    drain(settings)
+    detail = client.get(f"/api/runs/{second['run_id']}", headers=ALICE).json()
+    assert detail["state"] == "complete" and detail["delivery"]["status"] == "ready"
+    first_commit = client.get(f"/api/runs/{first['run_id']}", headers=ALICE).json()["delivery"]["commit"]
+    import subprocess
+    repo = settings.projects_dir / first["project_id"] / "repo"
+    assert subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", first_commit,
+                           detail["delivery"]["commit"]]).returncode == 0
+    cancel = next(a for a in detail["artifacts"] if a["task_id"] == "cancel")
+    assert cancel["changed_files"] == ["cancel.py", "test_cancel.py"]
+    assert {"booking.py", "cancel.py"} <= set(detail["delivery"]["files"])

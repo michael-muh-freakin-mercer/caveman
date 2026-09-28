@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Follow-up requests
+
+- "Ask for changes" on a completed build opens a new run in the same project; the planner sees the project's files and specialists start from its integration head. A scripted `#follow-up` scenario (its tests import the earlier run's code) and an API test plus an E2E journey prove the second delivery contains both runs' work.
+
 ## 2026-09-28 — Forms never submit natively
 
 - Fix: a click on a form's submit button before the page hydrated fell through to a native GET submission, which reloads the page and would put field values (including the sign-in password) in the URL. It surfaced as an intermittent CI failure of the password-reset journey. Sign-in, sign-up, password reset and build forms now use `method="post"` and keep their submit buttons disabled until hydration (`useHydrated`); an E2E journey with JavaScript disabled pins this.

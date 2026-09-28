@@ -19,6 +19,9 @@ Scenarios are selected by a tag in the build request:
 - ``#parallel``    two independent code tasks; the second is rebuilt on the
                    integrated first (stale base, carried-over retry)
 - ``#node``        a TypeScript module checked with Node's test runner (workflow mode)
+- ``#follow-up``   a later run in an existing project extends the booking core
+                   from an earlier run; its tests fail unless that code is present
+                   (workflow mode)
 """
 from __future__ import annotations
 
@@ -151,6 +154,35 @@ def test_book_reports_conflicts():
     assert book(calendar, "tue", 11, "Grace")["ok"] is False
 '''
 
+CANCEL_MODULE = '''"""Cancellation, built on the booking core delivered by an earlier run."""
+from booking import Calendar, Slot
+
+
+def cancel(calendar: Calendar, slot: Slot) -> bool:
+    return calendar._booked.pop(slot, None) is not None
+'''
+
+CANCEL_TESTS = '''from booking import Calendar, Slot
+from cancel import cancel
+
+
+def test_cancel_frees_the_slot():
+    calendar = Calendar()
+    calendar.book(Slot("wed", 12), "Ada")
+    assert cancel(calendar, Slot("wed", 12)) is True
+    assert Slot("wed", 12) in calendar.available("wed")
+    assert cancel(calendar, Slot("wed", 12)) is False
+'''
+
+_CANCEL_PACKET = {
+    "task_id": "cancel",
+    "role": "Backend specialist",
+    "objective": "Add cancellation to the existing booking core",
+    "deliverable": "cancel.py with a cancel() function using the existing Calendar, plus tests",
+    "acceptance_criteria": ["A cancelled slot becomes available again"],
+    "stop_condition": "Module and tests written and self-checked, or genuinely blocked",
+}
+
 NOTIFY_MODULE = '''"""Reminder text for upcoming appointments."""
 
 
@@ -249,6 +281,8 @@ def scenario_for(objective: str) -> str:
         return "parallel"
     if "#node" in text:
         return "node"
+    if "#follow-up" in text:
+        return "follow-up"
     return "complete"
 
 
@@ -522,6 +556,14 @@ def build_workflow_scripts(scenario: str, kind: str) -> tuple[list, dict]:
             ("slots", "worker"): _write("slots", "slots", {"slots.ts": SLOTS_MODULE, "slots.test.ts": SLOTS_TESTS},
                                         "Availability helper written"),
             ("slots", "reviewer"): [_tool("read_file", {"path": "slots.ts"}, "review-slots"), review_pass]}
+    if scenario == "follow-up":
+        criterion = "Cancelling a booked slot makes it available again, with passing tests"
+        return [_plan([criterion], [(_CANCEL_PACKET, "developer_sandbox", ["pytest", "pytest_regression"], [0])])], {
+            ("cancel", "worker"): [_tool("read_file", {"path": "booking.py"}, "cancel-read"),
+                                   *_write("cancel", "cancel", {"cancel.py": CANCEL_MODULE,
+                                                                "test_cancel.py": CANCEL_TESTS},
+                                           "Cancellation written")],
+            ("cancel", "reviewer"): [_tool("read_file", {"path": "cancel.py"}, "review-cancel"), review_pass]}
     if scenario == "approval":
         if kind == "start":
             # The plan under-provisions the task; its specialist asks for a sandbox.

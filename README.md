@@ -187,6 +187,9 @@ end-to-end journeys.
   the project from one local commit of the kept files (no upstream history or
   remote). The planner of every run is shown the project's current files, so
   follow-up runs and imports build on what is there.
+- Follow-ups: "Ask for changes" on a completed build starts a new run in the
+  same project from its integrated code; the new run's delivery contains the
+  earlier work plus the change.
 - Your data: download everything Caveman holds for your account as JSON
   (account, sign-in methods without tokens, projects, runs, decisions, checks,
   artifacts and events), or delete the account. Deletion needs your password

@@ -241,3 +241,21 @@ test("forms cannot submit before the page is interactive, so fields never reach 
   await expect(page.getByRole("button", { name: "Build it" })).toBeDisabled();
   await context.close();
 });
+
+test("a follow-up request builds on the project's delivered code", async ({ page }) => {
+  await signUp(page);
+  const first = await startBuild(page, "Build me a booking app for a tattoo studio");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  await page.getByRole("link", { name: "Ask for changes" }).click();
+  await page.waitForURL(/\/app\/new\?project=[0-9a-f]{32}$/);
+  await expect(page.getByText("starts from this project")).toBeVisible();
+  await page.getByLabel("What do you want to build?").fill("Let clients cancel a booking #follow-up");
+  await page.getByRole("button", { name: "Build it" }).click();
+  await page.waitForURL(/\/app\/runs\/[0-9a-f]{32}$/);
+  const second = page.url().split("/").pop()!;
+  expect(second).not.toBe(first);
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  const run = await runJson(page, second);
+  expect(run.project_id).toBe((await runJson(page, first)).project_id);
+  expect(run.delivery.files).toEqual(expect.arrayContaining(["booking.py", "cancel.py"]));
+});
