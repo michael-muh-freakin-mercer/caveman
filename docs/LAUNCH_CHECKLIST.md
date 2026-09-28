@@ -53,7 +53,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🧑 Prompt and content policy: what gets refused
 
 ### 8. Operations
-- [ ] 🤖 Scheduled cleanup of old worktrees and delivery archives
+- [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)
 - [ ] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (metrics endpoint exists)
 - [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting
 - [ ] 🤖 Integrate them

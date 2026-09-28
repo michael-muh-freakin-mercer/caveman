@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — One job per project; scheduled maintenance
+
+- Fix: a project's sandbox state (candidate grants in `.local/sandboxes/grants.json`) is loaded once per `WorkspaceManager` and rewritten whole on save, and every job builds its own manager. Two runs of one project executing at once (allowed since users may have two builds running) could drop each other's grants or corrupt the file. The queue now never claims a job whose project already has a running job, across all workers and hosts.
+- Project leases (`project_leases`) let work outside a job hold a project: the job queue skips a leased project, and a lease is refused while a job of the project runs. The manual delivery retry endpoint takes one.
+- Maintenance: once per `CAVEMAN_MAINTENANCE_INTERVAL_SECONDS` (default 3600, one worker across the fleet) the worker retires candidate worktrees, branches and grants of finished runs (completed with a ready delivery, or closed otherwise) through the sandbox's `retire_run`, prunes cached npm installs unused for `CAVEMAN_NODE_DEPS_MAX_AGE_DAYS` (default 7), and prunes rate-limit records older than a day. Each project is leased while it is cleaned. Deliveries and the integration branch are untouched; a follow-up build after cleanup is tested.
+
 ## 2026-09-28 — Abuse and tenancy limits
 
 - Per-user rate limits kept in the platform database (so they hold across API hosts): new builds and continuations per hour, repository imports per hour, and other mutating actions per minute; over a limit the API answers 429 with `Retry-After`. Per-account caps on concurrent builds, projects and disk (project repositories plus archives). All configurable (`CAVEMAN_BUILDS_PER_HOUR`, `CAVEMAN_IMPORTS_PER_HOUR`, `CAVEMAN_ACTIONS_PER_MINUTE`, `CAVEMAN_MAX_CONCURRENT_BUILDS`, `CAVEMAN_MAX_PROJECTS`, `CAVEMAN_ACCOUNT_DISK_MB`). Rate records are erased with the account.

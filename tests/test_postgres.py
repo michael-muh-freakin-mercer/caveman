@@ -85,10 +85,11 @@ def test_platform_queue_hands_each_job_to_exactly_one_worker(postgres_url):
     name = schema()
     stores = [PlatformStore(postgres_url, schema=name) for _ in range(4)]
     try:
-        stores[0].create_project("alice", "Demo", project_id="p" * 32)
         run_ids = [uuid.uuid4().hex for _ in range(12)]
         for run_id in run_ids:
-            stores[0].create_run(run_id, "p" * 32, "alice", "Build", executor="scripted",
+            # One project per run: jobs of the same project are never claimed together.
+            stores[0].create_project("alice", "Demo", project_id=run_id)
+            stores[0].create_run(run_id, run_id, "alice", "Build", executor="scripted",
                                  budget_usd=5.0, max_model_calls=10)
             assert stores[1].enqueue(run_id, "start")[1] and not stores[2].enqueue(run_id, "start")[1]
         claimed, lock = [], threading.Lock()
@@ -115,7 +116,7 @@ def test_platform_queue_hands_each_job_to_exactly_one_worker(postgres_url):
         stores[0].save_publication(run_ids[0], "alice", "a/b", "https://github.com/a/b", "c" * 40, True)
         assert stores[1].publication(run_ids[0])["private"] == 1
         assert stores[1].get_run("alice", run_ids[0]).model_mode == "automatic"
-        assert stores[1].delete_owner("alice")["projects"] == ["p" * 32]
+        assert sorted(stores[1].delete_owner("alice")["projects"]) == sorted(run_ids)
     finally:
         for store in stores:
             store.close()

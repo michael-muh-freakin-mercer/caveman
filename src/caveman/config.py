@@ -108,6 +108,10 @@ class Settings:
     max_concurrent_builds: int = 2     # runs with queued or running work
     max_projects: int = 100
     account_disk_mb: int = 2048        # project repositories plus delivery archives
+    # One worker per interval retires finished runs' candidate worktrees and
+    # prunes dependency caches unused for node_deps_max_age_days.
+    maintenance_interval_seconds: float = 3600.0
+    node_deps_max_age_days: float = 7.0
     # Optional token for GitHub API and clone requests during imports; any
     # token (no scopes needed) raises GitHub's anonymous 60-per-hour limit.
     github_import_token: str | None = None
@@ -217,6 +221,8 @@ class Settings:
             lease_seconds=_float(values, "CAVEMAN_LEASE_SECONDS", 90.0, minimum=5.0),
             heartbeat_seconds=_float(values, "CAVEMAN_HEARTBEAT_SECONDS", 5.0, minimum=0.1),
             max_recoveries=_int(values, "CAVEMAN_MAX_RECOVERIES", 3, minimum=0),
+            maintenance_interval_seconds=_float(values, "CAVEMAN_MAINTENANCE_INTERVAL_SECONDS", 3600.0, minimum=60.0),
+            node_deps_max_age_days=_float(values, "CAVEMAN_NODE_DEPS_MAX_AGE_DAYS", 7.0, minimum=0.0),
             scripted_step_delay=_float(values, "CAVEMAN_SCRIPTED_STEP_DELAY", 0.25),
         )
 

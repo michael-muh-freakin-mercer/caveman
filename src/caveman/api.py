@@ -640,7 +640,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         existing = platform.delivery(record.id)
         if existing is not None and existing.status == "ready":
             return delivery_view(record.id)
-        deliver_run(engine, platform, projector, record.id, retry=True)
+        holder = f"api:{new_id()}"
+        if not platform.acquire_project(record.project_id, holder, 600):
+            raise HTTPException(409, "This project is busy with another build. Try again when it finishes.")
+        try:
+            deliver_run(engine, platform, projector, record.id, retry=True)
+        finally:
+            platform.release_project(record.project_id, holder)
         return delivery_view(record.id)
 
     @app.post("/api/runs/{run_id}/publish", status_code=201)

@@ -791,3 +791,62 @@ def test_rate_windows_slide_and_erasure_clears_them(client, settings):
         assert platform.consume_rate("alice", "build", 1, 60, now=1062) is None
     finally:
         platform.close()
+
+
+def test_jobs_of_one_project_never_run_at_the_same_time(client, settings):
+    first = build(client)
+    second = build(client, prompt="Add cancellation #follow-up", project_id=first["project_id"])
+    other = build(client, headers=MALLORY)
+    platform = settings.open_platform_store()
+    try:
+        claimed = platform.claim("w1", 30)
+        assert claimed.run_id == first["run_id"]
+        # The same project's next job waits; another project's job does not.
+        assert platform.claim("w2", 30).run_id == other["run_id"]
+        assert platform.claim("w3", 30) is None
+        assert not platform.acquire_project(first["project_id"], "maintenance", 60)
+        platform.finish(claimed.id, "w1", "succeeded", "done")
+        assert platform.acquire_project(first["project_id"], "maintenance", 60)
+        assert platform.claim("w3", 30) is None  # held by maintenance
+        assert not platform.acquire_project(first["project_id"], "someone-else", 60)
+        platform.release_project(first["project_id"], "maintenance")
+        assert platform.claim("w3", 30).run_id == second["run_id"]
+        assert platform.due("cleanup", 3600) and not platform.due("cleanup", 3600)
+    finally:
+        platform.close()
+
+
+@needs_sandbox
+def test_maintenance_retires_finished_work_without_losing_deliveries(client, settings):
+    import os
+    import subprocess
+
+    from caveman.engine import Engine
+    from caveman.maintenance import run_maintenance
+
+    first = build(client)
+    drain(settings)
+    repo = settings.projects_dir / first["project_id"] / "repo"
+    candidates = lambda: [b for b in subprocess.run(  # noqa: E731
+        ["git", "-C", str(repo), "branch", "--list", "walter-candidate/*"], capture_output=True, text=True
+    ).stdout.split() if b.startswith("walter-candidate/")]
+    assert candidates()
+    deps = repo / ".local" / "sandboxes" / "node-deps"
+    for name, age in (("old", 30 * 86400), ("fresh", 0)):
+        (deps / name).mkdir(parents=True)
+        (deps / name / ".complete").write_text("")
+        os.utime(deps / name / ".complete", (time.time() - age, time.time() - age))
+
+    platform = settings.open_platform_store()
+    try:
+        summary = run_maintenance(settings, Engine(settings), platform)
+        assert summary["runs_retired"] == 1 and summary["node_deps_pruned"] == 1
+        assert run_maintenance(settings, Engine(settings), platform)["runs_retired"] == 0  # idempotent
+    finally:
+        platform.close()
+    assert candidates() == [] and not (deps / "old").exists() and (deps / "fresh").exists()
+    assert client.get(f"/api/runs/{first['run_id']}/delivery/download", headers=ALICE).status_code == 200
+    # The integration branch is untouched: a follow-up still builds on the delivered code.
+    second = build(client, prompt="Add cancellation #follow-up", project_id=first["project_id"])
+    drain(settings)
+    assert client.get(f"/api/runs/{second['run_id']}", headers=ALICE).json()["state"] == "complete"

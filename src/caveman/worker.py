@@ -105,6 +105,12 @@ class Worker:
 
     async def run_once(self) -> bool:
         self.platform.reap_expired(self.settings.max_recoveries)
+        if self.platform.due("cleanup", self.settings.maintenance_interval_seconds):
+            from .maintenance import run_maintenance
+            try:
+                await asyncio.to_thread(run_maintenance, self.settings, self.engine, self.platform)
+            except Exception:
+                logger.exception("Maintenance pass failed")
         job = self.platform.claim(self.worker_id, self.settings.lease_seconds)
         if job is None:
             return False

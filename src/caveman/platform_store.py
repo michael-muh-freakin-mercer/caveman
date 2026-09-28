@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS workflow_state(
   state_json TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS project_leases(
+  project_id TEXT PRIMARY KEY,
+  holder TEXT NOT NULL,
+  expires REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS maintenance(
+  name TEXT PRIMARY KEY,
+  last_run REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS retired_runs(
+  run_id TEXT PRIMARY KEY,
+  retired_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS rate_events(
   owner_id TEXT NOT NULL,
   action TEXT NOT NULL,
@@ -216,6 +229,58 @@ class PlatformStore:
         with self._lock:
             return self.connection.execute(sql, params).fetchall()
 
+    # Project leases and maintenance --------------------------------------
+
+    def acquire_project(self, project_id: str, holder: str, seconds: float, now: float | None = None) -> bool:
+        """Hold a project for work outside a job (maintenance, delivery retries).
+
+        Refused while one of the project's jobs runs or another holder's lease
+        is current; the job queue will not start the project's jobs meanwhile.
+        """
+        now = time.time() if now is None else now
+        with self._write() as db:
+            running = db.execute("SELECT COUNT(*) FROM jobs JOIN runs ON runs.id = jobs.run_id "
+                                 "WHERE runs.project_id=? AND jobs.status='running'", (project_id,)).fetchone()[0]
+            if running:
+                return False
+            lease = db.execute("SELECT holder, expires FROM project_leases WHERE project_id=?",
+                               (project_id,)).fetchone()
+            if lease is not None and lease[0] != holder and lease[1] >= now:
+                return False
+            db.execute("INSERT INTO project_leases VALUES(?,?,?) ON CONFLICT(project_id) DO UPDATE SET "
+                       "holder=excluded.holder, expires=excluded.expires", (project_id, holder, now + seconds))
+        return True
+
+    def release_project(self, project_id: str, holder: str) -> None:
+        with self._write() as db:
+            db.execute("DELETE FROM project_leases WHERE project_id=? AND holder=?", (project_id, holder))
+
+    def due(self, name: str, interval_seconds: float, now: float | None = None) -> bool:
+        """True for exactly one caller per interval across all workers."""
+        now = time.time() if now is None else now
+        with self._write() as db:
+            row = db.execute("SELECT last_run FROM maintenance WHERE name=?", (name,)).fetchone()
+            if row is not None and row[0] > now - interval_seconds:
+                return False
+            db.execute("INSERT INTO maintenance VALUES(?,?) ON CONFLICT(name) DO UPDATE SET "
+                       "last_run=excluded.last_run", (name, now))
+        return True
+
+    def unretired_runs(self, limit: int = 1000) -> list[RunRecord]:
+        """Runs without queued or running work whose workspaces have not been retired."""
+        return [self._run(row) for row in self._query(
+            "SELECT * FROM runs WHERE id NOT IN (SELECT run_id FROM retired_runs) "
+            "AND id NOT IN (SELECT run_id FROM jobs WHERE status IN ('queued','running')) "
+            "ORDER BY created_at LIMIT ?", (limit,))]
+
+    def mark_retired(self, run_id: str) -> None:
+        with self._write() as db:
+            db.execute("INSERT INTO retired_runs VALUES(?,?) ON CONFLICT(run_id) DO NOTHING", (run_id, _now()))
+
+    def prune_rate_events(self, older_than: float) -> int:
+        with self._write() as db:
+            return db.execute("DELETE FROM rate_events WHERE at < ?", (older_than,)).rowcount
+
     # Limits -------------------------------------------------------------
 
     def consume_rate(self, owner_id: str, action: str, limit: int, window_seconds: float,
@@ -260,11 +325,13 @@ class PlatformStore:
                 raise ActiveWork("A build is running. Stop it, or wait for it to finish, before deleting your account.")
             runs = [row[0] for row in db.execute(owned + " ORDER BY created_at", (owner_id,))]
             projects = [row[0] for row in db.execute("SELECT id FROM projects WHERE owner_id=?", (owner_id,))]
-            for table in ("publications", "workflow_state", "deliveries", "jobs"):
+            for table in ("publications", "workflow_state", "deliveries", "jobs", "retired_runs"):
                 db.execute(f"DELETE FROM {table} WHERE run_id IN ({owned})", (owner_id,))
             db.execute("DELETE FROM publications WHERE owner_id=?", (owner_id,))
             db.execute("DELETE FROM rate_events WHERE owner_id=?", (owner_id,))
             db.execute("DELETE FROM runs WHERE owner_id=?", (owner_id,))
+            db.execute(f"DELETE FROM project_leases WHERE project_id IN "
+                       f"(SELECT id FROM projects WHERE owner_id=?)", (owner_id,))
             db.execute("DELETE FROM projects WHERE owner_id=?", (owner_id,))
         return {"runs": runs, "projects": projects}
 
@@ -418,10 +485,20 @@ class PlatformStore:
         return created
 
     def claim(self, worker_id: str, lease_seconds: float, now: float | None = None) -> Job | None:
+        """Lease the oldest queued job whose project is free.
+
+        A project's sandbox state (candidate grants, integration branch) is
+        owned by one job at a time, so a job waits while another job of the
+        same project runs or while maintenance holds the project.
+        """
         now = time.time() if now is None else now
         with self._write() as db:
-            row = db.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY created_at, rowid LIMIT 1"
-                             ).fetchone()
+            row = db.execute(
+                "SELECT jobs.* FROM jobs JOIN runs ON runs.id = jobs.run_id WHERE jobs.status='queued' "
+                "AND runs.project_id NOT IN (SELECT busy.project_id FROM jobs AS active "
+                "JOIN runs AS busy ON busy.id = active.run_id WHERE active.status='running') "
+                "AND runs.project_id NOT IN (SELECT project_id FROM project_leases WHERE expires >= ?) "
+                "ORDER BY jobs.created_at, jobs.rowid LIMIT 1", (now,)).fetchone()
             if row is None:
                 return None
             db.execute("UPDATE jobs SET status='running', lease_owner=?, lease_expires=?, started_at=? "
