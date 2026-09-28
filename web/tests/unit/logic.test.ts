@@ -3,6 +3,7 @@ import { duration, formatUsd, relativeTime } from "@/lib/format";
 import { promptFromNext } from "@/lib/next-param";
 import { newBuildPath, safeNext, savePendingPrompt, takePendingPrompt } from "@/lib/prompt-storage";
 import { canContinue, checkDisplayStatus, isExecuting } from "@/lib/run-state";
+import { unverifiedStacks } from "@/lib/stack-support";
 import { mergeTimeline, streamFinished } from "@/lib/use-run";
 import { runDetail } from "./fixtures";
 
@@ -76,5 +77,15 @@ describe("formatting", () => {
     expect(relativeTime("2026-09-27T10:09:55Z", now)).toBe("just now");
     expect(relativeTime("2026-09-27T10:05:00Z", now)).toBe("5m ago");
     expect(duration("2026-09-27T10:00:00Z", "2026-09-27T10:02:05Z")).toBe("2m 5s");
+  });
+});
+
+describe("unverifiedStacks", () => {
+  it("names stacks Caveman cannot test and stays quiet for tested ones", () => {
+    expect(unverifiedStacks("Build a habit tracker iOS app in SwiftUI")).toEqual(["iOS / Swift"]);
+    expect(unverifiedStacks("A REST API", "Go backend with Postgres")).toEqual(["Go"]);
+    expect(unverifiedStacks("Build a booking app for a tattoo studio", "Python, FastAPI")).toEqual([]);
+    expect(unverifiedStacks("A TypeScript rate limiter; let's go build it")).toEqual([]);
+    expect(unverifiedStacks("A JavaScript widget")).toEqual([]);
   });
 });

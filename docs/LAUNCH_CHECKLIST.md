@@ -69,8 +69,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Checkout, metering tied to account caps, invoices, billing page in Settings
 
 ### 10. Setting expectations about what Caveman can build
-- [ ] 🤖 Say in the UI which stacks get real tests (Python, Node/TypeScript) and which are reviewed code only
-- [ ] 🤖 Warn before mobile or unsupported-stack builds
+- [x] 🤖 Say in the UI which stacks get real tests (Python, Node/TypeScript) and which are reviewed code only
+- [x] 🤖 Warn before mobile or unsupported-stack builds
 - [ ] 🤖 Run project build scripts (`npm run build`), not just tests
 - [ ] 🤖 Cost estimate before a build starts
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Stack expectations
+
+- The New build form states that Python and Node/TypeScript code is tested in the sandbox and other stacks are delivered as reviewed source, and warns (without blocking) when the request or preferred stack names something Caveman cannot run: iOS/Swift, Android/Kotlin, Flutter, React Native, native mobile apps, Go, Rust, Java, .NET, PHP, Ruby, C++, game engines.
+
 ## 2026-09-28 — Secret scanning
 
 - CI runs `scripts/check_secrets.py`: detect-secrets rescans the tracked tree against `.secrets.baseline` and fails on any finding not audited as a false positive. The baseline's current entries are placeholders and test fixtures (`your_openrouter_key_here`, CI-only Postgres and auth values, fake tokens in tests).

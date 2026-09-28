@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
+import { unverifiedStacks } from "@/lib/stack-support";
 import { useHydrated } from "@/lib/use-hydrated";
 
 const GITHUB_REPOSITORY = /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}?(\.git)?\/?$/;
@@ -94,6 +95,7 @@ export function NewBuildForm({
     }
   }
 
+  const unverified = unverifiedStacks(prompt, stack);
   const input = "mt-1.5 block w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
 
   return (
@@ -119,7 +121,16 @@ export function NewBuildForm({
           className="block w-full resize-y rounded-[15px] bg-surface p-5 text-base leading-relaxed text-fg placeholder:text-faint focus:outline-none sm:text-lg"
         />
       </div>
-      <p className="mt-2 text-right text-xs text-faint">{prompt.length}/{MAX_PROMPT_LENGTH}</p>
+      <div className="mt-2 flex items-start justify-between gap-4 text-xs">
+        <p className="text-muted">Caveman runs real tests for Python and Node/TypeScript code. Other stacks are delivered as reviewed source.</p>
+        <p className="shrink-0 text-faint">{prompt.length}/{MAX_PROMPT_LENGTH}</p>
+      </div>
+      {unverified.length ? (
+        <p role="status" className="mt-3 rounded-lg border border-warn/30 bg-warn/5 px-4 py-3 text-sm text-warn">
+          Caveman can&rsquo;t run or test {unverified.join(", ")} code yet. It will still plan, write and review it, but
+          nothing will prove it builds or works. For tested results, ask for Python or Node/TypeScript.
+        </p>
+      ) : null}
 
       <details className="group mt-4 rounded-xl border border-line bg-surface/60">
         <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm text-fg-soft hover:text-fg">
