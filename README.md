@@ -4,7 +4,7 @@
 
 <br>
 
-[![CI](https://github.com/who-is-michael-mercer/caveman/actions/workflows/ci.yml/badge.svg)](https://github.com/who-is-michael-mercer/caveman/actions/workflows/ci.yml)
+[![CI](https://github.com/michael-muh-freakin-mercer/caveman/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-muh-freakin-mercer/caveman/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ff6a1f.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-2fd4ee.svg)](pyproject.toml)
 [![Node 22+](https://img.shields.io/badge/node-22%2B-2fd4ee.svg)](web/package.json)
@@ -146,7 +146,7 @@ sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 **1. Clone and install**
 
 ```bash
-git clone https://github.com/who-is-michael-mercer/caveman.git
+git clone https://github.com/michael-muh-freakin-mercer/caveman.git
 cd caveman
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[test]'
