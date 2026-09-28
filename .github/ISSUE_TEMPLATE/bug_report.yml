@@ -1,17 +1,19 @@
-name: Bug report
-description: Something Caveman did wrong, or failed to do.
+name: Something broke
+description: Caveman did something wrong, or didn't do something it should have.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. **Security issues go through [SECURITY.md](https://github.com/who-is-michael-mercer/caveman/blob/main/SECURITY.md), not here.**
-        Redact anything sensitive: run snapshots include task text.
+        Thanks for taking the time. Good bug reports are the best gift this project gets.
+
+        **Security holes go through [SECURITY.md](https://github.com/who-is-michael-mercer/caveman/blob/main/SECURITY.md), not here.**
+        Redact anything sensitive first: run snapshots include task text.
   - type: textarea
     id: what-happened
     attributes:
       label: What happened
-      description: What you did, what you expected, and what happened instead.
+      description: What you did, what you expected, and what actually happened. Be specific; "it broke" makes the caveman sad.
     validations:
       required: true
   - type: textarea
@@ -26,7 +28,7 @@ body:
       label: Run record
       description: |
         The run ID, plus the output of `walter run inspect <run_id>` and `walter run events <run_id>`.
-        These are the durable record of what actually happened.
+        These are the durable record of what actually happened, and they beat a screenshot every time.
       render: text
   - type: dropdown
     id: area

@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
     url: https://github.com/who-is-michael-mercer/caveman/security/advisories/new
-    about: Please report security issues privately, never in a public issue.
-  - name: Read the docs
+    about: Found a way out of the sandbox? Tell us privately first, please.
+  - name: Read how it works
     url: https://github.com/who-is-michael-mercer/caveman/blob/main/docs/ENGINE.md
-    about: How the orchestration core works, its gates, recovery and operator CLI.
+    about: The engine guide. Your question may already have an answer (and a diagram).
