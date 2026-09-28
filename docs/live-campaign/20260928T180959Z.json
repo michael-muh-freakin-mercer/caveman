@@ -1,0 +1,242 @@
+{
+  "started_at": "2026-09-28T18:09:59.096016+00:00",
+  "executor": "provider",
+  "orchestration": "workflow",
+  "models": "deepseek/deepseek-v4-pro / deepseek/deepseek-v4-pro",
+  "requests": 10,
+  "completed": 10,
+  "completion_rate": 1.0,
+  "total_cost_usd": 0.870494,
+  "median_cost_usd": 0.092612,
+  "cost_complete": true,
+  "runs": [
+    {
+      "prompt": "Build a Python library that parses and validates ISO 8601 durations, with tests",
+      "run_id": "12b7c87d0b3a4435b159961e9516ac85",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 30,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 25,
+        "reviewer": 4
+      },
+      "cost_usd": 0.145789,
+      "cost_complete": true,
+      "elapsed_s": 678.2,
+      "files": [
+        "iso8601_duration/README.md",
+        "iso8601_duration/__init__.py",
+        "iso8601_duration/duration.py",
+        "iso8601_duration/parser.py",
+        "iso8601_duration/pyproject.toml",
+        "iso8601_duration/tests/__init__.py",
+        "iso8601_duration/tests/test_duration.py"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: ISO 8601 Duration Library Developer \u2014 Implement the iso8601_duration package with parse_duration and validate_duration functions, a Duration dataclass, comprehensive tests, and documentation.."
+    },
+    {
+      "prompt": "Build a command-line todo manager in Python that stores tasks in a JSON file, with tests",
+      "run_id": "4129dda2f6b9460bb11d0fd06fd9667a",
+      "state": "complete",
+      "tasks": "2/2",
+      "failures": [
+        "BAD_OUTPUT"
+      ],
+      "calls": 37,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 28,
+        "reviewer": 8
+      },
+      "cost_usd": 0.145932,
+      "cost_complete": true,
+      "elapsed_s": 384.7,
+      "files": [
+        "cli.py",
+        "task_manager.py",
+        "test_cli.py",
+        "test_task_manager.py"
+      ],
+      "last_message": "Build complete. Delivered 2 accepted tasks: Python developer \u2014 Implement the Task data class and TaskManager class that handles CRUD operations on a JSON file storage.; Python CLI developer \u2014 Build a command-line interface using argparse that uses the TaskManager to perform operations based on user commands.."
+    },
+    {
+      "prompt": "Build a TypeScript module that formats money amounts for several currencies, with node:test tests",
+      "run_id": "57ea3e8717a04c8a87f9f0ba61e33663",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 19,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 16,
+        "reviewer": 2
+      },
+      "cost_usd": 0.102891,
+      "cost_complete": true,
+      "elapsed_s": 296.6,
+      "files": [
+        "package.json",
+        "src/moneyFormatter.test.ts",
+        "src/moneyFormatter.ts",
+        "tsconfig.json"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: TypeScript Developer \u2014 Implement a money formatting module that formats amounts for multiple currencies with proper symbol, decimal digits, and grouping, and write comprehensive tests using node:test.."
+    },
+    {
+      "prompt": "Build a Python REST-style request router (no framework) with path parameters, with tests",
+      "run_id": "acb3a38afc4c4aeaa683b3e48651e74b",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 10,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 7,
+        "reviewer": 2
+      },
+      "cost_usd": 0.037852,
+      "cost_complete": true,
+      "elapsed_s": 107.9,
+      "files": [
+        "router.py",
+        "test_router.py"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: Python Developer \u2014 Implement a REST-style request router with path parameters and thorough tests."
+    },
+    {
+      "prompt": "Build a booking availability engine for a tattoo studio in Python, with tests",
+      "run_id": "bd267b5432dc45c1a630542042ea9695",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 12,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 8,
+        "reviewer": 3
+      },
+      "cost_usd": 0.068992,
+      "cost_complete": true,
+      "elapsed_s": 212.7,
+      "files": [
+        "availability_engine.py",
+        "test_availability_engine.py"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: Python developer \u2014 Implement the booking availability engine and its test suite to meet all success criteria.."
+    },
+    {
+      "prompt": "Build a TypeScript rate limiter (token bucket) with node:test tests",
+      "run_id": "b0999ff6a59343caa2e6c245471a9750",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 26,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 23,
+        "reviewer": 2
+      },
+      "cost_usd": 0.092612,
+      "cost_complete": true,
+      "elapsed_s": 297.2,
+      "files": [
+        "package.json",
+        "src/token-bucket.ts",
+        "test/token-bucket.test.ts",
+        "tsconfig.json"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: TypeScript library developer \u2014 Create a small TypeScript project implementing a configurable token bucket rate limiter with an injectable monotonic clock and node:test tests.."
+    },
+    {
+      "prompt": "Write a product specification for a habit-tracking app, then implement its streak calculation in Python",
+      "run_id": "8528c900b7c74b8682aeb43a8378e39b",
+      "state": "complete",
+      "tasks": "2/2",
+      "failures": [
+        "BAD_OUTPUT"
+      ],
+      "calls": 24,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 17,
+        "reviewer": 6
+      },
+      "cost_usd": 0.096759,
+      "cost_complete": true,
+      "elapsed_s": 437.2,
+      "files": [
+        "streak.py",
+        "test_streak.py"
+      ],
+      "last_message": "Build complete. Delivered 2 accepted tasks: Product specification writer for habit-tracking app \u2014 Write a comprehensive product specification document that defines the features, user stories, data model, and streak calculation rules for a habit-tracking app.; Python developer implementing streak calculation \u2014 Implement a Python function calculate_streaks(dates: list[date]) -> dict that returns current and longest streaks based on the specification from product-spec.."
+    },
+    {
+      "prompt": "Build a Python markdown-to-HTML converter supporting headings, emphasis and lists, with tests",
+      "run_id": "09214ccab8b64f2a990ec11119845ba4",
+      "state": "complete",
+      "tasks": "2/2",
+      "failures": [],
+      "calls": 16,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 9,
+        "reviewer": 6
+      },
+      "cost_usd": 0.064185,
+      "cost_complete": true,
+      "elapsed_s": 366.0,
+      "files": [
+        "md_converter.py",
+        "test_converter.py"
+      ],
+      "last_message": "Build complete. Delivered 2 accepted tasks: Markdown Specification Writer \u2014 Create a precise specification of the supported Markdown subset (ATX headings, emphasis, strong, unordered lists) and the exact conversion rules to HTML.; Python Developer & Tester \u2014 Implement the Markdown-to-HTML converter function in Python and a comprehensive test suite for all supported features, ensuring tests pass.."
+    },
+    {
+      "prompt": "Build a TypeScript CSV parser that handles quoted fields, with node:test tests",
+      "run_id": "901589becd5e407c8fd1b67030ff500e",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 33,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 29,
+        "reviewer": 3
+      },
+      "cost_usd": 0.07711,
+      "cost_complete": true,
+      "elapsed_s": 472.4,
+      "files": [
+        "package.json",
+        "src/parser.js",
+        "src/parser.test.ts",
+        "src/parser.ts",
+        "tsconfig.json"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: TypeScript CSV Parser Developer \u2014 Implement a TypeScript CSV parser function that handles quoted fields, escapes, newlines in quotes, and unterminated quotes, and export it from a src/parser.ts module.."
+    },
+    {
+      "prompt": "Build an inventory check-out tracker core in Python (items, check-out, return, overdue), with tests",
+      "run_id": "7a9b46ac70a04eb1bf2bef0bd6444170",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [],
+      "calls": 13,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 9,
+        "reviewer": 3
+      },
+      "cost_usd": 0.038372,
+      "cost_complete": true,
+      "elapsed_s": 232.4,
+      "files": [
+        "inventory_tracker.py",
+        "test_inventory_tracker.py"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: Python developer \u2014 Implement the inventory check-out tracker core module with thorough tests.."
+    }
+  ]
+}

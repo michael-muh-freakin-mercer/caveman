@@ -11,10 +11,10 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ## P0: can't launch without these
 
 ### 1. Prove it works with real models
-- [ ] 🧑 OpenRouter key available to the environment (`OPENROUTER_API_KEY`) and `openrouter.ai` allowed by its network policy; spend approved up to $50
-- [ ] 🤖 Campaign: ~10 prompts across Python, TypeScript and documents; record success rate, cost and failure causes (`scripts/live_campaign.py`)
-- [ ] 🤖 Tune planner and specialist prompts, turn limits and recovery from the results. Bar: ≥70% complete, median cost under the $5 default budget
-- [ ] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers
+- [x] 🧑 OpenRouter key available to the environment (`OPENROUTER_API_KEY`) and `openrouter.ai` allowed by its network policy; spend approved up to $50
+- [x] 🤖 Campaign: ~10 prompts across Python, TypeScript and documents; record success rate, cost and failure causes (`docs/live-campaign/`: 10/10 complete, median $0.09)
+- [x] 🤖 Tune planner and specialist prompts, turn limits and recovery from the results. Bar: ≥70% complete, median cost under the $5 default budget (met: 100%, $0.09)
+- [x] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers (matches OpenRouter's usage counter within $0.005)
 - [ ] 🤖 Opt-in, budget-capped live smoke in CI
 
 ### 2. Stronger isolation for untrusted code
