@@ -4,6 +4,7 @@ import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { MAX_PROMPT_LENGTH, newBuildPath, savePendingPrompt } from "@/lib/prompt-storage";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const EXAMPLES: { label: string; prompt: string }[] = [
   { label: "Web app", prompt: "Build me a booking app for a tattoo studio" },
@@ -16,6 +17,7 @@ const EXAMPLES: { label: string; prompt: string }[] = [
 
 export function BuildPrompt({ signedIn }: { signedIn: boolean }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function BuildPrompt({ signedIn }: { signedIn: boolean }) {
 
   return (
     <div className="w-full">
-      <form onSubmit={submit} className="group relative" aria-describedby={error ? errorId : undefined}>
+      <form method="post" onSubmit={submit} className="group relative" aria-describedby={error ? errorId : undefined}>
         <div className="rounded-2xl bg-gradient-to-b from-line-strong/80 to-line/40 p-px shadow-[0_30px_80px_-40px_rgb(255_106_31/0.55)] transition-shadow focus-within:shadow-ember">
           <div className="flex flex-col gap-3 rounded-[15px] bg-surface/95 p-3 sm:flex-row sm:items-end sm:p-2.5 sm:pl-5">
             <label htmlFor={inputId} className="sr-only">
@@ -78,7 +80,7 @@ export function BuildPrompt({ signedIn }: { signedIn: boolean }) {
             />
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !hydrated}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-ember px-6 text-base font-semibold text-ink transition-colors hover:bg-ember-hot disabled:opacity-60"
             >
               {busy ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}

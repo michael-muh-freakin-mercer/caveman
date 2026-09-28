@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const GITHUB_REPOSITORY = /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}?(\.git)?\/?$/;
 
@@ -32,6 +33,7 @@ export function NewBuildForm({
   modes?: string[];
 }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [prompt, setPrompt] = useState(initialPrompt);
   const [stack, setStack] = useState("");
   const [constraints, setConstraints] = useState("");
@@ -95,7 +97,7 @@ export function NewBuildForm({
   const input = "mt-1.5 block w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-3xl" aria-describedby={error ? ids.error : undefined}>
+    <form method="post" onSubmit={submit} className="mx-auto max-w-3xl" aria-describedby={error ? ids.error : undefined}>
       {projectName ? <p className="mb-3 text-sm text-muted">New run in <span className="text-fg">{projectName}</span></p> : null}
       <label htmlFor={ids.prompt} className="sr-only">
         What do you want to build?
@@ -170,7 +172,7 @@ export function NewBuildForm({
         <p className="hidden text-xs text-muted sm:block">You can close this tab — the build keeps going.</p>
         <button
           type="submit"
-          disabled={busy || Boolean(disabledReason)}
+          disabled={busy || !hydrated || Boolean(disabledReason)}
           className="inline-flex h-12 items-center gap-2 rounded-xl bg-ember px-7 text-base font-semibold text-ink hover:bg-ember-hot disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}

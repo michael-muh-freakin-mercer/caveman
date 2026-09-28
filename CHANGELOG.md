@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Forms never submit natively
+
+- Fix: a click on a form's submit button before the page hydrated fell through to a native GET submission, which reloads the page and would put field values (including the sign-in password) in the URL. It surfaced as an intermittent CI failure of the password-reset journey. Sign-in, sign-up, password reset and build forms now use `method="post"` and keep their submit buttons disabled until hydration (`useHydrated`); an E2E journey with JavaScript disabled pins this.
+
 ## 2026-09-28 — Data export and account deletion
 
 - Decision: honouring a user's deletion request is the one case where durable run history is removed. `SQLiteStore.delete_run` erases a run's snapshot, events and migration backups; ordinary operation still never removes history.

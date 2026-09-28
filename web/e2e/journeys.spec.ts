@@ -228,3 +228,16 @@ test("an account's data can be exported and the account deleted", async ({ page 
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("alert")).toBeVisible();
 });
+
+test("forms cannot submit before the page is interactive, so fields never reach a URL", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  for (const [path, button] of [["/sign-in", "Sign in"], ["/sign-up", "Create account"], ["/forgot-password", "Send reset link"]]) {
+    await page.goto(path);
+    await expect(page.getByRole("button", { name: button })).toBeDisabled();
+    await expect(page.locator("form").first()).toHaveAttribute("method", "post");
+  }
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Build it" })).toBeDisabled();
+  await context.close();
+});

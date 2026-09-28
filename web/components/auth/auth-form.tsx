@@ -7,10 +7,12 @@ import { useId, useState } from "react";
 import { GithubIcon } from "@/components/brand/github-icon";
 import { signIn, signUp } from "@/lib/auth-client";
 import { safeNext } from "@/lib/prompt-storage";
+import { useHydrated } from "@/lib/use-hydrated";
 
 
 export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sign-up"; next: string | null; githubEnabled: boolean }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const destination = safeNext(next);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
           </div>
         </>
       ) : null}
-      <form onSubmit={submit} className="space-y-4" aria-describedby={error ? ids.error : undefined}>
+      <form method="post" onSubmit={submit} className="space-y-4" aria-describedby={error ? ids.error : undefined}>
         {mode === "sign-up" ? (
           <div>
             <label htmlFor={ids.name} className="text-sm text-fg-soft">Name</label>
@@ -114,7 +116,7 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
         ) : null}
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || !hydrated}
           className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}

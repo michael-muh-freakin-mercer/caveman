@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { requestPasswordReset, resetPassword } from "@/lib/auth-client";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const field =
   "mt-1.5 block h-11 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
@@ -12,6 +13,7 @@ const submit =
   "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60";
 
 export function ForgotPasswordForm() {
+  const hydrated = useHydrated();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +27,7 @@ export function ForgotPasswordForm() {
   }
   return (
     <form
+      method="post"
       className="space-y-4"
       onSubmit={async (event) => {
         event.preventDefault();
@@ -43,7 +46,7 @@ export function ForgotPasswordForm() {
         <input id={id} name="email" type="email" required autoComplete="email" className={field} />
       </div>
       {error ? <p role="alert" className="text-sm text-bad">{error}</p> : null}
-      <button type="submit" disabled={busy} className={submit}>
+      <button type="submit" disabled={busy || !hydrated} className={submit}>
         {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         Send reset link
       </button>
@@ -56,6 +59,7 @@ export function ForgotPasswordForm() {
 
 export function ResetPasswordForm({ token, tokenError }: { token: string | null; tokenError: string | null }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const id = useId();
@@ -69,6 +73,7 @@ export function ResetPasswordForm({ token, tokenError }: { token: string | null;
   }
   return (
     <form
+      method="post"
       className="space-y-4"
       onSubmit={async (event) => {
         event.preventDefault();
@@ -90,7 +95,7 @@ export function ResetPasswordForm({ token, tokenError }: { token: string | null;
           placeholder="At least 10 characters" className={field} />
       </div>
       {error ? <p role="alert" className="text-sm text-bad">{error}</p> : null}
-      <button type="submit" disabled={busy} className={submit}>
+      <button type="submit" disabled={busy || !hydrated} className={submit}>
         {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         Set new password
       </button>
