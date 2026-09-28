@@ -65,7 +65,7 @@ def test_invalid_plans_are_refused_before_anything_is_recorded(driver, tasks, me
     assert "s" not in state
 
 
-def test_planner_gets_one_corrected_attempt_then_fails_closed(driver, monkeypatch):
+def test_planner_gets_corrected_attempts_then_fails_closed_naming_the_problem(driver, monkeypatch):
     workflow, _ = driver
     calls = []
     bad = plan([{"packet": packet("a"), "capability": "model_only", "checks": ["result_schema"], "covers": [0]}])
@@ -74,9 +74,9 @@ def test_planner_gets_one_corrected_attempt_then_fails_closed(driver, monkeypatc
         calls.append(kwargs["input"])
         return bad
     monkeypatch.setattr(workflow.controller, "_invoke", invoke)
-    with pytest.raises(GateError, match="could not produce a plan"):
+    with pytest.raises(GateError, match="could not produce a plan.*not covered"):
         asyncio.run(workflow.plan())
-    assert len(calls) == 2 and "rejected by validation" in calls[1]
+    assert len(calls) == 3 and all("rejected by validation" in call for call in calls[1:])
 
 
 def test_all_model_only_run_completes_through_the_kernel(driver, monkeypatch):
@@ -150,3 +150,45 @@ def test_planner_sees_the_projects_existing_files(driver, monkeypatch):
                                             + [f"pkg/m{i}.py" for i in range(250)])
     assert "- src/app.py" in workflow._existing_files()
     assert "and 53 more files" in workflow._existing_files()
+
+
+def test_free_text_required_inputs_become_dependencies_or_context(driver):
+    workflow, _ = driver
+    spec = packet("design-parser-spec")
+    core = {**packet("build-core-parser"), "required_inputs": ["Specification from design-parser-spec"]}
+    tests = {**packet("write-tests", ["build-core-parser"]),
+             "required_inputs": ["DATA_MODEL.md for expected class structure", "build-core-parser"]}
+    workflow._install_plan(plan([
+        {"packet": spec, "capability": "model_only", "checks": ["result_schema"], "covers": [0]},
+        {"packet": core, "capability": "model_only", "checks": ["result_schema"], "covers": [1]},
+        {"packet": tests, "capability": "model_only", "checks": ["result_schema"], "covers": [1]},
+    ]))
+    run = workflow.controller.inspect()
+    assert run.tasks["build-core-parser"].packet.required_inputs == ["design-parser-spec"]
+    assert run.tasks["build-core-parser"].packet.dependencies == ["design-parser-spec"]
+    assert run.tasks["write-tests"].packet.required_inputs == ["build-core-parser"]
+    assert "DATA_MODEL.md for expected class structure" in run.tasks["write-tests"].packet.context
+
+
+def test_regression_check_is_dropped_where_nothing_could_run(driver):
+    workflow, _ = driver
+    workflow._install_plan(plan([
+        {"packet": packet("spec"), "capability": "model_only", "checks": ["result_schema"], "covers": [0]},
+        {"packet": packet("core", ["spec"]), "capability": "developer_sandbox",
+         "checks": ["compile", "pytest", "pytest_regression"], "covers": [1]},
+        {"packet": packet("api", ["core"]), "capability": "developer_sandbox",
+         "checks": ["pytest", "pytest_regression"], "covers": [1]},
+    ]))
+    tasks = workflow.controller.inspect().tasks
+    assert tasks["core"].required_checks == ["compile", "pytest"]  # nothing pre-existing to regress
+    assert tasks["api"].required_checks == ["pytest", "pytest_regression"]  # core's tests exist by then
+
+
+def test_regression_check_is_kept_when_the_project_already_has_tests(driver, monkeypatch):
+    workflow, _ = driver
+    monkeypatch.setattr(workflow.controller, "workspaces", _Files(["app.py", "test_app.py"]), raising=False)
+    workflow._install_plan(plan([
+        {"packet": packet("core"), "capability": "developer_sandbox", "checks": ["pytest", "pytest_regression"],
+         "covers": [0, 1]},
+    ]))
+    assert workflow.controller.inspect().tasks["core"].required_checks == ["pytest", "pytest_regression"]

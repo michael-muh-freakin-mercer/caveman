@@ -20,7 +20,7 @@ where it is still incomplete.
   missing or unusable. Signed grant manifests with stale-grant reconciliation,
   a path-aware secret policy, per-task candidate fingerprints and diffs, and
   template-bound commands with resource limits.
-- **Agents SDK adapter.** Manager tools, doctrine loading from `SYSTEM_PROMPT.md`,
+- **Agents SDK adapter.** Manager tools, doctrine loading from `doctrine/SYSTEM_PROMPT.md`,
   and worker/reviewer invocation using the configured worker model.
 - **OpenRouter runtime.** OpenRouter is the configured provider, with an
   env-configurable per-run usage budget.
@@ -87,7 +87,7 @@ tracked in `ROADMAP.md`.
   configuration time.
 - Usage budgets are per-run and cumulative across the run's model calls.
 - The Manager loop is currently chatty: a small objective took ~13 Manager model calls.
-- Most root doctrine and all `prompts/`, `protocols/`, `templates/`, `runbooks/`,
+- Most of `doctrine/` (all but `SYSTEM_PROMPT.md`), `docs/runbooks/`,
   `evals/`, and `.codex/` material is not loaded by the runtime and is retained as
   human reference.
 - The adjudicator, domain-scoping, handoff, and result-packet mechanisms are not

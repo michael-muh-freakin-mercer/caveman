@@ -1,0 +1,136 @@
+# Caveman operations runbook
+
+For operators of a hosted Caveman. Commands run on an API or worker host with
+the same environment as the services (`CAVEMAN_DATA_DIR`, `CAVEMAN_DATABASE_URL`,
+`CAVEMAN_API_TOKEN`, …). None of them spend model credits.
+
+## Signals to watch
+
+`GET /api/metrics` (bearer `CAVEMAN_METRICS_TOKEN`), Prometheus text:
+
+| Metric | Healthy | Page when |
+| --- | --- | --- |
+| `caveman_queue_oldest_seconds` | under a minute | over 10 minutes: workers are down, saturated, or every queued job's project is busy |
+| `caveman_expired_leases` | 0 | above 0 for more than 2 × `CAVEMAN_LEASE_SECONDS`: a worker died and nothing is reaping (no worker running) |
+| `caveman_jobs{status="failed",outcome=...}` | slow growth | a sudden rise in one outcome (for example `interrupted`, `error`) |
+| `caveman_sandbox_available` | 1 on worker hosts | 0: builds cannot validate anything (see "Sandbox unavailable") |
+| `caveman_deliveries{status="failed"}` | 0 or flat | any growth |
+
+Logs: set `CAVEMAN_LOG_FORMAT=json` for one JSON object per line. Job failures
+name the job id, and recovery failures name the run id.
+
+## Stuck runs
+
+1. List runs that need someone:
+
+   ```bash
+   caveman ops list --attention
+   ```
+
+   States: `approval_needed`, `waiting` (the user must continue), `blocked`,
+   `paused`, `budget_reached`, `failed`, `recovering`.
+2. Work out whether it is stuck on a person or on the system.
+   - **A person.** Approvals, budget and continuing belong to the user; do nothing.
+   - **A dead worker.** A job shows `running` but its lease expired. Any live
+     worker reaps it on its next poll and queues a `recover` job, up to
+     `CAVEMAN_MAX_RECOVERIES`. If no worker is running, start one.
+   - **A queued job that never starts.** Another job of the same project is
+     running: jobs of one project run one at a time, by design. Otherwise
+     every worker is busy (scale workers) or maintenance holds the project
+     (it releases within 15 minutes).
+3. If a run has no active job and should resume:
+
+   ```bash
+   caveman ops requeue RUN_ID
+   ```
+
+   This queues a `recover` job, which converts interrupted in-flight work to a
+   recorded failure and hands the run back to the workflow.
+4. If a run can never finish and has no in-flight work or pending approval,
+   close it through the kernel's rules. The history is kept.
+
+   ```bash
+   caveman ops abandon RUN_ID --reason "why"
+   ```
+
+Never edit the databases by hand to "fix" a run. Every run state change goes
+through the kernel so validation, review and acceptance cannot be forged.
+
+## Worker outage
+
+- Workers are stateless apart from leases. Restart them; running jobs whose
+  worker died become `recover` jobs automatically.
+- A worker refuses to start when Bubblewrap isolation is unusable (it logs why).
+  Do not work around this by weakening isolation. See "Sandbox unavailable".
+- Scale workers by `caveman_queue_oldest_seconds`. `CAVEMAN_WORKER_CONCURRENCY`
+  sets slots per process; more processes or hosts also work. The queue hands
+  each job to exactly one worker across hosts.
+
+## Sandbox unavailable
+
+Symptoms: a worker exits at startup, `caveman_sandbox_available 0`, or
+validations fail with an isolation error.
+
+- Check the host allows unprivileged user namespaces
+  (`kernel.apparmor_restrict_unprivileged_userns=0` on Ubuntu 24.04+).
+- In containers, the verified options are in `deploy/README.md`.
+- Caveman fails closed: while isolation is broken nothing is accepted. That is
+  correct behaviour, not an outage to route around.
+
+## API outage
+
+- The API holds no state of its own. Restart it; with PostgreSQL, run more than
+  one behind a load balancer.
+- Builds keep running during an API outage; users reconnect and see current state.
+
+## Database
+
+- **PostgreSQL** (`CAVEMAN_DATABASE_URL`). Kernel runs and events are in schema
+  `<CAVEMAN_DATABASE_SCHEMA>_ops`; ownership, jobs, deliveries and limits are in
+  `_platform`. Back both up together, with the managed provider's point-in-time
+  recovery.
+- **SQLite** (single host). `caveman-operations.db` and `caveman-platform.db` in
+  `CAVEMAN_DATA_DIR`, in WAL mode. Back them up with `sqlite3 FILE ".backup DEST"`,
+  not by copying the files while services run.
+- **Files.** `CAVEMAN_DATA_DIR/projects` holds the project git repositories;
+  `CAVEMAN_DATA_DIR/deliveries` holds the download archives. Back them up with
+  the database, since run records point at them.
+
+### Restore
+
+1. Stop workers, then the API.
+2. Restore the database (both schemas, or both SQLite files) and the data
+   directory from the same point in time.
+3. Start the API, then the workers. Jobs that were running at backup time have
+   expired leases and are recovered automatically.
+4. Check `caveman ops list --attention` and the metrics above.
+
+Restore drills are on the launch checklist; record each drill's date and result here.
+
+## Accounts and data
+
+- A user deletes their own account in Settings. That removes their projects,
+  runs, history, sessions, repositories and archives, then their sign-in.
+- If a deletion was interrupted, remove what no account owns (anything younger
+  than an hour is kept):
+
+  ```bash
+  caveman ops purge-orphans
+  ```
+
+## Limits
+
+Per-account limits are environment settings on the API (`.env.example`):
+builds and imports per hour, actions per minute, concurrent builds, projects,
+disk, and the monthly spend and model-call caps. Raising one takes effect when
+the API restarts.
+
+## Maintenance
+
+One worker per `CAVEMAN_MAINTENANCE_INTERVAL_SECONDS` (default hourly):
+- retires the candidate worktrees of finished runs;
+- prunes npm install caches unused for `CAVEMAN_NODE_DEPS_MAX_AGE_DAYS`;
+- prunes old rate-limit records.
+
+It holds each project while cleaning it and skips busy projects. Look for
+"Maintenance pass" in the logs.

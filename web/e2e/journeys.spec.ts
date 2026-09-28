@@ -152,6 +152,9 @@ test("a forgotten password is reset through the emailed link", async ({ browser 
   const page = await browser.newPage();
   await page.goto("/sign-in");
   await page.getByRole("link", { name: "Forgot password?" }).click();
+  // The sign-in page has an Email field too: wait for the reset page before filling.
+  await page.waitForURL(/\/forgot-password$/);
+  await expect(page.getByRole("button", { name: "Send reset link" })).toBeEnabled();
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send reset link" }).click();
   await expect(page.getByRole("status")).toContainText("reset link is on its way");
@@ -258,4 +261,33 @@ test("a follow-up request builds on the project's delivered code", async ({ page
   const run = await runJson(page, second);
   expect(run.project_id).toBe((await runJson(page, first)).project_id);
   expect(run.delivery.files).toEqual(expect.arrayContaining(["booking.py", "cancel.py"]));
+});
+
+test("a user sees their signed-in devices, signs one out and changes their password", async ({ browser }) => {
+  const first = await browser.newPage();
+  const email = await signUp(first);
+  const other = await (await browser.newContext()).newPage();
+  await other.goto("/sign-in");
+  await other.getByLabel("Email").fill(email);
+  await other.getByLabel("Password").fill("a-long-enough-password");
+  await other.getByRole("button", { name: "Sign in" }).click();
+  await other.waitForURL(/\/app$/);
+
+  await first.goto("/app/settings");
+  await expect(first.getByText("This device")).toBeVisible();
+  const signOutOther = first.getByRole("button", { name: /^Sign out (?!all other)/ });
+  await expect(signOutOther).toHaveCount(1);
+  await signOutOther.click();
+  await expect(first.getByRole("button", { name: /^Sign out (?!all other)/ })).toHaveCount(0);
+  expect((await other.request.get("/api/caveman/runs")).status()).toBe(401);
+
+  await first.getByLabel("Current password").fill("a-long-enough-password");
+  await first.getByLabel("New password").fill("another-long-password");
+  await first.getByRole("button", { name: "Change password" }).click();
+  await expect(first.getByRole("status").filter({ hasText: "Password changed" })).toBeVisible();
+  await other.goto("/sign-in");
+  await other.getByLabel("Email").fill(email);
+  await other.getByLabel("Password").fill("another-long-password");
+  await other.getByRole("button", { name: "Sign in" }).click();
+  await other.waitForURL(/\/app$/);
 });

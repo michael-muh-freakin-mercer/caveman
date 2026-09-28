@@ -115,9 +115,10 @@ SECRET_SUFFIXES = (".pem", ".p12", ".pfx")
 # The set is every doctrine file plus every control-plane module: anything that
 # decides authority, cost, the worker contract, or how Walter is launched.
 SAFETY_PATHS = frozenset({
-    "AGENTS.md", "SYSTEM_PROMPT.md", "PERMISSIONS.md", "AGENT_CREATION.md",
-    "QA_PROTOCOL.md", "FAILURE_RECOVERY.md", "TOOLS.md", "TASK_PROTOCOL.md",
-    "OPERATING_MODEL.md", "STATE_MODEL.md", "CHARTER.md",
+    "AGENTS.md", "doctrine/SYSTEM_PROMPT.md", "doctrine/PERMISSIONS.md",
+    "doctrine/AGENT_CREATION.md", "doctrine/QA_PROTOCOL.md", "doctrine/FAILURE_RECOVERY.md",
+    "doctrine/TOOLS.md", "doctrine/TASK_PROTOCOL.md", "doctrine/OPERATING_MODEL.md",
+    "doctrine/STATE_MODEL.md", "doctrine/CHARTER.md",
     "src/walter/sandbox.py", "src/walter/orchestration.py", "src/walter/models.py",
     "src/walter/store.py", "src/walter/adapter.py", "src/walter/runtime.py",
     "src/walter/cli.py", "src/walter/readiness.py",
@@ -145,7 +146,7 @@ MAX_OUTPUT_BYTES = 1_000_000
 # Internal staging ref holding exactly the accepted, validated candidate bytes of
 # a project, one fast-forward commit per accepted developer candidate. It is
 # never the user's checked-out branch and is never pushed; promotion beyond it
-# remains a human-approved act (see PERMISSIONS.md, 2026-09-28 decision).
+# remains a human-approved act (see doctrine/PERMISSIONS.md, 2026-09-28 decision).
 INTEGRATION_BRANCH = "walter-integration"
 INTEGRATION_REF = "refs/heads/" + INTEGRATION_BRANCH
 
@@ -710,7 +711,7 @@ class WorkspaceManager:
         this method can only deny. Candidates therefore cannot mutate SAFETY_PATHS
         at all — a deliberately stricter posture than the designed flow. Do not
         wire this to a Manager tool without a fresh security design review; when
-        that review happens, TOOLS.md and this note must be updated together.
+        that review happens, doctrine/TOOLS.md and this note must be updated together.
         """
         with self._lock:
             if self._approval_verifier is None:

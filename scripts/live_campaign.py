@@ -53,6 +53,9 @@ def parse_args(argv):
     parser.add_argument("--orchestration", choices=["workflow", "manager"], default="workflow")
     parser.add_argument("--data-dir", type=Path, help="Keep campaign state here (default: temporary)")
     parser.add_argument("--out", type=Path, default=REPO / "docs" / "live-campaign")
+    parser.add_argument("--allow-unknown-cost", action="store_true",
+                        help="Keep going after a run whose provider did not report cost for every call "
+                             "(by default the campaign stops, because the spend cap could not be enforced)")
     parser.add_argument("--auto-approve-capabilities", action="store_true",
                         help="Approve specialist capability requests automatically (campaign data only)")
     return parser.parse_args(argv)
@@ -88,11 +91,15 @@ def main(argv=None) -> int:
                         max_budget_usd=max(args.run_budget_usd, 0.01),
                         default_max_model_calls=args.max_calls, scripted_step_delay=0)
     headers = {"Authorization": f"Bearer {token}", "X-Caveman-User": "campaign"}
-    rows, spent = [], 0.0
+    rows, spent, halted = [], 0.0, ""
     started_at = datetime.now(timezone.utc)
     with TestClient(create_app(settings)) as client:
         for prompt in prompts:
-            if spent >= args.total_budget_usd:
+            if halted:
+                rows.append({"prompt": prompt, "state": f"skipped ({halted})"})
+                continue
+            if spent + args.run_budget_usd > args.total_budget_usd:
+                # Start a run only if its whole ceiling still fits under the total.
                 rows.append({"prompt": prompt, "state": "skipped (campaign budget reached)"})
                 continue
             began = time.monotonic()
@@ -132,6 +139,9 @@ def main(argv=None) -> int:
                 "last_message": (detail["jobs"][-1]["message"] if detail["jobs"] else "") or "",
             })
             print(f"{detail['state']:>16}  ${usage['cost_usd']:.4f}  {prompt}")
+            if not usage["cost_complete"] and args.executor == "provider" and not args.allow_unknown_cost:
+                halted = "stopped: the provider did not report cost for every call, so spend cannot be capped"
+                print(halted, file=sys.stderr)
     args.out.mkdir(parents=True, exist_ok=True)
     stamp = started_at.strftime("%Y%m%dT%H%M%SZ")
     completed = [r for r in rows if r.get("state") == "complete"]

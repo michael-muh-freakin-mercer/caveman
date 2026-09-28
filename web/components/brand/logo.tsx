@@ -1,9 +1,10 @@
 import Link from "next/link";
+import type { ComponentProps } from "react";
 
-/** A knapped-flint mark: faceted, angular, deliberate. */
-export function Mark({ className = "h-7 w-7" }: { className?: string }) {
+/** A knapped-flint mark: faceted, angular, deliberate. Also drawn into the generated icons. */
+export function Mark({ className = "h-7 w-7", ...props }: ComponentProps<"svg">) {
   return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false" {...props}>
       {/* Flat facets (no gradient ids), so any number of marks can share a page. */}
       <path d="M16 2 27 11 22 29 9 26 4 12Z" fill="#f2621a" />
       <path d="M16 2 27 11 17 15Z" fill="#ff9a5c" />

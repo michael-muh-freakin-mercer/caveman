@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-09-28 — Repository restructure and project presentation
+
+- The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.
+- The Manager's instructions now load from `doctrine/SYSTEM_PROMPT.md`, and the API image copies `doctrine/`.
+- `SAFETY_PATHS` protects the same doctrine files at their new `doctrine/` paths; the set is otherwise unchanged. Protection is an exact path match, so a new test fails if any protected path names a file that does not exist, which would otherwise leave a moved file silently unprotected.
+- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `who-is-michael-mercer/caveman`.
+- The tagline "So easy a caveman could do it" was retired as too close to an existing slogan; it is now "You describe. Caveman delivers." The web app gained a favicon, Apple touch icon and link-preview image drawn from the flint mark.
+
+## 2026-09-28 — Step budget and salvage (first live completion)
+
+- With specialists able to run their checks, the fourth live smoke build completed: the specialist reached all-green checks at its 24th and final step, ran out before reporting, and its revision was accepted after trusted validation and independent review ($0.27, 33 model calls, 11 minutes).
+- Caveman gives specialists 40 steps per attempt (`CAVEMAN_SPECIALIST_MAX_TURNS`).
+- `DurableController(salvage_exhausted=True)` (Caveman only): when a developer specialist runs out of steps after changing its workspace, the platform submits the workspace as a candidate instead of discarding the attempt. The submission says in its deliverable that the platform submitted it and the specialist did not self-report; it must still pass every trusted check and independent review. Without changes, or with salvage off (operator CLI), exhaustion fails as before.
+
+## 2026-09-28 — Planner robustness (from live probes)
+
+- Probing the planner on the smoke prompt: 2 of 3 plans were rejected because `required_inputs` held free text ("Specification from design-parser-spec", "DATA_MODEL.md for …") the kernel cannot resolve. The driver now maps entries naming an earlier task to that task id (and a dependency) and moves anything else into the task's context; the planner is told what the field accepts. After the change 3 of 3 probes planned successfully.
+- Several plans put `pytest_regression` on the first code task of a new project, a check with nothing to run that the kernel records as a failure. The driver drops it where there are no pre-existing tests and no upstream Python code task; the planner is told when to use it and to keep code and its tests in one task.
+- Planning gets three attempts (was two), retries unparseable planner output too, and a final failure names the last validation problem.
+
+## 2026-09-28 — Specialists can run their own checks
+
+- Found by the first live-model smoke build: specialists' `run_check(category, argv)` calls were all refused by the sandbox's strict templates ("Command category denied", "Only the immutable Python environment … are executable"), which the model was never told. Unable to test, the specialist rewrote 8–11 KB files blind until it ran out of turns, twice, and a syntax error went unnoticed.
+- `run_check` now takes a check name (`pytest`, `compile`, `node_test`, `tsc`) and optional paths and builds the exact template itself; the sandbox still validates every command. Output is trimmed to its last 3,000 characters so test logs do not bloat every later turn. Refusals come back as a readable result instead of a tool error.
+- Developer-sandbox specialists are told which trusted checks will verify their work, how many steps they have, and a short working loop: write implementation and focused tests, run the checks, fix failures, return as soon as they pass.
+
+## 2026-09-28 — Specialist tool trace
+
+- `WALTER_TOOL_TRACE=<file>` (operator-only, opt-in) appends one JSON line per specialist model call and tool call: tool name, argument and result sizes, and the first 200 characters of check results and errors. File contents are never recorded. Used to tune turn budgets in the live campaign.
+
+## 2026-09-28 — Security settings
+
+- Settings has a Security panel: signed-in devices (browser and system from the user agent), signing out one device or all others, and changing the password (which signs out other devices). Revocation goes through `POST /api/account/sessions`, which addresses sessions by id and keeps their tokens on the server, so page scripts never see another device's session token.
+
+## 2026-09-28 — Stack expectations
+
+- The New build form states that Python and Node/TypeScript code is tested in the sandbox and other stacks are delivered as reviewed source, and warns (without blocking) when the request or preferred stack names something Caveman cannot run: iOS/Swift, Android/Kotlin, Flutter, React Native, native mobile apps, Go, Rust, Java, .NET, PHP, Ruby, C++, game engines.
+
+## 2026-09-28 — Secret scanning
+
+- CI runs `scripts/check_secrets.py`: detect-secrets rescans the tracked tree against `.secrets.baseline` and fails on any finding not audited as a false positive. The baseline's current entries are placeholders and test fixtures (`your_openrouter_key_here`, CI-only Postgres and auth values, fake tokens in tests).
+
+## 2026-09-28 — Campaign spend guard
+
+- `scripts/live_campaign.py` starts a run only if its whole per-run ceiling still fits under `--total-budget-usd`, and stops the campaign after any run whose provider did not report cost for every call, since spend could then not be capped (`--allow-unknown-cost` overrides).
+
+## 2026-09-28 — One job per project; scheduled maintenance
+
+- Fix: a project's sandbox state (candidate grants in `.local/sandboxes/grants.json`) is loaded once per `WorkspaceManager` and rewritten whole on save, and every job builds its own manager. Two runs of one project executing at once (allowed since users may have two builds running) could drop each other's grants or corrupt the file. The queue now never claims a job whose project already has a running job, across all workers and hosts.
+- Project leases (`project_leases`) let work outside a job hold a project: the job queue skips a leased project, and a lease is refused while a job of the project runs. The manual delivery retry endpoint takes one.
+- Maintenance: once per `CAVEMAN_MAINTENANCE_INTERVAL_SECONDS` (default 3600, one worker across the fleet) the worker retires candidate worktrees, branches and grants of finished runs (completed with a ready delivery, or closed otherwise) through the sandbox's `retire_run`, prunes cached npm installs unused for `CAVEMAN_NODE_DEPS_MAX_AGE_DAYS` (default 7), and prunes rate-limit records older than a day. Each project is leased while it is cleaned. Deliveries and the integration branch are untouched; a follow-up build after cleanup is tested.
+
+## 2026-09-28 — Abuse and tenancy limits
+
+- Per-user rate limits kept in the platform database (so they hold across API hosts): new builds and continuations per hour, repository imports per hour, and other mutating actions per minute; over a limit the API answers 429 with `Retry-After`. Per-account caps on concurrent builds, projects and disk (project repositories plus archives). All configurable (`CAVEMAN_BUILDS_PER_HOUR`, `CAVEMAN_IMPORTS_PER_HOUR`, `CAVEMAN_ACTIONS_PER_MINUTE`, `CAVEMAN_MAX_CONCURRENT_BUILDS`, `CAVEMAN_MAX_PROJECTS`, `CAVEMAN_ACCOUNT_DISK_MB`). Rate records are erased with the account.
+- `CAVEMAN_GITHUB_IMPORT_TOKEN`: optional operator token for import metadata and clones (raises GitHub's anonymous rate limit); it reaches git only through environment config for the download and is never written to the project repository.
+- Fix: `PRAGMA journal_mode=WAL` fails immediately with "database is locked" while another process holds a new database file (SQLite applies no busy timeout to it), another way a concurrent first start could crash. `walter.store.enable_wal` skips the change when WAL is already on and retries briefly otherwise.
+
 ## 2026-09-28 — Concurrent first start
 
 - Fix: `SQLiteStore` read `user_version == 0` and then created its tables without holding the write lock, so when the API and a worker opened a fresh database at the same moment one of them crashed with `table runs already exists` (a worker crash left every E2E build unexecuted in CI). Schema creation, the v1→v2 migration and the platform store's additive column migration now take the write lock and re-check before acting. A regression test opens both stores from eight processes released by a barrier; it reproduces the crash on the old code.

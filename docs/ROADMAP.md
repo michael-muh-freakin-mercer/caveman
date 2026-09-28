@@ -19,7 +19,7 @@ delegated agents produce deliverables that pass the gates on real repositories.
 We are explicit about this because the gates already are. When Walter's first
 real external-repository run failed, it produced no artifact and said so, and the
 findings were written up in
-[docs/first-real-run-gap-report.md](docs/first-real-run-gap-report.md) rather
+[docs/first-real-run-gap-report.md](first-real-run-gap-report.md) rather
 than quietly dropped.
 
 ---
@@ -80,7 +80,7 @@ only:
   real Bubblewrap, and one measured live run on an external repository that
   completed on the first attempt — 27 model calls, 156k tokens, both predeclared
   checks and an independent review passed, live checkout untouched
-  ([docs/baseline-2026-09-27.md](docs/baseline-2026-09-27.md)).
+  ([docs/baseline-2026-09-27.md](baseline-2026-09-27.md)).
 
 ### A note on the live evidence
 
@@ -112,7 +112,7 @@ attempt.
   context windows. The read path is now a projection with explicit drill-down;
   the full snapshot stays on the CLI.
 - **A measured live baseline.** *Shipped 2026-09-27.* See
-  [docs/baseline-2026-09-27.md](docs/baseline-2026-09-27.md).
+  [docs/baseline-2026-09-27.md](baseline-2026-09-27.md).
 - **Fewer Manager turns.** 12 Manager calls for one task is the open cost
   problem. The next step is to establish where they go — turn-level accounting
   of which tool each Manager call invoked — before optimizing, since guessing is

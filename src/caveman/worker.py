@@ -105,6 +105,12 @@ class Worker:
 
     async def run_once(self) -> bool:
         self.platform.reap_expired(self.settings.max_recoveries)
+        if self.platform.due("cleanup", self.settings.maintenance_interval_seconds):
+            from .maintenance import run_maintenance
+            try:
+                await asyncio.to_thread(run_maintenance, self.settings, self.engine, self.platform)
+            except Exception:
+                logger.exception("Maintenance pass failed")
         job = self.platform.claim(self.worker_id, self.settings.lease_seconds)
         if job is None:
             return False
@@ -140,7 +146,8 @@ class Worker:
         if record.model_mode in profiles:
             manager, worker = profiles[record.model_mode]
             config = replace(config, manager_model=manager, worker_model=worker)
-        return replace(config, budget=_merge_budget(config.budget, budget_usd, max_calls)), None
+        return replace(config, budget=_merge_budget(config.budget, budget_usd, max_calls),
+                       worker_max_turns=self.settings.specialist_max_turns), None
 
     async def execute(self, job: Job) -> None:
         record = self.platform.run_by_id(job.run_id)
@@ -193,7 +200,7 @@ class Worker:
         try:
             controller = DurableController(Orchestrator(store), job.run_id,
                                            WorkspaceManager(self.engine.project_repo(project_id)),
-                                           config=config, integration=True)
+                                           config=config, integration=True, salvage_exhausted=True)
             if self.settings.orchestration == ORCHESTRATION_WORKFLOW:
                 driver = WorkflowDriver(
                     controller, platform_notes=PLATFORM_NOTES,

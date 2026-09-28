@@ -175,12 +175,12 @@ relaxes explicitly.
 ## Install
 
 Install editable from a checkout. The Manager's doctrine is loaded from the
-checkout's `SYSTEM_PROMPT.md` at startup, so a non-editable install into
+checkout's `doctrine/SYSTEM_PROMPT.md` at startup, so a non-editable install into
 `site-packages` will not start.
 
 ```bash
-git clone https://github.com/who-is-michael-mercer/Walter.git
-cd Walter
+git clone https://github.com/who-is-michael-mercer/caveman.git
+cd caveman
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[test]'
@@ -586,7 +586,7 @@ turn ceiling. Scenario definitions live in `evals/cases/`.
 
 Pre-1.0. The kernel, durable store, sandbox, and approval machinery are
 substantial and covered by tests; the autonomous loop on real-world objectives is
-the least mature part of the system. [ROADMAP.md](../ROADMAP.md) states what we are
+the least mature part of the system. [ROADMAP.md](ROADMAP.md) states what we are
 building next and how we will measure it.
 
 **Working today**
@@ -646,26 +646,26 @@ building next and how we will measure it.
 
 ## Documentation
 
-The specs are the source of truth for behavior; `SYSTEM_PROMPT.md` is the only
+The specs in `doctrine/` are the source of truth for behavior; `SYSTEM_PROMPT.md` is the only
 one loaded at runtime.
 
 | Document | Contents |
 | --- | --- |
-| [ROADMAP.md](../ROADMAP.md) | Where the project stands, what ships next, how it is measured |
-| [SYSTEM_PROMPT.md](../SYSTEM_PROMPT.md) | Manager doctrine, loaded into the Manager agent |
-| [OPERATING_MODEL.md](../OPERATING_MODEL.md) | Control loop, canonical lifecycle, acceptance authority |
-| [TASK_PROTOCOL.md](../TASK_PROTOCOL.md) | Task packet and result semantics |
-| [PERMISSIONS.md](../PERMISSIONS.md) | Authority chain, approval categories, exact scope rules |
-| [TOOLS.md](../TOOLS.md) | Capability profiles, check semantics, sandbox policy |
-| [QA_PROTOCOL.md](../QA_PROTOCOL.md) | Validation and review standards |
-| [FAILURE_RECOVERY.md](../FAILURE_RECOVERY.md) | Failure taxonomy and recovery routes |
-| [STATE_MODEL.md](../STATE_MODEL.md) | Durable state shape |
-| [CHARTER.md](../CHARTER.md) | Scope and non-goals |
+| [ROADMAP.md](ROADMAP.md) | Where the project stands, what ships next, how it is measured |
+| [SYSTEM_PROMPT.md](../doctrine/SYSTEM_PROMPT.md) | Manager doctrine, loaded into the Manager agent |
+| [OPERATING_MODEL.md](../doctrine/OPERATING_MODEL.md) | Control loop, canonical lifecycle, acceptance authority |
+| [TASK_PROTOCOL.md](../doctrine/TASK_PROTOCOL.md) | Task packet and result semantics |
+| [PERMISSIONS.md](../doctrine/PERMISSIONS.md) | Authority chain, approval categories, exact scope rules |
+| [TOOLS.md](../doctrine/TOOLS.md) | Capability profiles, check semantics, sandbox policy |
+| [QA_PROTOCOL.md](../doctrine/QA_PROTOCOL.md) | Validation and review standards |
+| [FAILURE_RECOVERY.md](../doctrine/FAILURE_RECOVERY.md) | Failure taxonomy and recovery routes |
+| [STATE_MODEL.md](../doctrine/STATE_MODEL.md) | Durable state shape |
+| [CHARTER.md](../doctrine/CHARTER.md) | Scope and non-goals |
 | [docs/IMPLEMENTATION_STATE.md](IMPLEMENTATION_STATE.md) | Verified capabilities, gaps, decisions |
 | [docs/walter-bootstrap-master-blueprint.md](walter-bootstrap-master-blueprint.md) | Primary bootstrap specification |
 | [CHANGELOG.md](../CHANGELOG.md) | Dated decisions and behavior changes |
 
-`prompts/`, `protocols/`, `templates/`, `runbooks/`, and `.codex/` are human
+`doctrine/prompts/`, `doctrine/protocols/`, `doctrine/templates/`, `docs/runbooks/`, and `.codex/` are human
 reference material and are not loaded by the runtime.
 
 ---

@@ -1,0 +1,62 @@
+name: Bug report
+description: Something Caveman did wrong, or failed to do.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Security issues go through [SECURITY.md](https://github.com/who-is-michael-mercer/caveman/blob/main/SECURITY.md), not here.**
+        Redact anything sensitive: run snapshots include task text.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: request
+    attributes:
+      label: Build request
+      description: The request you gave Caveman, if the bug concerns a run.
+      render: text
+  - type: textarea
+    id: run-record
+    attributes:
+      label: Run record
+      description: |
+        The run ID, plus the output of `walter run inspect <run_id>` and `walter run events <run_id>`.
+        These are the durable record of what actually happened.
+      render: text
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web app
+        - API or worker
+        - Orchestration core (planning, gates, recovery)
+        - Sandbox / isolation
+        - Deployment
+        - Documentation
+    validations:
+      required: true
+  - type: dropdown
+    id: executor
+    attributes:
+      label: Executor
+      options:
+        - Real models (OpenRouter)
+        - Scripted test executor
+        - Not applicable
+  - type: input
+    id: version
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS and kernel, Python and Node versions, container runtime if any.
+      render: text
