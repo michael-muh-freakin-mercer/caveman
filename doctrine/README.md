@@ -1,16 +1,19 @@
 # Doctrine
 
-The written rules the orchestration core follows. They are the source of truth
-for behavior: when code and doctrine disagree, one of them has a bug.
+The rulebook. These are the written rules the orchestration core lives by, and
+they are the source of truth for behavior: when the code and the doctrine
+disagree, one of them has a bug (and it's usually the code).
 
 Only [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md) is loaded at runtime (as the Manager's
-instructions). The kernel enforces the rest in code; these files say what it
-must enforce and why.
+instructions). The rest isn't read by a model at all: the kernel enforces it in
+plain code, and these files say what it must enforce and why. Models get told
+the rules; the kernel makes them stick.
 
-> **Protected files.** The specs below (except `MEMORY.md` and `AGENTS_SDK.md`)
+> **Look, don't touch.** The specs below (except `MEMORY.md` and `AGENTS_SDK.md`)
 > are on the sandbox's safety list (`SAFETY_PATHS` in `src/walter/sandbox.py`):
-> agent-built candidates can read them but cannot change them. Moving or
-> renaming one means updating that list; a test fails if they drift apart.
+> agent-built candidates can read them but can't rewrite the rules they're
+> judged by. Moving or renaming one means updating that list; a test fails if
+> they drift apart.
 
 ## Specifications
 
@@ -32,7 +35,8 @@ must enforce and why.
 ## Reference material
 
 Not loaded by the runtime; kept as design reference. Files marked
-"not implemented" describe mechanisms the current runtime does not have.
+"not implemented" describe mechanisms the runtime doesn't have yet, so treat
+them as blueprints, not documentation.
 
 - [prompts/](prompts/): worker, reviewer, adjudicator, domain-scoping and status prompt templates
 - [protocols/](protocols/): delegation and reporting procedures
