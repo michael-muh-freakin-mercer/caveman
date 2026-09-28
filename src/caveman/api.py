@@ -34,7 +34,7 @@ from walter.orchestration import GateError
 
 from . import __version__
 from .config import EXECUTOR_PROVIDER, Settings
-from .accounts import account_disk_bytes, account_usage
+from .accounts import account_disk_bytes, account_usage, server_usage
 from .delivery import deliver_run
 from .engine import ApprovalScopeChanged, Engine
 from .platform_store import RunRecord, new_id
@@ -263,6 +263,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lines += ["# HELP caveman_sandbox_available Whether isolation works on the API host.",
                   "# TYPE caveman_sandbox_available gauge",
                   f"caveman_sandbox_available {1 if sandbox['available'] else 0}"]
+        spend = server_usage(engine, platform)
+        lines += ["# HELP caveman_spend_month_usd Provider-reported model cost this calendar month (UTC), all accounts.",
+                  "# TYPE caveman_spend_month_usd gauge",
+                  f"caveman_spend_month_usd {spend['spent_usd']:.6f}",
+                  "# HELP caveman_model_calls_month Model calls this calendar month, all accounts.",
+                  "# TYPE caveman_model_calls_month gauge",
+                  f"caveman_model_calls_month {spend['model_calls']}",
+                  "# HELP caveman_model_calls_without_cost_month Calls this month whose provider reported no cost.",
+                  "# TYPE caveman_model_calls_without_cost_month gauge",
+                  f"caveman_model_calls_without_cost_month {spend['calls_without_cost']}"]
         return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
     # System -----------------------------------------------------------

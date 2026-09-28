@@ -7,7 +7,7 @@ call cap bounds calls whose cost the provider did not report.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from walter.usage import usage_cost
 
@@ -17,10 +17,10 @@ def month_start(now: datetime | None = None) -> str:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
 
-def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | None = None) -> dict:
-    since = month_start(now)
+def _usage_since(engine, records, since: str) -> tuple[float, int, int]:
+    """Provider-reported cost, model calls, and calls without a reported cost."""
     cost, calls, unknown = 0.0, 0, 0
-    for record in platform.list_runs(owner_id):
+    for record in records:
         try:
             run = engine.load(record.id)
         except Exception:
@@ -34,6 +34,25 @@ def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | 
                 unknown += 1
             else:
                 cost += reported
+    return cost, calls, unknown
+
+
+def server_usage(engine, platform, *, now: datetime | None = None) -> dict:
+    """This month's spend across every account, for the operator metrics.
+
+    Only runs created in this month or the 31 days before it are read, so a
+    scrape stays cheap as history grows; calls a run makes more than a month
+    after it was created are not counted here (the per-account caps still are).
+    """
+    since = month_start(now)
+    horizon = (datetime.fromisoformat(since) - timedelta(days=31)).isoformat()
+    cost, calls, unknown = _usage_since(engine, (r for r in platform.all_runs() if r.created_at >= horizon), since)
+    return {"spent_usd": round(cost, 6), "model_calls": calls, "calls_without_cost": unknown}
+
+
+def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | None = None) -> dict:
+    since = month_start(now)
+    cost, calls, unknown = _usage_since(engine, platform.list_runs(owner_id), since)
     limit_usd = settings.account_monthly_budget_usd
     limit_calls = settings.account_monthly_max_calls
     return {

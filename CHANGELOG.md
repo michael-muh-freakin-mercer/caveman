@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-28 — Dashboards and alerts
+
+- `GET /api/metrics` adds `caveman_spend_month_usd`, `caveman_model_calls_month` and `caveman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts (runs created in the month or the 31 days before it).
+- `deploy/monitoring/`: Prometheus alert rules (scrape down, sandbox unavailable, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
+
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.

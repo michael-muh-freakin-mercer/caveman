@@ -503,6 +503,20 @@ def test_metrics_are_disabled_by_default_and_token_protected(settings):
         body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
     assert 'caveman_jobs{status="queued",outcome=""} 1' in body
     assert "caveman_runs 1" in body and "caveman_sandbox_available" in body
+    assert "caveman_spend_month_usd 0.000000" in body and "caveman_model_calls_month 0" in body
+
+
+@needs_sandbox
+def test_metrics_count_this_months_model_calls(settings):
+    from dataclasses import replace
+    metered = replace(settings, metrics_token="m" * 32)
+    with TestClient(create_app(metered)) as client:
+        build(client)
+        drain(metered)
+        body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
+    calls = next(int(line.split()[1]) for line in body.splitlines() if line.startswith("caveman_model_calls_month "))
+    # The scripted executor reports no cost, so every call is counted as uncosted.
+    assert calls > 0 and f"caveman_model_calls_without_cost_month {calls}" in body
 
 
 def test_operator_commands_list_requeue_and_abandon(settings, capsys):

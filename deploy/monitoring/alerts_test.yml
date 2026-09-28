@@ -1,0 +1,58 @@
+# promtool test rules deploy/monitoring/alerts_test.yml
+rule_files:
+- alerts.yml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: caveman_queue_oldest_seconds{job="caveman"}
+    values: 0 0 700x10
+  - series: caveman_sandbox_available{job="caveman"}
+    values: 1x5 0x10
+  - series: caveman_jobs{job="caveman",status="failed",outcome="error"}
+    values: 0+1x70
+  - series: caveman_spend_month_usd{job="caveman"}
+    values: 90 95 120
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: CavemanQueueBacklog
+    exp_alerts: []
+  - eval_time: 9m
+    alertname: CavemanQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: caveman
+      exp_annotations:
+        summary: A build has waited over 10 minutes for a worker.
+        description: The oldest queued job is 11m 40s old. Workers may be down, stuck, or too few.
+        runbook: docs/RUNBOOK.md#worker-outage
+  - eval_time: 12m
+    alertname: CavemanSandboxUnavailable
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: caveman
+      exp_annotations:
+        summary: Bubblewrap isolation is not usable on the API host.
+        description: Checks fail closed and nothing can be accepted until isolation works again.
+        runbook: docs/RUNBOOK.md#sandbox-unavailable
+  - eval_time: 70m
+    alertname: CavemanJobFailures
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: More than 5 build jobs failed in the last hour.
+        description: Check `caveman ops list --attention` and recent worker logs for a common cause.
+        runbook: docs/RUNBOOK.md#stuck-runs
+  - eval_time: 2m
+    alertname: CavemanSpendHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: caveman
+      exp_annotations:
+        summary: Model spend this month is over $100.
+        description: Provider-reported spend is $120.00 this month across all accounts.
+        runbook: docs/RUNBOOK.md#limits
