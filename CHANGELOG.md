@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — Specialists can run their own checks
+
+- Found by the first live-model smoke build: specialists' `run_check(category, argv)` calls were all refused by the sandbox's strict templates ("Command category denied", "Only the immutable Python environment … are executable"), which the model was never told. Unable to test, the specialist rewrote 8–11 KB files blind until it ran out of turns, twice, and a syntax error went unnoticed.
+- `run_check` now takes a check name (`pytest`, `compile`, `node_test`, `tsc`) and optional paths and builds the exact template itself; the sandbox still validates every command. Output is trimmed to its last 3,000 characters so test logs do not bloat every later turn. Refusals come back as a readable result instead of a tool error.
+- Developer-sandbox specialists are told which trusted checks will verify their work, how many steps they have, and a short working loop: write implementation and focused tests, run the checks, fix failures, return as soon as they pass.
+
 ## 2026-09-28 — Specialist tool trace
 
 - `WALTER_TOOL_TRACE=<file>` (operator-only, opt-in) appends one JSON line per specialist model call and tool call: tool name, argument and result sizes, and the first 200 characters of check results and errors. File contents are never recorded. Used to tune turn budgets in the live campaign.

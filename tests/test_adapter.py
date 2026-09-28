@@ -1386,3 +1386,38 @@ def test_receipt_reports_the_budget_remaining_in_this_plan_revision():
     # Lifetime history is preserved; the new revision states a usable budget.
     assert reopened["attempts"] == 3 and reopened["attempts_remaining"] == 3
     assert core.delegate(controller.run_id, "task", "fresh-worker").task_id == "task"
+
+
+@pytest.mark.skipif(not Path("/usr/bin/bwrap").exists(), reason="Bubblewrap sandbox unavailable")
+def test_run_check_takes_a_check_name_and_builds_the_sandbox_template(tmp_path):
+    import json as _json
+    import subprocess
+
+    from walter.adapter import CHECK_OUTPUT_CHARS, _run_check
+    from walter.sandbox import WorkspaceManager
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# demo\n")
+    for args in (["init", "-q"], ["add", "."], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+    manager = WorkspaceManager(repo)
+    grant = manager.create_candidate("run", "task", "worker")
+    manager.write_file(grant.id, "calc.py", "def add(a, b):\n    return a + b\n", worker_id="worker")
+    manager.write_file(grant.id, "test_calc.py", "from calc import add\n\n\ndef test_add():\n    assert add(2, 2) == 4\n",
+                       worker_id="worker")
+    check = lambda name, paths=(): _json.loads(_run_check(manager, grant.id, "worker", name, list(paths)))  # noqa: E731
+
+    assert check("pytest")["passed"] and "1 passed" in check("pytest")["output"]
+    assert check("compile")["passed"]
+    manager.write_file(grant.id, "test_calc.py", "from calc import add\n\ndef test_add(:\n    pass\n", worker_id="worker")
+    compiled = check("compile", ["test_calc.py"])
+    assert not compiled["passed"] and "SyntaxError" in compiled["output"]
+    manager.write_file(grant.id, "test_calc.py",
+                       "def test_noisy():\n    print('x' * 20000)\n    assert False\n", worker_id="worker")
+    noisy = check("pytest")
+    assert not noisy["passed"] and len(noisy["output"]) <= CHECK_OUTPUT_CHARS + 60
+    assert "earlier characters omitted" in noisy["output"]
+    assert "Unknown check" in check("make")["output"]
+    refused = check("pytest", ["../outside.py"])
+    assert not refused["passed"] and "refused" in refused["output"]
