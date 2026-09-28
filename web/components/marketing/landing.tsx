@@ -42,7 +42,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <div className="mx-auto mt-10 max-w-3xl">
             <BuildPrompt signedIn={signedIn} />
           </div>
-          <p className="mt-8 font-mono text-xs tracking-[0.14em] text-muted">SO EASY A CAVEMAN COULD DO IT.</p>
+          <p className="mt-8 font-mono text-xs tracking-[0.14em] text-muted">YOU DESCRIBE. CAVEMAN DELIVERS.</p>
         </div>
       </section>
 
@@ -115,7 +115,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
         <div className="mx-auto flex max-w-4xl flex-col items-center px-4 py-24 text-center sm:px-6">
           <Mark className="h-10 w-10" />
           <h2 className="text-balance mt-5 text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
-            So easy a caveman could do it.
+            Fire was a good start.
           </h2>
           <p className="mt-4 max-w-xl text-fg-soft">Say what you want. Approve what matters. Download what was verified.</p>
           <Link href={signedIn ? "/app/new" : "/sign-up"} className={buttonClass("primary", "lg", "mt-8")}>

@@ -4,7 +4,7 @@
 
 **Type what you want. Caveman builds it.**
 
-*So easy a caveman could do it.*
+*You describe. Caveman delivers.*
 
 [![CI](https://github.com/who-is-michael-mercer/Walter/actions/workflows/ci.yml/badge.svg)](https://github.com/who-is-michael-mercer/Walter/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
