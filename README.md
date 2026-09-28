@@ -49,9 +49,9 @@ your feet.
 | --- | --- |
 | **Receipts, not vibes** | Checks run in a Bubblewrap sandbox with no network and no access to your secrets. An agent saying "tests pass" is worth exactly nothing until the tests pass. |
 | **A second opinion, always** | A fresh reviewer that never touched the work inspects every candidate before the kernel can accept it. No grading your own homework. |
-| **Unkillable runs** | Every task, attempt, check and decision is written down. Close the tab, restart the worker, trip over the power cord: the build picks up where it left off. |
+| **Hard-to-kill runs** | Every task, attempt, check and decision is written down. Close the tab, restart the worker, trip over the power cord: the build picks up where it left off. (Automatic recovery is capped at 3 per run by default, `CAVEMAN_MAX_RECOVERIES`, so a truly cursed run fails honestly instead of looping forever.) |
 | **You're the boss of the scary stuff** | Consequential actions wait for you, bound to the exact scope you were shown. If Caveman changes the ask, it asks again. No bait-and-switch. |
-| **Your wallet has a seatbelt** | Every run has a USD and model-call ceiling. Cost is tracked per call and matches what the provider actually charged. |
+| **Your wallet has a seatbelt** | Every run has a USD and model-call ceiling. Cost is tracked per call, and in the live campaign it matched OpenRouter's own counter to within half a cent. |
 | **Bring your own brain** | Any tool-calling model on OpenRouter. No single vendor holding the keys to your cave. |
 
 ### We put real money where our README is

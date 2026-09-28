@@ -4,10 +4,12 @@ The rulebook. These are the written rules the orchestration core lives by, and
 they are the source of truth for behavior: when the code and the doctrine
 disagree, one of them has a bug (and it's usually the code).
 
-Only [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md) is loaded at runtime (as the Manager's
-instructions). The rest isn't read by a model at all: the kernel enforces it in
-plain code, and these files say what it must enforce and why. Models get told
-the rules; the kernel makes them stick.
+Only [SYSTEM_PROMPT.md](SYSTEM_PROMPT.md) is loaded into a model's prompt
+automatically (as the Manager's instructions). Specialists with file tools can
+still open the others like any file in the workspace, but nothing depends on a
+model reading or obeying them: the kernel enforces them in plain code, and these
+files say what it must enforce and why. Models get told the rules; the kernel
+makes them stick.
 
 > **Look, don't touch.** The specs below (except `MEMORY.md` and `AGENTS_SDK.md`)
 > are on the sandbox's safety list (`SAFETY_PATHS` in `src/walter/sandbox.py`):
