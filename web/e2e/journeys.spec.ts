@@ -190,3 +190,41 @@ test("pages are served with a strict CSP and run without violations", async ({ p
   await expect(page.getByRole("button", { name: "Build it" })).toBeEnabled();
   expect(violations).toEqual([]);
 });
+
+test("an account's data can be exported and the account deleted", async ({ page }) => {
+  const email = await signUp(page);
+  const runId = await startBuild(page, "Build me a booking app for a tattoo studio");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+
+  await page.goto("/app/settings");
+  const exported = await page.request.get("/api/account/export");
+  expect(exported.status()).toBe(200);
+  expect(exported.headers()["content-disposition"]).toContain("caveman-export-");
+  const data = await exported.json();
+  expect(data.account.email).toBe(email);
+  expect(data.runs.map((run: { id: string }) => run.id)).toEqual([runId]);
+  expect(JSON.stringify(data)).not.toMatch(/accessToken|password/i);
+
+  // Erasure is reachable only through the password-checked auth flow, never the API proxy.
+  const viaProxy = await page.request.delete("/api/caveman/account", { headers: { Origin: new URL(page.url()).origin } });
+  expect([404, 405]).toContain(viaProxy.status());
+
+  await page.getByRole("button", { name: "Delete account" }).click();
+  const confirm = page.getByRole("button", { name: "Delete permanently" });
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel(/Type delete my account/).fill("delete my account");
+  await page.getByLabel("Password", { exact: true }).fill("the-wrong-password");
+  await confirm.click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  expect((await page.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(200);
+
+  await page.getByLabel("Password", { exact: true }).fill("a-long-enough-password");
+  await confirm.click();
+  await page.waitForURL((url) => url.pathname === "/");
+  expect((await page.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(401);
+  await page.goto("/sign-in");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("a-long-enough-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+});

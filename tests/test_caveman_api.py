@@ -648,3 +648,70 @@ def test_one_worker_process_runs_several_jobs_concurrently(settings):
         started = [client.get(f"/api/runs/{r}", headers=ALICE).json()["jobs"][0]["started_at"] for r in runs]
         finished = [client.get(f"/api/runs/{r}", headers=ALICE).json()["jobs"][0]["finished_at"] for r in runs]
     assert max(started) < min(finished)  # the two jobs overlapped
+
+
+@needs_sandbox
+def test_account_export_and_erasure_cover_everything_the_owner_has(client, settings):
+    run_id = build(client)["run_id"]
+    other = build(client, headers=MALLORY)["run_id"]
+    drain(settings)
+    project_id = client.get(f"/api/runs/{run_id}", headers=ALICE).json()["project_id"]
+
+    export = client.get("/api/account/export", headers=ALICE).json()
+    assert export["format"] == "caveman-export/1" and export["user_id"] == "alice"
+    assert [r["id"] for r in export["runs"]] == [run_id] and [p["id"] for p in export["projects"]] == [project_id]
+    assert any(a.get("diff") for a in export["runs"][0]["artifacts"])
+    assert "Build complete" in [e["title"] for e in export["runs"][0]["timeline"]]
+    assert str(settings.data_dir) not in json.dumps(export)
+
+    deleted = client.delete("/api/account", headers=ALICE)
+    assert deleted.status_code == 200 and deleted.json()["deleted"] == {"runs": 1, "projects": 1}
+    assert client.get(f"/api/runs/{run_id}", headers=ALICE).status_code == 404
+    assert client.get("/api/projects", headers=ALICE).json()["projects"] == []
+    assert not (settings.projects_dir / project_id).exists()
+    assert not (settings.deliveries_dir / f"{run_id}.tar.gz").exists()
+    from walter.store import SQLiteStore
+    store = SQLiteStore(settings.operations_db)
+    try:
+        assert run_id not in store.run_ids() and other in store.run_ids()
+    finally:
+        store.close()
+    import sqlite3
+    with sqlite3.connect(settings.sessions_db) as db:
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "agent_sessions" in tables:
+            assert db.execute("SELECT COUNT(*) FROM agent_sessions WHERE session_id=?", (run_id,)).fetchone()[0] == 0
+    # Another account is untouched.
+    assert client.get(f"/api/runs/{other}", headers=MALLORY).json()["state"] == "complete"
+    assert client.get("/api/account/export", headers=ALICE).json()["runs"] == []
+
+
+def test_account_erasure_waits_for_running_work(client, settings):
+    run_id = build(client)["run_id"]
+    platform = PlatformStore(settings.platform_db)
+    try:
+        assert platform.claim("worker-1", 30) is not None
+        refused = client.delete("/api/account", headers=ALICE)
+        assert refused.status_code == 409 and "running" in refused.json()["detail"]
+        assert client.get(f"/api/runs/{run_id}", headers=ALICE).status_code == 200
+    finally:
+        platform.close()
+
+
+def test_orphans_left_by_an_interrupted_erasure_are_purged(client, settings):
+    from caveman.engine import Engine
+    from caveman.erasure import purge_orphans
+
+    kept = build(client)["run_id"]
+    engine = Engine(settings)
+    orphan = engine.create_run("Left behind", [])
+    (settings.projects_dir / ("f" * 32) / "repo").mkdir(parents=True)
+    (settings.deliveries_dir / f"{orphan.id}.tar.gz").write_bytes(b"x")
+    platform = PlatformStore(settings.platform_db)
+    try:
+        assert purge_orphans(settings, engine, platform) == {"runs": 0, "projects": 0, "archives": 0}  # too new
+        assert purge_orphans(settings, engine, platform, min_age_seconds=-60) == {"runs": 1, "projects": 1, "archives": 1}
+        with engine.core() as core:
+            assert core.store.run_ids() == [kept]
+    finally:
+        platform.close()

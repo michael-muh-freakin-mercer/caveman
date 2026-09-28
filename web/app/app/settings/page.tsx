@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { AccountData } from "@/components/app/account-data";
 import { ApiError } from "@/components/app/api-error";
 import { PageHeader } from "@/components/app/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status";
-import { githubEnabled } from "@/lib/auth";
+import { auth, githubEnabled } from "@/lib/auth";
 import { formatUsd } from "@/lib/format";
 import { load } from "@/lib/load";
 import { requireUser } from "@/lib/session";
@@ -20,10 +22,12 @@ const MODES: Record<string, { name: string; body: string }> = {
 
 export default async function SettingsPage() {
   const user = await requireUser("/app/settings");
-  const [system, account] = await Promise.all([
+  const [system, account, signIns] = await Promise.all([
     load<SystemView>(user.id, "system"),
     load<{ spending: AccountSpending }>(user.id, "account"),
+    auth.api.listUserAccounts({ headers: await headers() }),
   ]);
+  const hasPassword = signIns.some((item) => item.providerId === "credential");
   return (
     <>
       <PageHeader eyebrow="Settings" title="Settings" />
@@ -108,6 +112,9 @@ export default async function SettingsPage() {
         ) : (
           <div className="xl:col-span-2"><ApiError status={system.status} message={system.message} /></div>
         )}
+        <Panel title="Your data" description="Take a copy with you, or remove everything.">
+          <AccountData hasPassword={hasPassword} />
+        </Panel>
       </div>
     </>
   );

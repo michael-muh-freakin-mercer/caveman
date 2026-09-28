@@ -26,6 +26,7 @@ def main(argv: list[str] | None = None) -> None:
     abandon = ops_commands.add_parser("abandon", help="Close a run through the kernel's abandon rules.")
     abandon.add_argument("run_id")
     abandon.add_argument("--reason", required=True)
+    ops_commands.add_parser("purge-orphans", help="Remove data no account owns (left by an interrupted deletion).")
     args = parser.parse_args(argv)
     try:
         settings = Settings.from_env()

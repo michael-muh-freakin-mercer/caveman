@@ -1,11 +1,13 @@
 import "server-only";
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { nextCookies } from "better-auth/next-js";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Pool } from "pg";
+import { CavemanApiError, cavemanFetch } from "./caveman";
 import { linkEmail, sendEmail } from "./email";
 
 /**
@@ -69,6 +71,23 @@ const options = {
     },
   },
   socialProviders: github,
+  user: {
+    // Deleting an account requires the password (or, for GitHub-only accounts, a
+    // session from the last day). Caveman's data goes first: if a build is
+    // still running the API refuses, and the account is kept.
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async (user: { id: string }) => {
+        try {
+          await cavemanFetch(user.id, "account", { method: "DELETE" });
+        } catch (error) {
+          const status = error instanceof CavemanApiError ? error.status : 503;
+          const message = error instanceof Error ? error.message : "Caveman could not delete your data.";
+          throw new APIError(status === 409 ? "CONFLICT" : "SERVICE_UNAVAILABLE", { message });
+        }
+      },
+    },
+  },
   session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24 },
   // OAuth tokens (used only to publish to GitHub on explicit request) are encrypted at rest.
   account: { encryptOAuthTokens: true },

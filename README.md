@@ -187,6 +187,12 @@ end-to-end journeys.
   the project from one local commit of the kept files (no upstream history or
   remote). The planner of every run is shown the project's current files, so
   follow-up runs and imports build on what is there.
+- Your data: download everything Caveman holds for your account as JSON
+  (account, sign-in methods without tokens, projects, runs, decisions, checks,
+  artifacts and events), or delete the account. Deletion needs your password
+  (or a recent sign-in for GitHub-only accounts), is refused while a build is
+  running, and removes projects, runs, kernel history, conversation sessions,
+  repositories and delivery archives before the sign-in itself.
 - Delivery: when the kernel completes a run, Caveman archives the integration
   head (verified against the kernel's recorded commits) plus a build report.
 - Publish to GitHub (when GitHub sign-in is configured): on explicit request,

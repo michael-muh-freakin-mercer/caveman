@@ -21,6 +21,7 @@ import json
 import re
 import shutil
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -298,6 +299,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/account")
     def account(user: User):
         return {"spending": account_usage(engine, platform, settings, user)}
+
+    @app.get("/api/account/export")
+    def export_account(user: User):
+        """Everything Caveman holds for this account, as shown to its owner."""
+        runs = []
+        for record in platform.list_runs(user):
+            view = detail(record)
+            run = engine.load(record.id)
+            view["timeline"] = [projector.event(run, event) for event in engine.events(record.id)]
+            view["artifacts"] = [projector.artifact(run, artifact, content=True) for artifact in run.artifacts.values()]
+            runs.append(view)
+        projects = [project_view(project, []) for project in platform.list_projects(user)]
+        for project in projects:
+            project.pop("runs", None)
+        return {"format": "caveman-export/1", "exported_at": datetime.now(timezone.utc).isoformat(),
+                "user_id": user, "spending": account_usage(engine, platform, settings, user),
+                "projects": projects, "runs": runs,
+                "notes": "Delivered project files are in each run's download archive; "
+                         "they are not repeated here."}
+
+    @app.delete("/api/account")
+    def delete_account(user: User):
+        from .erasure import erase_account
+        from .platform_store import ActiveWork
+        try:
+            return {"deleted": erase_account(settings, engine, platform, user)}
+        except ActiveWork as exc:
+            raise HTTPException(409, str(exc)) from None
 
     # Builds -----------------------------------------------------------
 

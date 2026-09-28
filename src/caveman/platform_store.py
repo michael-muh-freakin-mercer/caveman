@@ -87,6 +87,10 @@ CREATE TABLE IF NOT EXISTS deliveries(
 """
 
 
+class ActiveWork(RuntimeError):
+    """The account still has work in flight."""
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -178,6 +182,34 @@ class PlatformStore:
     def _query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         with self._lock:
             return self.connection.execute(sql, params).fetchall()
+
+    # Account erasure ----------------------------------------------------
+
+    def delete_owner(self, owner_id: str) -> dict:
+        """Remove every platform record owned by ``owner_id`` in one transaction.
+
+        Refused while any of the owner's jobs is running; queued jobs go with
+        their runs, so no worker can claim them afterwards.
+        """
+        owned = "SELECT id FROM runs WHERE owner_id=?"
+        with self._write() as db:
+            running = db.execute(f"SELECT COUNT(*) FROM jobs WHERE status='running' AND run_id IN ({owned})",
+                                 (owner_id,)).fetchone()[0]
+            if running:
+                raise ActiveWork("A build is running. Stop it, or wait for it to finish, before deleting your account.")
+            runs = [row[0] for row in db.execute(owned + " ORDER BY created_at", (owner_id,))]
+            projects = [row[0] for row in db.execute("SELECT id FROM projects WHERE owner_id=?", (owner_id,))]
+            for table in ("publications", "workflow_state", "deliveries", "jobs"):
+                db.execute(f"DELETE FROM {table} WHERE run_id IN ({owned})", (owner_id,))
+            db.execute("DELETE FROM publications WHERE owner_id=?", (owner_id,))
+            db.execute("DELETE FROM runs WHERE owner_id=?", (owner_id,))
+            db.execute("DELETE FROM projects WHERE owner_id=?", (owner_id,))
+        return {"runs": runs, "projects": projects}
+
+    def known_ids(self) -> tuple[set[str], set[str]]:
+        """All run ids and project ids the platform still owns."""
+        return ({row[0] for row in self._query("SELECT id FROM runs")},
+                {row[0] for row in self._query("SELECT id FROM projects")})
 
     # Projects -----------------------------------------------------------
 

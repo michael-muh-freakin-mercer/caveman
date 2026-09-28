@@ -43,6 +43,10 @@ def run_ops(settings, args) -> int:
             run = engine.abandon(args.run_id, args.reason, actor_id="caveman-operator")
             print(json.dumps({"run_id": run.id, "status": run.status}))
             return 0
+        if args.ops_command == "purge-orphans":
+            from .erasure import purge_orphans
+            print(json.dumps(purge_orphans(settings, engine, platform)))
+            return 0
     finally:
         platform.close()
     return 2

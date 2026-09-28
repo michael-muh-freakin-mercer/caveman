@@ -287,6 +287,28 @@ class SQLiteStore:
                 events.append(event)
             return events
 
+    def delete_run(self, run_id: str) -> bool:
+        """Erase a run with its events and migration backups.
+
+        Only for honouring a user's request to delete their data; ordinary
+        operation never removes history.
+        """
+        with self._lock:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                self.connection.execute("DELETE FROM events WHERE run_id=?", (run_id,))
+                self.connection.execute("DELETE FROM schema_migration_backups WHERE run_id=?", (run_id,))
+                deleted = self.connection.execute("DELETE FROM runs WHERE id=?", (run_id,)).rowcount
+                self.connection.execute("COMMIT")
+            except BaseException:
+                self.connection.execute("ROLLBACK")
+                raise
+        return bool(deleted)
+
+    def run_ids(self) -> list[str]:
+        with self._lock:
+            return [row[0] for row in self.connection.execute("SELECT id FROM runs ORDER BY id")]
+
     def save(self, run: Run, events: list[Event], expected_version: int | None) -> Run:
         if not events:
             raise ValueError("Every mutation requires an event")

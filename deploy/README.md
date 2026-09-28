@@ -74,6 +74,8 @@ Never set up a worker without isolation. There is no host-execution fallback.
 - `caveman ops list [--attention]`, `caveman ops requeue RUN_ID` and
   `caveman ops abandon RUN_ID --reason ...` act on durable state across all
   accounts without spending credits; abandon uses the kernel's rules.
+- `caveman ops purge-orphans` removes data no account owns any more (left if an
+  account deletion was interrupted); anything younger than an hour is kept.
 
 ## Secrets
 

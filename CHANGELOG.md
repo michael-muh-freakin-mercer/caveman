@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — Data export and account deletion
+
+- Decision: honouring a user's deletion request is the one case where durable run history is removed. `SQLiteStore.delete_run` erases a run's snapshot, events and migration backups; ordinary operation still never removes history.
+- `GET /api/account/export` returns the account's projects and runs (full event history and artifact contents); the web route `/api/account/export` adds the account record and sign-in methods (never tokens) and serves it as a download.
+- `DELETE /api/account` removes platform records in one transaction (refused with 409 while a job is running; queued jobs go with their runs), then kernel runs, agent sessions, project repositories and delivery archives. It is called only from Better Auth's `beforeDelete` hook, after the password (or session freshness) check, so the sign-in is deleted only after the data; the browser proxy does not expose it. `caveman ops purge-orphans` removes data left by an interrupted erasure (items younger than an hour are kept).
+- Settings has a "Your data" panel with the download and a typed-confirmation delete dialog.
+
 ## 2026-09-28 — Existing code
 
 - New projects can start from a public GitHub repository (`repository_url` on `POST /api/builds` and `POST /api/projects`; "Start from a public GitHub repository" in the New build form). `src/caveman/importer.py` accepts only `https://github.com/<owner>/<repo>`, checks public visibility and size through GitHub's API before downloading, clones shallow over HTTPS only (`GIT_ALLOW_PROTOCOL=https`) with no hooks, templates, tags, submodules or credentials, inspects the tree before checkout, refuses symlinks, submodules and other special entries, drops paths the sandbox treats as state or secrets, and commits the kept files as the project's single first commit, discarding upstream history, refs and remote. Caveman's `.local/` is excluded through `.git/info/exclude`, leaving the project's own `.gitignore` untouched. The source (URL, upstream commit, branch, counts) is recorded in the project settings and shown on the project page.
