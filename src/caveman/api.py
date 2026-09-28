@@ -36,7 +36,7 @@ from .config import EXECUTOR_PROVIDER, Settings
 from .accounts import account_usage
 from .delivery import deliver_run
 from .engine import ApprovalScopeChanged, Engine
-from .platform_store import PlatformStore, RunRecord, new_id
+from .platform_store import RunRecord, new_id
 from .views import Projector
 
 USER_ID = re.compile(r"^[A-Za-z0-9_.:@-]{1,128}$")
@@ -163,7 +163,7 @@ User = Annotated[str, Depends(principal)]
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     engine = Engine(settings)
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     projector = Projector(engine.redact, settings)
 
     @asynccontextmanager

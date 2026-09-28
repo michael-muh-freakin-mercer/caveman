@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -95,6 +96,11 @@ class Settings:
     max_recoveries: int = 3
     scripted_step_delay: float = 0.25
     github_api_url: str = "https://api.github.com"
+    # postgres://... puts operational and platform state in PostgreSQL (schemas
+    # <database_schema>_ops and <database_schema>_platform) so API and workers
+    # can run on several hosts. Unset: SQLite files in data_dir.
+    database_url: str | None = None
+    database_schema: str = "caveman"
     # Starting a project from a public GitHub repository (0 disables imports).
     import_max_mb: int = 100
     import_max_files: int = 5000
@@ -118,6 +124,16 @@ class Settings:
     @property
     def sessions_db(self) -> Path:
         return self.data_dir / "caveman-sessions.db"
+
+    def open_operations_store(self):
+        """The orchestration kernel's run store (snapshots and events)."""
+        from walter.store import open_store
+        return open_store(self.database_url or self.operations_db, schema=f"{self.database_schema}_ops")
+
+    def open_platform_store(self):
+        """Ownership, jobs, deliveries and publications."""
+        from .platform_store import PlatformStore
+        return PlatformStore(self.database_url or self.platform_db, schema=f"{self.database_schema}_platform")
 
     @property
     def projects_dir(self) -> Path:
@@ -151,6 +167,12 @@ class Settings:
                 f"CAVEMAN_ORCHESTRATION must be '{ORCHESTRATION_WORKFLOW}' or '{ORCHESTRATION_MANAGER}'; "
                 f"got {orchestration!r}.")
         data_dir = Path(values.get("CAVEMAN_DATA_DIR", ".local/caveman")).expanduser().resolve()
+        database_url = (values.get("CAVEMAN_DATABASE_URL") or "").strip() or None
+        if database_url and not database_url.startswith(("postgres://", "postgresql://")):
+            raise SettingsError("CAVEMAN_DATABASE_URL must be a postgres:// URL; leave it unset for SQLite files.")
+        database_schema = (values.get("CAVEMAN_DATABASE_SCHEMA") or "caveman").strip()
+        if not re.fullmatch(r"[a-z_][a-z0-9_]{0,40}", database_schema):
+            raise SettingsError("CAVEMAN_DATABASE_SCHEMA must be lowercase letters, digits and underscores.")
         default_budget = _float(values, "CAVEMAN_DEFAULT_BUDGET_USD", 5.0, minimum=0.01)
         max_budget = _float(values, "CAVEMAN_MAX_BUDGET_USD", 100.0, minimum=0.01)
         if default_budget > max_budget:
@@ -162,6 +184,8 @@ class Settings:
             executor=executor,
             orchestration=orchestration,
             model_profiles=_profiles(values),
+            database_url=database_url,
+            database_schema=database_schema,
             github_api_url=(values.get("CAVEMAN_GITHUB_API_URL") or "https://api.github.com").strip(),
             metrics_token=(values.get("CAVEMAN_METRICS_TOKEN") or "").strip() or None,
             import_max_mb=_int(values, "CAVEMAN_IMPORT_MAX_MB", 100, minimum=0),

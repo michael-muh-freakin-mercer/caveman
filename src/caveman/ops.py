@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 
 from .engine import Engine
-from .platform_store import PlatformStore
 from .views import Projector
 
 ATTENTION = {"approval_needed", "waiting", "blocked", "paused", "budget_reached", "failed", "recovering"}
@@ -12,7 +11,7 @@ ATTENTION = {"approval_needed", "waiting", "blocked", "paused", "budget_reached"
 
 def run_ops(settings, args) -> int:
     engine = Engine(settings)
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     projector = Projector(engine.redact, settings)
     try:
         if args.ops_command == "list":

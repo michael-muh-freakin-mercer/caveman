@@ -12,6 +12,7 @@ the Manager. Browser connections play no part in execution.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -20,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+
+from walter.pg import PostgresConnection, is_postgres_url
 
 JOB_ACTIVE = ("queued", "running")
 
@@ -149,9 +152,30 @@ class Delivery:
     created_at: str
 
 
+def _postgres_schema() -> str:
+    """The same tables for PostgreSQL: full-precision floats, the model_mode
+    column created directly, and an insertion-order column for jobs."""
+    schema = re.sub(r"\bREAL\b", "DOUBLE PRECISION", SCHEMA)
+    schema = schema.replace("  max_model_calls INTEGER NOT NULL,\n  created_at TEXT NOT NULL\n);",
+                            "  max_model_calls INTEGER NOT NULL,\n  created_at TEXT NOT NULL,\n"
+                            "  model_mode TEXT NOT NULL DEFAULT 'automatic'\n);")
+    schema = schema.replace("  started_at TEXT,\n  finished_at TEXT\n);",
+                            "  started_at TEXT,\n  finished_at TEXT,\n  seq BIGINT GENERATED ALWAYS AS IDENTITY\n);")
+    return schema
+
+
 class PlatformStore:
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, *, schema: str = "caveman_platform"):
         self._lock = threading.RLock()
+        if is_postgres_url(path):
+            self.connection = PostgresConnection(str(path), schema)
+            try:
+                with self._write() as db:
+                    db.executescript(_postgres_schema())
+            except BaseException:
+                self.connection.close()
+                raise
+            return
         self.connection = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys=ON")
@@ -446,14 +470,17 @@ class PlatformStore:
 
     def save_workflow_state(self, run_id: str, state: dict) -> None:
         with self._write() as db:
-            db.execute("INSERT OR REPLACE INTO workflow_state VALUES(?,?,?)",
+            db.execute("INSERT INTO workflow_state VALUES(?,?,?) ON CONFLICT(run_id) DO UPDATE SET "
+                       "state_json=excluded.state_json, updated_at=excluded.updated_at",
                        (run_id, json.dumps(state, sort_keys=True), _now()))
 
     # Deliveries ---------------------------------------------------------
 
     def save_delivery(self, run_id: str, status: str, manifest: dict, archive_name: str | None) -> Delivery:
         with self._write() as db:
-            db.execute("INSERT OR REPLACE INTO deliveries VALUES(?,?,?,?,?)",
+            db.execute("INSERT INTO deliveries VALUES(?,?,?,?,?) ON CONFLICT(run_id) DO UPDATE SET "
+                       "status=excluded.status, manifest_json=excluded.manifest_json, "
+                       "archive_name=excluded.archive_name, created_at=excluded.created_at",
                        (run_id, status, json.dumps(manifest, sort_keys=True), archive_name, _now()))
         return self.delivery(run_id)
 

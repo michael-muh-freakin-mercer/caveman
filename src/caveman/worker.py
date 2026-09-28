@@ -19,13 +19,12 @@ from walter import runtime
 from walter.adapter import DurableController
 from walter.orchestration import Orchestrator
 from walter.sandbox import WorkspaceManager
-from walter.store import SQLiteStore
 from walter.usage import UsageBudget, UsageBudgetExceeded
 
 from .config import EXECUTOR_SCRIPTED, Settings
 from .delivery import deliver_run
 from .engine import Engine
-from .platform_store import Job, PlatformStore
+from .platform_store import Job
 from .views import Projector
 
 logger = logging.getLogger("caveman.worker")
@@ -68,7 +67,7 @@ class Worker:
     def __init__(self, settings: Settings, *, worker_id: str | None = None):
         self.settings = settings
         self.engine = Engine(settings)
-        self.platform = PlatformStore(settings.platform_db)
+        self.platform = settings.open_platform_store()
         self.projector = Projector(self.engine.redact, settings)
         self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{uuid4().hex[:8]}"
         self._stopping = asyncio.Event()
@@ -188,7 +187,7 @@ class Worker:
         from .config import ORCHESTRATION_WORKFLOW
         from .workflow import WorkflowDriver
 
-        store = SQLiteStore(self.settings.operations_db)
+        store = self.settings.open_operations_store()
         session = SQLiteSession(job.run_id, str(self.settings.sessions_db))
         cancelled_by_user = False
         try:

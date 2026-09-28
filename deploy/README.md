@@ -21,7 +21,8 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
 | Auth database | Managed Postgres (recommended) | `AUTH_DATABASE_URL=postgres://...`. Tables are created on first use unless `CAVEMAN_AUTH_AUTO_MIGRATE=0`. |
 | API | Linux container, private network | Never executes generated code; runs fine under Docker's default security profile. Needs outbound HTTPS to `api.github.com` and `github.com` only if repository import is enabled (`CAVEMAN_IMPORT_MAX_MB=0` disables it). |
 | Worker(s) | Linux VM or container with user namespaces | Holds the provider key. Refuses to start if Bubblewrap isolation is unusable. |
-| Operational state | Persistent volume shared by API and workers | SQLite in WAL mode (`caveman-operations.db`, `caveman-platform.db`). |
+| Operational state | Managed Postgres (several hosts) or the shared volume (one host) | `CAVEMAN_DATABASE_URL=postgres://...` puts the kernel's runs/events and the platform tables in schemas `<CAVEMAN_DATABASE_SCHEMA>_ops` and `_platform` (default `caveman`), created on first use. Unset: SQLite in WAL mode on the volume. |
+| Files | Persistent volume shared by API and workers | Project repositories (git) and delivery archives under `CAVEMAN_DATA_DIR`. |
 
 ## Verified here
 
@@ -61,9 +62,15 @@ Never set up a worker without isolation. There is no host-execution fallback.
 - Jobs are leased. If a worker dies, its lease expires and the next worker turns
   the job into a recovery job that uses the core's own interruption recovery.
 - Restarting the API loses nothing: all state is on the shared volume.
-- Postgres for *operational* state is not implemented: the orchestration core's
-  store is SQLite. API and workers therefore need a shared POSIX volume
-  (single host, or a volume with reliable file locking).
+- With `CAVEMAN_DATABASE_URL`, run and job state is in PostgreSQL. Writers to
+  each store are serialized with a transaction-scoped advisory lock (the same
+  single-writer semantics as SQLite), reads of a run use one repeatable-read
+  snapshot, and the job queue hands each job to exactly one worker across hosts.
+  Project repositories and archives remain files on the shared volume (NFS/EFS
+  is fine for them; SQLite on a network filesystem is not, which is why
+  multi-host deployments should use PostgreSQL).
+- Existing SQLite state is not migrated automatically; switch before launch or
+  export/import deliberately.
 
 ## Operations
 

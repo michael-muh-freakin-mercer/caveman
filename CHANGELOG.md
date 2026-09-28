@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — PostgreSQL for operational state
+
+- `CAVEMAN_DATABASE_URL` puts the kernel's run store and the platform store in PostgreSQL (schemas `<CAVEMAN_DATABASE_SCHEMA>_ops` / `_platform`). `walter.pg` presents a psycopg connection with the SQLite calls the stores make: `BEGIN IMMEDIATE` becomes a transaction holding a per-schema advisory lock (single-writer semantics preserved, so the optimistic version check and the job queue behave identically across hosts), `?` placeholders and `rowid` are translated, and rows read by index or name. `PostgresStore` subclasses `SQLiteStore`; `walter.store.open_store` and `Settings.open_operations_store/open_platform_store` select the backend.
+- Fix (both backends): loading a run read its row and its events in separate statements, so a concurrent commit from another process could make a reader see a snapshot that did not match its events. Reads now happen inside one read transaction (repeatable read on PostgreSQL). `Engine.version` uses the store instead of opening the SQLite file.
+- The platform store's upserts use portable `ON CONFLICT ... DO UPDATE`.
+- CI runs the API suite and new store/queue concurrency tests against a PostgreSQL 16 service; locally the tests start a throwaway cluster when PostgreSQL is installed.
+
 ## 2026-09-28 — Follow-up requests
 
 - "Ask for changes" on a completed build opens a new run in the same project; the planner sees the project's files and specialists start from its integration head. A scripted `#follow-up` scenario (its tests import the earlier run's code) and an API test plus an E2E journey prove the second delivery contains both runs' work.

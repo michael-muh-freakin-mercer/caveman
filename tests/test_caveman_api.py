@@ -7,8 +7,10 @@ Bubblewrap sandbox.
 import asyncio
 import io
 import json
+import os
 import tarfile
 import time
+import uuid
 from pathlib import Path
 
 import pytest
@@ -37,9 +39,13 @@ needs_sandbox = pytest.mark.skipif(not sandbox_available(), reason="Bubblewrap s
 
 @pytest.fixture
 def settings(tmp_path):
+    # CAVEMAN_TEST_DATABASE_URL runs this suite with all state in PostgreSQL,
+    # each test in its own schemas.
+    database_url = os.environ.get("CAVEMAN_TEST_DATABASE_URL") or None
     return Settings(data_dir=tmp_path / "data", api_token=TOKEN, executor="scripted",
                     scripted_step_delay=0, heartbeat_seconds=0.2, lease_seconds=30,
-                    stream_max_seconds=1.5, stream_poll_seconds=0.1)
+                    stream_max_seconds=1.5, stream_poll_seconds=0.1, database_url=database_url,
+                    database_schema="t_" + uuid.uuid4().hex[:12] if database_url else "caveman")
 
 
 @pytest.fixture
@@ -115,7 +121,7 @@ def test_browser_cannot_forge_kernel_evidence(client):
 def test_new_build_is_queued_not_executed_in_the_request(client, settings):
     created = build(client)
     assert created["run"]["state"] == "starting"
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     try:
         jobs = platform.jobs(created["run_id"])
     finally:
@@ -244,7 +250,7 @@ def test_abandon_uses_kernel_rules(client):
 
 def test_expired_lease_becomes_explicit_recovery(settings, client):
     run_id = build(client)["run_id"]
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     try:
         job = platform.claim("dead-worker", lease_seconds=0.01)
         assert job.run_id == run_id
@@ -387,7 +393,7 @@ def test_delivery_refuses_an_integration_branch_moved_outside_caveman(client, se
 
     run_id = build(client, prompt="Booking core")["run_id"]
     drain(settings)
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     record = platform.run_by_id(run_id)
     platform.close()
     engine = Engine(settings)
@@ -511,7 +517,7 @@ def test_operator_commands_list_requeue_and_abandon(settings, capsys):
     assert run_ops(settings, argparse.Namespace(ops_command="requeue", run_id=run_id)) == 0
     capsys.readouterr()
     assert run_ops(settings, argparse.Namespace(ops_command="abandon", run_id=run_id, reason="cleanup")) == 1
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     platform.request_cancel(run_id)
     platform.close()
     assert run_ops(settings, argparse.Namespace(ops_command="abandon", run_id=run_id, reason="cleanup")) == 0
@@ -671,7 +677,7 @@ def test_account_export_and_erasure_cover_everything_the_owner_has(client, setti
     assert not (settings.projects_dir / project_id).exists()
     assert not (settings.deliveries_dir / f"{run_id}.tar.gz").exists()
     from walter.store import SQLiteStore
-    store = SQLiteStore(settings.operations_db)
+    store = settings.open_operations_store()
     try:
         assert run_id not in store.run_ids() and other in store.run_ids()
     finally:
@@ -688,7 +694,7 @@ def test_account_export_and_erasure_cover_everything_the_owner_has(client, setti
 
 def test_account_erasure_waits_for_running_work(client, settings):
     run_id = build(client)["run_id"]
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     try:
         assert platform.claim("worker-1", 30) is not None
         refused = client.delete("/api/account", headers=ALICE)
@@ -707,7 +713,7 @@ def test_orphans_left_by_an_interrupted_erasure_are_purged(client, settings):
     orphan = engine.create_run("Left behind", [])
     (settings.projects_dir / ("f" * 32) / "repo").mkdir(parents=True)
     (settings.deliveries_dir / f"{orphan.id}.tar.gz").write_bytes(b"x")
-    platform = PlatformStore(settings.platform_db)
+    platform = settings.open_platform_store()
     try:
         assert purge_orphans(settings, engine, platform) == {"runs": 0, "projects": 0, "archives": 0}  # too new
         assert purge_orphans(settings, engine, platform, min_age_seconds=-60) == {"runs": 1, "projects": 1, "archives": 1}

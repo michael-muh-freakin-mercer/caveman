@@ -243,8 +243,38 @@ class SQLiteStore:
                 run_id, len(dropped), ", ".join(sorted(dropped)))
         return run
 
-    def load(self, run_id: str) -> Run:
+    _READ_BEGIN = "BEGIN"
+
+    @contextmanager
+    def _read(self):
+        """One consistent snapshot for a multi-statement read.
+
+        The run row and its events are separate statements; without a read
+        transaction another process could commit between them and the reader
+        would see a snapshot that does not match its events.
+        """
         with self._lock:
+            if self.connection.in_transaction:
+                yield
+                return
+            self.connection.execute(self._READ_BEGIN)
+            try:
+                yield
+            finally:
+                self.connection.execute("COMMIT")
+
+    def version_info(self, run_id: str) -> tuple[int, int]:
+        """(snapshot version, event cursor) without loading the snapshot."""
+        with self._read():
+            row = self.connection.execute("SELECT version FROM runs WHERE id=?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(run_id)
+            cursor = self.connection.execute(
+                "SELECT COALESCE(MAX(sequence),0) FROM events WHERE run_id=?", (run_id,)).fetchone()
+            return row[0], cursor[0]
+
+    def load(self, run_id: str) -> Run:
+        with self._read():
             row = self.connection.execute("SELECT version,snapshot FROM runs WHERE id=?", (run_id,)).fetchone()
             if row is None:
                 raise KeyError(run_id)
@@ -272,7 +302,7 @@ class SQLiteStore:
             return [self.load(row[0]) for row in self.connection.execute("SELECT id FROM runs ORDER BY rowid")]
 
     def events(self, run_id: str) -> list[Event]:
-        with self._lock:
+        with self._read():
             # An unknown run must not read as an existing run with no history:
             # `walter run events <typo>` printed an empty list and exited 0.
             if self.connection.execute(
@@ -338,3 +368,51 @@ class SQLiteStore:
                 self.connection.execute("ROLLBACK")
                 raise
             return candidate
+
+
+class PostgresStore(SQLiteStore):
+    """The same run store on PostgreSQL, for deployments with several hosts.
+
+    Snapshots, events and the optimistic version check are shared with
+    ``SQLiteStore``; ``walter.pg`` serializes writers with an advisory lock so
+    a read-modify-write behaves exactly as under SQLite's write lock. The
+    schema starts at the current version (there are no v1 PostgreSQL stores).
+    """
+
+    # Statements in a READ COMMITTED transaction each see their own snapshot.
+    _READ_BEGIN = "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"
+
+    def __init__(self, url: str, schema: str = "walter_ops"):
+        from .pg import PostgresConnection
+
+        self._lock = threading.RLock()
+        self.connection = PostgresConnection(url, schema)
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                self.connection.executescript("""
+                CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, version INTEGER NOT NULL,
+                  snapshot TEXT NOT NULL, seq BIGINT GENERATED ALWAYS AS IDENTITY);
+                CREATE TABLE IF NOT EXISTS events(run_id TEXT NOT NULL REFERENCES runs(id),
+                  sequence INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(run_id,sequence));
+                CREATE TABLE IF NOT EXISTS schema_migration_backups(
+                  run_id TEXT NOT NULL, from_version INTEGER NOT NULL, to_version INTEGER NOT NULL,
+                  snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL,
+                  PRIMARY KEY(run_id,from_version,to_version))
+                """)
+                self.connection.execute("COMMIT")
+            except BaseException:
+                self.connection.execute("ROLLBACK")
+                raise
+        except BaseException:
+            self.connection.close()
+            raise
+
+
+def open_store(location: str | Path, *, schema: str = "walter_ops") -> SQLiteStore:
+    """A PostgreSQL store for postgres:// URLs, otherwise a SQLite file store."""
+    from .pg import is_postgres_url
+
+    if is_postgres_url(location):
+        return PostgresStore(str(location), schema)
+    return SQLiteStore(location)

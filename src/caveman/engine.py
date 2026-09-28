@@ -16,7 +16,7 @@ from pathlib import Path
 from walter.adapter import INITIAL_COMPLETION_CRITERION
 from walter.models import ApprovalStatus, Event, Run
 from walter.orchestration import GateError, Orchestrator
-from walter.store import ConcurrentUpdate, SQLiteStore
+from walter.store import ConcurrentUpdate
 
 from .config import Settings
 
@@ -80,20 +80,21 @@ class Engine:
     def __init__(self, settings: Settings):
         self.settings = settings
         settings.ensure_directories()
-        # WAL lets the API read run state while a worker commits; the setting is
-        # persistent on the database file and changes no kernel semantics.
-        connection = sqlite3.connect(str(settings.operations_db))
-        try:
-            connection.execute("PRAGMA journal_mode=WAL")
-        finally:
-            connection.close()
+        if not settings.database_url:
+            # WAL lets the API read run state while a worker commits; the setting is
+            # persistent on the database file and changes no kernel semantics.
+            connection = sqlite3.connect(str(settings.operations_db))
+            try:
+                connection.execute("PRAGMA journal_mode=WAL")
+            finally:
+                connection.close()
         with self.core():  # creates the operational schema on first use
             pass
         self.redact = Redactor(settings)
 
     @contextmanager
     def core(self):
-        store = SQLiteStore(self.settings.operations_db)
+        store = self.settings.open_operations_store()
         try:
             yield Orchestrator(store)
         finally:
@@ -130,16 +131,8 @@ class Engine:
 
     def version(self, run_id: str) -> tuple[int, int]:
         """(snapshot version, event cursor) without loading the full snapshot."""
-        connection = sqlite3.connect(str(self.settings.operations_db))
-        try:
-            row = connection.execute("SELECT version FROM runs WHERE id=?", (run_id,)).fetchone()
-            cursor = connection.execute("SELECT COALESCE(MAX(sequence),0) FROM events WHERE run_id=?",
-                                        (run_id,)).fetchone()
-        finally:
-            connection.close()
-        if row is None:
-            raise KeyError(run_id)
-        return row[0], cursor[0]
+        with self.core() as core:
+            return core.store.version_info(run_id)
 
     def decide_approval(self, run_id: str, approval_id: str, *, approved: bool, human_id: str,
                         reason: str, expected_scope_digest: str) -> Run:

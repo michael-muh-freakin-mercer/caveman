@@ -245,7 +245,11 @@ No deployment is performed by anything in this repository.
 - OpenRouter is the only configured model provider (any tool-calling model on it,
   e.g. Kimi, DeepSeek, Qwen). Model modes (Budget, Balanced, Maximum Quality)
   are offered only when an operator configures them (`CAVEMAN_MODELS_*`).
-- Operational state is SQLite on a shared volume; Postgres is used only for auth.
+- Operational and platform state can live in PostgreSQL (`CAVEMAN_DATABASE_URL`),
+  which the whole API suite runs against in CI; without it they are SQLite files.
+  Project repositories and delivery archives are still files, so API and
+  workers share a volume either way. Manager-mode conversation sessions stay
+  in SQLite on that volume (the default workflow mode does not use them).
 - GitHub publishing is tested against a local stand-in for GitHub; the
   OAuth scope upgrade and token retrieval path has not been exercised against
   github.com from this environment. Repository import is tested against a local
