@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { AccountData } from "@/components/app/account-data";
+import { SecurityPanel } from "@/components/app/security-panel";
 import { ApiError } from "@/components/app/api-error";
 import { PageHeader } from "@/components/app/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status";
 import { auth, githubEnabled } from "@/lib/auth";
+import { describeDevice } from "@/lib/devices";
 import { formatUsd } from "@/lib/format";
 import { load } from "@/lib/load";
 import { requireUser } from "@/lib/session";
@@ -22,11 +24,19 @@ const MODES: Record<string, { name: string; body: string }> = {
 
 export default async function SettingsPage() {
   const user = await requireUser("/app/settings");
-  const [system, account, signIns] = await Promise.all([
+  const requestHeaders = await headers();
+  const [system, account, signIns, sessions, current] = await Promise.all([
     load<SystemView>(user.id, "system"),
     load<{ spending: AccountSpending }>(user.id, "account"),
-    auth.api.listUserAccounts({ headers: await headers() }),
+    auth.api.listUserAccounts({ headers: requestHeaders }),
+    auth.api.listSessions({ headers: requestHeaders }),
+    auth.api.getSession({ headers: requestHeaders }),
   ]);
+  // Only ids and descriptions reach the browser; session tokens stay on the server.
+  const devices = sessions
+    .map((item) => ({ id: item.id, device: describeDevice(item.userAgent), createdAt: new Date(item.createdAt).toISOString(),
+      current: item.id === current?.session.id }))
+    .sort((a, b) => Number(b.current) - Number(a.current) || b.createdAt.localeCompare(a.createdAt));
   const hasPassword = signIns.some((item) => item.providerId === "credential");
   return (
     <>
@@ -112,6 +122,9 @@ export default async function SettingsPage() {
         ) : (
           <div className="xl:col-span-2"><ApiError status={system.status} message={system.message} /></div>
         )}
+        <Panel title="Security" description="Where you are signed in, and your password.">
+          <SecurityPanel sessions={devices} hasPassword={hasPassword} />
+        </Panel>
         <Panel title="Your data" description="Take a copy with you, or remove everything.">
           <AccountData hasPassword={hasPassword} />
         </Panel>

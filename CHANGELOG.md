@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Security settings
+
+- Settings has a Security panel: signed-in devices (browser and system from the user agent), signing out one device or all others, and changing the password (which signs out other devices). Revocation goes through `POST /api/account/sessions`, which addresses sessions by id and keeps their tokens on the server, so page scripts never see another device's session token.
+
 ## 2026-09-28 — Stack expectations
 
 - The New build form states that Python and Node/TypeScript code is tested in the sandbox and other stacks are delivered as reviewed source, and warns (without blocking) when the request or preferred stack names something Caveman cannot run: iOS/Swift, Android/Kotlin, Flutter, React Native, native mobile apps, Go, Rust, Java, .NET, PHP, Ruby, C++, game engines.

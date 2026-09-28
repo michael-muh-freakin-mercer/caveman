@@ -90,8 +90,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Isolated, time-limited, credential-free previews in a sandboxed frame or link
 
 ### 14. Account
-- [ ] 🤖 Session management (see and revoke signed-in devices)
-- [ ] 🤖 Change email and password in Settings
+- [x] 🤖 Session management (see and revoke signed-in devices)
+- [x] 🤖 Change password in Settings
+- [ ] 🤖 Change email in Settings (needs the email provider to verify the new address)
 - [ ] 🤖 Optional two-factor authentication
 
 ### 15. Quality

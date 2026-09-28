@@ -4,6 +4,7 @@ import { promptFromNext } from "@/lib/next-param";
 import { newBuildPath, safeNext, savePendingPrompt, takePendingPrompt } from "@/lib/prompt-storage";
 import { canContinue, checkDisplayStatus, isExecuting } from "@/lib/run-state";
 import { unverifiedStacks } from "@/lib/stack-support";
+import { describeDevice } from "@/lib/devices";
 import { mergeTimeline, streamFinished } from "@/lib/use-run";
 import { runDetail } from "./fixtures";
 
@@ -87,5 +88,13 @@ describe("unverifiedStacks", () => {
     expect(unverifiedStacks("Build a booking app for a tattoo studio", "Python, FastAPI")).toEqual([]);
     expect(unverifiedStacks("A TypeScript rate limiter; let's go build it")).toEqual([]);
     expect(unverifiedStacks("A JavaScript widget")).toEqual([]);
+  });
+});
+
+describe("describeDevice", () => {
+  it("names the browser and system", () => {
+    expect(describeDevice("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15")).toBe("Safari on macOS");
+    expect(describeDevice("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 Edg/126.0")).toBe("Edge on Windows");
+    expect(describeDevice(null)).toBe("Unknown device");
   });
 });
