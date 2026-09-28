@@ -57,7 +57,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (metrics endpoint exists)
 - [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting
 - [ ] 🤖 Integrate them
-- [ ] 🤖 Runbook: stuck runs, worker outage, restore from backup
+- [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
 - [ ] 🧑 Backups for Postgres and the shared volume
 - [ ] 🤖 Tested restore drill
