@@ -17,7 +17,7 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| Web | Vercel or any Node 22 host | Needs `CAVEMAN_API_URL`, `CAVEMAN_API_TOKEN`, `BETTER_AUTH_*`, `AUTH_DATABASE_URL`. |
+| Web | Vercel or any Node 22 host | Needs `CAVEMAN_API_URL`, `CAVEMAN_API_TOKEN`, `BETTER_AUTH_*`, `AUTH_DATABASE_URL`. Hosted: `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` for the sign-up CAPTCHA (needs outbound HTTPS to `challenges.cloudflare.com`). |
 | Auth database | Managed Postgres (recommended) | `AUTH_DATABASE_URL=postgres://...`. Tables are created on first use unless `CAVEMAN_AUTH_AUTO_MIGRATE=0`. |
 | API | Linux container, private network | Never executes generated code; runs fine under Docker's default security profile. Needs outbound HTTPS to `api.github.com` and `github.com` only if repository import is enabled (`CAVEMAN_IMPORT_MAX_MB=0` disables it). |
 | Worker(s) | Linux VM or container with user namespaces | Holds the provider key. Refuses to start if Bubblewrap isolation is unusable. |

@@ -4,6 +4,7 @@ import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
+import { TurnstileWidget } from "@/components/auth/turnstile";
 import { requestPasswordReset, resetPassword } from "@/lib/auth-client";
 import { useHydrated } from "@/lib/use-hydrated";
 
@@ -12,8 +13,10 @@ const field =
 const submit =
   "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60";
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ captchaSiteKey = null }: { captchaSiteKey?: string | null }) {
   const hydrated = useHydrated();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +37,10 @@ export function ForgotPasswordForm() {
         setBusy(true);
         setError(null);
         const email = String(new FormData(event.currentTarget).get("email") ?? "").trim();
-        const result = await requestPasswordReset({ email, redirectTo: "/reset-password" });
+        const fetchOptions = captchaToken ? { headers: { "x-captcha-response": captchaToken } } : undefined;
+        const result = await requestPasswordReset({ email, redirectTo: "/reset-password", fetchOptions });
         setBusy(false);
+        if (captchaSiteKey) setCaptchaRound((round) => round + 1);
         // Same message whether or not the account exists, so addresses cannot be probed.
         if (result.error && result.error.status >= 500) setError("Password reset is unavailable right now. Try again later.");
         else setSent(true);
@@ -45,8 +50,11 @@ export function ForgotPasswordForm() {
         <label htmlFor={id} className="text-sm text-fg-soft">Email</label>
         <input id={id} name="email" type="email" required autoComplete="email" className={field} />
       </div>
+      {captchaSiteKey ? (
+        <TurnstileWidget siteKey={captchaSiteKey} onToken={setCaptchaToken} resetKey={captchaRound} />
+      ) : null}
       {error ? <p role="alert" className="text-sm text-bad">{error}</p> : null}
-      <button type="submit" disabled={busy || !hydrated} className={submit}>
+      <button type="submit" disabled={busy || !hydrated || (Boolean(captchaSiteKey) && !captchaToken)} className={submit}>
         {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         Send reset link
       </button>
