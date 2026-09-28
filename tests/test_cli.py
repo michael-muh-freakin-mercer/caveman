@@ -230,7 +230,7 @@ def test_main_reports_missing_run_as_friendly_domain_error(tmp_path, monkeypatch
     setup_repository(tmp_path)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cli.sys, "argv", ["walter", "run", "inspect", "missing-run"])
-    with pytest.raises(SystemExit, match="Walter operation error"):
+    with pytest.raises(SystemExit, match="Caveman operation error"):
         cli.main()
 
 
@@ -249,7 +249,7 @@ def test_approve_unknown_approval_id_is_an_operation_error(tmp_path, monkeypatch
     run, _ = _run_with_approval(tmp_path, monkeypatch)
     monkeypatch.setattr(cli.sys, "argv",
                         ["walter", "run", "approve", run.id, "missing-approval", "--reason", "scope checked"])
-    with pytest.raises(SystemExit, match="Walter operation error"):
+    with pytest.raises(SystemExit, match="Caveman operation error"):
         cli.main()
 
 
@@ -260,7 +260,7 @@ def test_approve_already_decided_approval_is_an_operation_error(tmp_path, monkey
     store.close()
     monkeypatch.setattr(cli.sys, "argv",
                         ["walter", "run", "approve", run.id, request.id, "--reason", "second decision"])
-    with pytest.raises(SystemExit, match="Walter operation error"):
+    with pytest.raises(SystemExit, match="Caveman operation error"):
         cli.main()
 
 

@@ -1,0 +1,261 @@
+import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { runJson, signUp, startBuild } from "./helpers";
+
+test("journey 1: a landing-page prompt survives sign-up", async ({ page }) => {
+  const prompt = "Build me a booking app for a tattoo studio";
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Type what you want.");
+  await page.getByLabel("Describe the software you want").fill(prompt);
+  await page.getByRole("button", { name: "Build it" }).click();
+  await page.waitForURL(/\/sign-up\?next=/);
+  await expect(page.getByTestId("pending-prompt")).toContainText(prompt);
+  await page.getByLabel("Name").fill("Journey One");
+  await page.getByLabel("Email").fill(`journey1-${Date.now()}@example.com`);
+  await page.getByLabel("Password").fill("a-long-enough-password");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await page.waitForURL(/\/app\/new\?prompt=/);
+  await expect(page.getByLabel("What do you want to build?")).toHaveValue(prompt);
+});
+
+test("the dashboard requires authentication and keeps the destination", async ({ page }) => {
+  await page.goto("/app/new?prompt=Build%20a%20CLI");
+  await page.waitForURL(/\/sign-in\?next=/);
+  await expect(page.getByTestId("pending-prompt")).toContainText("Build a CLI");
+});
+
+test("journeys 2, 3 and 6: a real run is created, streams progress, and delivers", async ({ page }) => {
+  await signUp(page);
+  const runId = await startBuild(page, "Build me a booking app for a tattoo studio");
+
+  // Journey 2: the run exists in the backend and the dashboard shows it.
+  const created = await runJson(page, runId);
+  expect(created.id).toBe(runId);
+  expect(created.executor).toBe("scripted");
+  await expect(page.getByRole("heading", { name: "Booking app for a tattoo studio" })).toBeVisible();
+
+  // Journey 3: backend changes arrive without a reload.
+  await page.evaluate(() => ((window as unknown as { __noReload: boolean }).__noReload = true));
+  await expect(page.getByText("Product specialist").first()).toBeVisible();
+  await expect(page.getByText("Validation passed: Candidate tests")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
+
+  // Journey 6: real deliverables.
+  const download = page.getByRole("link", { name: "Download project" });
+  await expect(download).toBeVisible();
+  await expect(page.locator("#build-report")).toContainText("booking.py");
+  const archive = await page.request.get(`/api/caveman/runs/${runId}/delivery/download`);
+  expect(archive.status()).toBe(200);
+  expect(archive.headers()["content-type"]).toContain("gzip");
+  const final = await runJson(page, runId);
+  expect(final.status).toBe("completed");
+  expect(final.tasks.every((t: { state: string }) => t.state === "Accepted")).toBe(true);
+  await expect(page.getByText("2 of 2 passed").or(page.getByText("3 of 3 passed"))).toBeVisible();
+});
+
+test("journey 4: an approval is shown and the exact-scoped decision reaches the backend", async ({ page }) => {
+  await signUp(page);
+  const runId = await startBuild(page, "Booking core #approval");
+  const card = page.locator("#approvals");
+  await expect(card.getByRole("heading", { name: "Grant a capability" })).toBeVisible();
+  await expect(card.getByText("Executes candidate code inside the isolated sandbox")).toBeVisible();
+  await expect(card.getByText(/Sandboxed development/).first()).toBeVisible();
+  const pending = await runJson(page, runId);
+  expect(pending.state).toBe("approval_needed");
+  expect(pending.approvals[0].status).toBe("pending");
+
+  await card.getByLabel(/Note/).fill("Reviewed the scope");
+  await card.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  const decided = await runJson(page, runId);
+  expect(decided.approvals[0].status).toBe("approved");
+  expect(decided.approvals[0].decision.reason).toBe("Reviewed the scope");
+  expect(decided.approvals[0].decision.decided_by).toMatch(/^caveman-user:/);
+});
+
+test("journey 4b: rejecting is recorded and leaves the work honestly blocked; scope cannot be forged", async ({ page }) => {
+  await signUp(page);
+  const runId = await startBuild(page, "Booking core #approval");
+  await expect(page.locator("#approvals").getByRole("button", { name: "Reject" })).toBeVisible();
+  const pending = await runJson(page, runId);
+  const approvalId = pending.approvals[0].id;
+  const forged = await page.request.post(`/api/caveman/runs/${runId}/approvals/${approvalId}`, {
+    data: { decision: "approve", scope_digest: "0".repeat(64) },
+    headers: { Origin: "http://localhost:3100" },
+  });
+  expect(forged.status()).toBe(409);
+  await page.locator("#approvals").getByRole("button", { name: "Reject" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Blocked" })).toBeVisible();
+  await expect(page.locator("#tasks").getByText("Blocked", { exact: true })).toBeVisible();
+  const decided = await runJson(page, runId);
+  expect(decided.approvals[0].status).toBe("rejected");
+  expect(decided.status).toBe("active");
+  expect(decided.capability_requests[0].status).toBe("denied");
+});
+
+test("journey 5: a failed validation is shown honestly with its recovery", async ({ page }) => {
+  await signUp(page);
+  const runId = await startBuild(page, "Booking core #fail-validation");
+  await expect(page.getByText("Validation failed: Candidate tests")).toBeVisible();
+  const failures = page.locator("#failures");
+  await expect(failures.getByText("The specialist's output did not meet the task's acceptance criteria.")).toBeVisible();
+  await expect(failures.getByText("Revision requested.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  await expect(page.locator("#artifacts").getByText("Rejected")).toBeVisible();
+  const run = await runJson(page, runId);
+  expect(run.failure_details[0].classification).toBe("BAD_OUTPUT");
+  expect(run.artifacts[0].validation_state).toBe("failed");
+});
+
+test("runs are private to their owner", async ({ browser }) => {
+  const owner = await browser.newPage();
+  await signUp(owner);
+  const runId = await startBuild(owner, "Private project");
+  const stranger = await browser.newPage();
+  await signUp(stranger);
+  expect((await stranger.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(404);
+  await stranger.goto(`/app/runs/${runId}`);
+  await expect(stranger.getByText("This does not exist, or it belongs to someone else.")).toBeVisible();
+});
+
+test("the API is unreachable from the browser without a session", async ({ request }) => {
+  const response = await request.get("/api/caveman/runs");
+  expect(response.status()).toBe(401);
+  const crossSite = await request.post("/api/caveman/builds", {
+    data: { prompt: "x" },
+    headers: { Origin: "https://evil.example" },
+  });
+  expect(crossSite.status()).toBe(403);
+});
+
+test("dependent code tasks build on merged work and deliver one integrated project", async ({ page }) => {
+  await signUp(page);
+  const runId = await startBuild(page, "Booking API #dependent");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  await expect(page.locator("#activity").getByText(/^Merged into the project/)).toHaveCount(2);
+  await expect(page.locator("#artifacts").getByText(/^merged [0-9a-f]{7}$/)).toHaveCount(2);
+  await expect(page.locator("#build-report")).toContainText("api.py");
+  await expect(page.locator("#build-report")).toContainText("booking.py");
+  const run = await runJson(page, runId);
+  const api = run.artifacts.find((a: { task_id: string }) => a.task_id === "api");
+  expect(run.delivery.commit).toBe(api.integrated_commit);
+});
+
+
+test("a forgotten password is reset through the emailed link", async ({ browser }) => {
+  const setup = await browser.newPage();
+  const email = await signUp(setup);
+  await setup.close();
+
+  const page = await browser.newPage();
+  await page.goto("/sign-in");
+  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: "Send reset link" }).click();
+  await expect(page.getByRole("status")).toContainText("reset link is on its way");
+
+  const outbox = readFileSync(join(process.env.CAVEMAN_E2E_DIR!, "outbox.jsonl"), "utf8").trim().split("\n")
+    .map((line) => JSON.parse(line) as { to: string; subject: string; text: string });
+  const message = outbox.reverse().find((item) => item.to === email && item.subject.includes("Reset"));
+  const link = message!.text.match(/https?:\/\/\S+/)![0];
+  await page.goto(link);
+  await page.waitForURL(/\/reset-password\?token=/);
+  await page.getByLabel("New password").fill("a-brand-new-password");
+  await page.getByRole("button", { name: "Set new password" }).click();
+  await page.waitForURL(/\/sign-in\?reset=1/);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("a-brand-new-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/app$/);
+});
+
+
+test("pages are served with a strict CSP and run without violations", async ({ page }) => {
+  const violations: string[] = [];
+  page.on("console", (message) => {
+    if (/Content.Security.Policy|Refused to (execute|load|apply)/i.test(message.text())) violations.push(message.text());
+  });
+  for (const path of ["/", "/how-it-works", "/pricing", "/docs", "/sign-in", "/does-not-exist"]) {
+    const response = await page.goto(path);
+    const policy = response!.headers()["content-security-policy"] ?? "";
+    expect(policy).toContain("script-src 'self' 'nonce-");
+    expect(policy).toContain("frame-ancestors 'none'");
+  }
+  await signUp(page);
+  await page.goto("/app/new");
+  await expect(page.getByLabel("What do you want to build?")).toBeVisible();
+  await page.getByLabel("What do you want to build?").fill("Build a CLI");
+  await expect(page.getByRole("button", { name: "Build it" })).toBeEnabled();
+  expect(violations).toEqual([]);
+});
+
+test("an account's data can be exported and the account deleted", async ({ page }) => {
+  const email = await signUp(page);
+  const runId = await startBuild(page, "Build me a booking app for a tattoo studio");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+
+  await page.goto("/app/settings");
+  const exported = await page.request.get("/api/account/export");
+  expect(exported.status()).toBe(200);
+  expect(exported.headers()["content-disposition"]).toContain("caveman-export-");
+  const data = await exported.json();
+  expect(data.account.email).toBe(email);
+  expect(data.runs.map((run: { id: string }) => run.id)).toEqual([runId]);
+  expect(JSON.stringify(data)).not.toMatch(/accessToken|password/i);
+
+  // Erasure is reachable only through the password-checked auth flow, never the API proxy.
+  const viaProxy = await page.request.delete("/api/caveman/account", { headers: { Origin: new URL(page.url()).origin } });
+  expect([404, 405]).toContain(viaProxy.status());
+
+  await page.getByRole("button", { name: "Delete account" }).click();
+  const confirm = page.getByRole("button", { name: "Delete permanently" });
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel(/Type delete my account/).fill("delete my account");
+  await page.getByLabel("Password", { exact: true }).fill("the-wrong-password");
+  await confirm.click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  expect((await page.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(200);
+
+  await page.getByLabel("Password", { exact: true }).fill("a-long-enough-password");
+  await confirm.click();
+  await page.waitForURL((url) => url.pathname === "/");
+  expect((await page.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(401);
+  await page.goto("/sign-in");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("a-long-enough-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+});
+
+test("forms cannot submit before the page is interactive, so fields never reach a URL", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  for (const [path, button] of [["/sign-in", "Sign in"], ["/sign-up", "Create account"], ["/forgot-password", "Send reset link"]]) {
+    await page.goto(path);
+    await expect(page.getByRole("button", { name: button })).toBeDisabled();
+    await expect(page.locator("form").first()).toHaveAttribute("method", "post");
+  }
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Build it" })).toBeDisabled();
+  await context.close();
+});
+
+test("a follow-up request builds on the project's delivered code", async ({ page }) => {
+  await signUp(page);
+  const first = await startBuild(page, "Build me a booking app for a tattoo studio");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  await page.getByRole("link", { name: "Ask for changes" }).click();
+  await page.waitForURL(/\/app\/new\?project=[0-9a-f]{32}$/);
+  await expect(page.getByText("starts from this project")).toBeVisible();
+  await page.getByLabel("What do you want to build?").fill("Let clients cancel a booking #follow-up");
+  await page.getByRole("button", { name: "Build it" }).click();
+  await page.waitForURL(/\/app\/runs\/[0-9a-f]{32}$/);
+  const second = page.url().split("/").pop()!;
+  expect(second).not.toBe(first);
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+  const run = await runJson(page, second);
+  expect(run.project_id).toBe((await runJson(page, first)).project_id);
+  expect(run.delivery.files).toEqual(expect.arrayContaining(["booking.py", "cancel.py"]));
+});

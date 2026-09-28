@@ -54,6 +54,10 @@ class FailureClass(StrEnum):
     CAPABILITY_UNAVAILABLE="CAPABILITY_UNAVAILABLE"
     UNSUPPORTED_CAPABILITY="UNSUPPORTED_CAPABILITY"
     REPEATED_BAD_OUTPUT="REPEATED_BAD_OUTPUT"
+    # Another accepted candidate was integrated after this one was created, so
+    # it no longer sits on the current integration head. Routed to RETRY: the
+    # retry gets a fresh workspace on the new head with this attempt carried over.
+    STALE_BASE="STALE_BASE"
 
 
 class ApprovalStatus(StrEnum):
@@ -188,6 +192,9 @@ class Artifact(Model):
     predecessor_id: str | None = None
     input_artifact_ids: list[str] = Field(default_factory=list)
     status: str = "candidate"
+    # Integration commit holding exactly this accepted candidate's bytes, when
+    # the run integrates accepted code (Caveman-managed project repositories).
+    integrated_commit: str | None = None
     validations: list[ArtifactValidation] = Field(default_factory=list)
     reviews: list[Review] = Field(default_factory=list)
     created_at: str = Field(default_factory=now)

@@ -35,6 +35,10 @@ class SandboxViolation(PermissionError):
 logger = logging.getLogger(__name__)
 
 
+class IntegrationStale(SandboxViolation):
+    """The candidate was built on a base the integration branch has moved past."""
+
+
 class SandboxUnavailable(RuntimeError):
     pass
 
@@ -138,6 +142,13 @@ MAX_AGGREGATE_RSS = 1_073_741_824
 MAX_OUTPUT_BYTES = 1_000_000
 
 
+# Internal staging ref holding exactly the accepted, validated candidate bytes of
+# a project, one fast-forward commit per accepted developer candidate. It is
+# never the user's checked-out branch and is never pushed; promotion beyond it
+# remains a human-approved act (see PERMISSIONS.md, 2026-09-28 decision).
+INTEGRATION_BRANCH = "walter-integration"
+INTEGRATION_REF = "refs/heads/" + INTEGRATION_BRANCH
+
 AST_CHECK_SNIPPETS = frozenset({
     "import ast,pathlib; files=list(pathlib.Path('.').rglob('*.py')); assert files, 'No Python sources'; [ast.parse(p.read_text(), filename=str(p)) for p in files]",
     "import ast,pathlib; files=list(pathlib.Path('.').rglob('*.py')); "
@@ -171,6 +182,68 @@ NETWORK_SYSCALLS = (
     b"socket", b"socketpair", b"connect", b"bind", b"listen", b"accept", b"accept4",
     b"sendto", b"sendmsg", b"sendmmsg", b"recvfrom", b"recvmsg", b"recvmmsg",
 )
+
+
+# Node toolchain. Candidate code only ever runs inside the network-denied jail;
+# npm installs run in a separate jail with network but with install scripts
+# disabled, so no package code executes during installation.
+NODE_TEST_SUFFIXES = (".test.js", ".test.mjs", ".test.cjs", ".test.ts", ".test.mts",
+                      ".spec.js", ".spec.mjs", ".spec.ts", ".spec.mts")
+# V8 reserves far more address space than it uses: Wasm guard regions (disabled
+# here) and heap reservations. Node processes therefore get a larger address-space
+# cap than Python, while real memory stays bounded by the V8 heap limit below and
+# the aggregate-RSS monitor that applies to every sandboxed command.
+NODE_FLAGS = "--disable-wasm-trap-handler --max-old-space-size=768"
+NODE_ADDRESS_SPACE = 4 * 1024 ** 3
+PYTHON_ADDRESS_SPACE = 1024 ** 3
+NPM_REGISTRY = "https://registry.npmjs.org/"
+MAX_DEPENDENCY_BYTES = 600_000_000
+DEPENDENCY_INSTALL_SECONDS = 300
+PROXY_ENVIRONMENT = ("HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy")
+
+
+def _node_test_path(path: str) -> bool:
+    candidate = PurePosixPath(path)
+    return (bool(candidate.parts) and not path.startswith("/") and path.endswith(NODE_TEST_SUFFIXES)
+            and not any(part in {"", ".", ".."} for part in candidate.parts) and not _excluded(candidate))
+
+
+_ISOLATION_FLAG: dict[str, str] = {}
+
+
+def _node_isolation_flag(node_root: Path) -> str:
+    """In-process test isolation: the network seccomp filter denies the
+    socketpair() a per-file child process would need for its IPC channel."""
+    key = str(node_root)
+    if key not in _ISOLATION_FLAG:
+        help_text = subprocess.run([str(node_root / "bin/node"), "--help"], capture_output=True,
+                                   text=True, timeout=30, env={"PATH": "/usr/bin:/bin"}).stdout
+        _ISOLATION_FLAG[key] = ("--test-isolation=none" if "--test-isolation=" in help_text
+                                and "--experimental-test-isolation=" not in help_text
+                                else "--experimental-test-isolation=none")
+    return _ISOLATION_FLAG[key]
+
+
+def _detect_node_root() -> Path | None:
+    configured = os.environ.get("CAVEMAN_NODE_ROOT")
+    if configured:
+        root = Path(configured).resolve()
+    else:
+        import shutil
+        found = shutil.which("node")
+        if not found:
+            return None
+        root = Path(found).resolve().parents[1]
+    if not (root / "bin/node").is_file():
+        return None
+    # Type stripping and in-process test isolation need Node 22 or newer.
+    try:
+        version = subprocess.run([str(root / "bin/node"), "--version"], capture_output=True, text=True,
+                                 timeout=15, env={"PATH": "/usr/bin:/bin"}).stdout.strip()
+        major = int(version.lstrip("v").split(".")[0])
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    return root if major >= 22 else None
 
 
 def _excluded(path: str | PurePosixPath) -> bool:
@@ -236,11 +309,128 @@ def _loader_dir_target() -> str:
     return "usr/lib"
 
 
+@dataclass(frozen=True)
+class ExecutionSpec:
+    """One isolated execution, described without reference to how it is isolated.
+
+    Paths on the left of each mount are host paths prepared by trusted code;
+    paths on the right are where the command sees them. The backend must give
+    the command nothing else: no host environment, no other files, and no
+    network unless ``network`` is true.
+    """
+    argv: tuple[str, ...]
+    workdir: str
+    readonly_mounts: tuple[tuple[str, str], ...]
+    writable_mounts: tuple[tuple[str, str], ...]
+    environment: tuple[tuple[str, str], ...]
+    network: bool
+    timeout: float
+    address_space: int | None = None
+    cpu_seconds: int = 60
+    file_size: int | None = 8_388_608
+    open_files: int = 128
+    processes: int | None = 32
+    monitor_scratch: str | None = None
+
+
+class ExecutionBackend(Protocol):
+    """Isolation seam: Bubblewrap today, a microVM or managed sandbox later."""
+
+    name: str
+
+    def run(self, spec: ExecutionSpec) -> CommandResult: ...
+
+
+class BubblewrapBackend:
+    """Fail-closed local isolation: namespaces, dropped capabilities, a cleared
+    environment, prlimit resource caps, a network-deny seccomp filter when the
+    spec forbids network, and a monitor for wall time, process count, aggregate
+    RSS and scratch usage."""
+
+    name = "bubblewrap"
+
+    def __init__(self, network_filter):
+        self._network_filter = network_filter
+
+    def run(self, spec: ExecutionSpec) -> CommandResult:
+        if not Path("/usr/bin/bwrap").is_file():
+            raise SandboxUnavailable("bubblewrap unavailable; install/fix /usr/bin/bwrap; host fallback prohibited")
+        command = ["/usr/bin/bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc",
+                   "--unshare-uts", "--unshare-cgroup-try", "--die-with-parent", "--new-session",
+                   "--cap-drop", "ALL", "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin",
+                   "--symlink", "usr/lib", "/lib", "--symlink", _loader_dir_target(), "/lib64",
+                   "--proc", "/proc", "--dev", "/dev"]
+        if not any(target == "/tmp" for _, target in spec.writable_mounts):
+            command += ["--tmpfs", "/tmp"]
+        for source, target in spec.writable_mounts:
+            command += ["--bind", source, target]
+        for source, target in spec.readonly_mounts:
+            command += ["--ro-bind", source, target]
+        command += ["--chdir", spec.workdir, "--clearenv"]
+        for name, value in spec.environment:
+            command += ["--setenv", name, value]
+        limits = ["/usr/bin/prlimit", f"--cpu={spec.cpu_seconds}", f"--nofile={spec.open_files}"]
+        if spec.address_space is not None:
+            limits.append(f"--as={spec.address_space}")
+        if spec.file_size is not None:
+            limits.append(f"--fsize={spec.file_size}")
+        if spec.processes is not None:
+            limits.append(f"--nproc={spec.processes}")
+        with (self._network_filter() if not spec.network else _no_filter()) as network_filter:
+            pass_fds: tuple[int, ...] = ()
+            if network_filter is not None:
+                command += ["--seccomp", str(network_filter.fileno())]
+                pass_fds = (network_filter.fileno(),)
+            command += ["--", *limits, "--", *spec.argv]
+            with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+                proc = subprocess.Popen(command, stdout=out, stderr=err, start_new_session=True,
+                                        env={"PATH": "/usr/bin:/bin"}, pass_fds=pass_fds)
+                deadline = time.monotonic() + spec.timeout
+                violation = None
+                scratch = Path(spec.monitor_scratch) if spec.monitor_scratch else None
+                while proc.poll() is None:
+                    if time.monotonic() >= deadline:
+                        violation = "Sandbox command exceeded wall-time budget"; break
+                    if scratch is not None:
+                        processes, aggregate_rss, storage = WorkspaceManager._usage(proc.pid, scratch)
+                        if processes > MAX_PROCESSES:
+                            violation = "Sandbox aggregate process limit exceeded"; break
+                        if aggregate_rss > MAX_AGGREGATE_RSS:
+                            violation = "Sandbox aggregate memory limit exceeded"; break
+                        if storage > MAX_SCRATCH_BYTES:
+                            violation = "Sandbox aggregate scratch-storage limit exceeded"; break
+                    time.sleep(0.02)
+                if violation:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                proc.wait()
+                out.seek(0); err.seek(0)
+                stdout = out.read(MAX_OUTPUT_BYTES).decode(errors="replace")
+                stderr = err.read(MAX_OUTPUT_BYTES).decode(errors="replace")
+        if violation:
+            raise SandboxViolation(violation)
+        if proc.returncode and stderr.startswith("bwrap:"):
+            raise SandboxUnavailable(
+                "bubblewrap isolation backend failed; verify user namespaces/outer sandbox: " + stderr.strip())
+        return CommandResult(proc.returncode, stdout, stderr)
+
+
+@contextmanager
+def _no_filter():
+    yield None
+
+
 class WorkspaceManager:
     def __init__(self, repository: str | Path, state_root: str | Path | None = None,
                  dependency_root: str | Path | None = None,
-                 approval_verifier: SafetyApprovalVerifier | None = None):
+                 approval_verifier: SafetyApprovalVerifier | None = None,
+                 node_root: str | Path | None = None,
+                 backend: ExecutionBackend | None = None):
         self.repository = Path(repository).resolve(strict=True)
+        self.backend = backend or BubblewrapBackend(self._network_filter)
+        self.node_root = Path(node_root).resolve() if node_root is not None else _detect_node_root()
         self.state_root = Path(state_root or self.repository / ".local/sandboxes").absolute()
         if not self.state_root.is_relative_to(self.repository):
             raise SandboxViolation("State must remain inside this repository")
@@ -380,11 +570,134 @@ class WorkspaceManager:
         return result.stdout
 
     def create_candidate(self, run_id: str, task_id: str, worker_id: str,
-                         command_categories: tuple[str, ...] | None = None) -> WorkspaceGrant:
+                         command_categories: tuple[str, ...] | None = None, *,
+                         base_revision: str | None = None) -> WorkspaceGrant:
+        if base_revision is not None and self._git(
+                "-C", str(self.repository), "cat-file", "-t", base_revision).strip() != "commit":
+            raise SandboxViolation("Candidate base must be a commit")
         return self._create_candidate(run_id, task_id, worker_id, command_categories,
                                       allow_safety_changes=False, safety_approval_id=None,
                                       safety_approval_digest=None, safety_allowed_paths=(),
-                                      safety_operation=None)
+                                      safety_operation=None, base_revision=base_revision)
+
+    # Integration ---------------------------------------------------------
+
+    def integration_head(self, *, create: bool = False) -> str | None:
+        """Current integration commit; optionally start the branch at HEAD."""
+        with self._lock:
+            found = self._git_result("-C", str(self.repository), "rev-parse", "--verify",
+                                     "--quiet", INTEGRATION_REF + "^{commit}")
+            if found.returncode == 0:
+                return found.stdout.strip()
+            if not create:
+                return None
+            head = self._git("-C", str(self.repository), "rev-parse", "HEAD").strip()
+            # Empty old value: create only if the ref does not exist yet.
+            self._git("-C", str(self.repository), "update-ref", INTEGRATION_REF, head, "")
+            return head
+
+    def tracked_files(self, revision: str | None = None) -> list[str]:
+        """Policy-visible files at ``revision`` (default: integration head, else HEAD)."""
+        with self._lock:
+            if revision is None:
+                found = self._git_result("-C", str(self.repository), "rev-parse", "--verify",
+                                         "--quiet", INTEGRATION_REF + "^{commit}")
+                revision = found.stdout.strip() if found.returncode == 0 else "HEAD"
+            listing = self._git_result("-C", str(self.repository), "-c", "core.quotePath=false",
+                                       "ls-tree", "-r", "-z", "--name-only", "--full-tree", revision)
+        if listing.returncode:
+            return []
+        return sorted(path for path in listing.stdout.split("\0") if path and not _excluded(path))
+
+    def _commit_candidate(self, grant: WorkspaceGrant, message: str) -> str:
+        """Commit exactly the candidate's policy-visible inventory onto its base.
+
+        Idempotent: a candidate already committed on its base is reused after
+        checking that nothing outside that commit is pending.
+        """
+        root = grant.root
+        inventory = self._inventory(grant, contents=False)
+        baseline = {path for path in self._git("-C", root, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only",
+                                               grant.base_revision).splitlines() if not _excluded(path)}
+        current = self._git("-C", root, "rev-parse", "HEAD").strip()
+        if current == grant.base_revision:
+            modified = {path for path in self._git("-C", root, "-c", "core.quotePath=false", "diff", "--name-only",
+                                                   grant.base_revision).splitlines() if not _excluded(path)}
+            changed = sorted({name for name in inventory if name not in baseline} |
+                             {name for name in modified if name in inventory})
+            deleted = sorted(baseline - set(inventory))
+            if not changed and not deleted:
+                return current
+            for start in range(0, len(changed), 200):
+                self._git("-C", root, "add", "--force", "--", *changed[start:start + 200])
+            for start in range(0, len(deleted), 200):
+                self._git("-C", root, "rm", "-q", "--cached", "--ignore-unmatch", "--",
+                          *deleted[start:start + 200])
+            self._git("-C", root, "-c", "user.name=Caveman", "-c", "user.email=caveman@localhost",
+                      "commit", "-q", "--no-verify", "--no-gpg-sign", "-m", message)
+            current = self._git("-C", root, "rev-parse", "HEAD").strip()
+        parents = self._git("-C", root, "rev-list", "--parents", "-n", "1", current).split()
+        if parents[1:] != [grant.base_revision]:
+            raise SandboxViolation("Candidate history does not sit directly on its base")
+        committed = {path for path in self._git("-C", root, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only",
+                                                current).splitlines() if not _excluded(path)}
+        pending = [line for line in self._git("-C", root, "-c", "core.quotePath=false", "status", "--porcelain",
+                                              "--untracked-files=all").splitlines()
+                   if len(line) >= 4 and not _excluded(line[3:])]
+        if committed != set(inventory) or pending:
+            raise SandboxViolation("Candidate commit does not match the candidate inventory")
+        return current
+
+    def integrate(self, workspace_id: str, expected_fingerprint: str, message: str) -> str:
+        """Fast-forward the integration branch to exactly the accepted candidate.
+
+        The candidate must have been built on the current integration head, so
+        the integrated tree is byte-for-byte the tree that was validated and
+        reviewed. A moved head raises IntegrationStale instead of merging.
+        """
+        with self._lock:
+            grant = self._get(workspace_id)
+            if self.fingerprint(workspace_id) != expected_fingerprint:
+                raise SandboxViolation("Candidate changed after acceptance; refusing to integrate")
+            head = self.integration_head(create=True)
+            if grant.base_revision != head:
+                raise IntegrationStale("Integration moved since this candidate was created")
+            commit = self._commit_candidate(grant, message)
+            if commit == head:
+                raise SandboxViolation("Candidate has no changes to integrate")
+            # Compare-and-swap: never overwrite a concurrent integration.
+            self._git("-C", str(self.repository), "update-ref", INTEGRATION_REF, commit, head)
+            return commit
+
+    def carry_over(self, source_workspace_id: str, target_workspace_id: str) -> bool:
+        """Replay a previous attempt's changes onto a fresh candidate, uncommitted.
+
+        Returns False, leaving the target clean, when there was nothing to carry
+        or the changes conflict with the target's newer base.
+        """
+        with self._lock:
+            source = self._grants.get(source_workspace_id)
+            if not source or source.lifecycle != "active":
+                return False
+            self._verify_worktree(source)
+            target = self._get(target_workspace_id)
+            if target.read_only:
+                raise SandboxViolation("Cannot carry changes into a read-only grant")
+            commit = self._commit_candidate(source, "Previous attempt (carried over)")
+            if commit == source.base_revision:
+                return False
+            applied = self._git_result("-C", target.root, "-c", "user.name=Caveman",
+                                       "-c", "user.email=caveman@localhost",
+                                       "cherry-pick", "--no-commit", commit)
+            if applied.returncode:
+                self._git_result("-C", target.root, "cherry-pick", "--abort")
+                self._git("-C", target.root, "reset", "-q", "--hard", target.base_revision)
+                self._git("-C", target.root, "clean", "-fdq")
+                return False
+            # Leave the replay as working-tree changes, like any fresh edit.
+            self._git("-C", target.root, "reset", "-q", "--mixed", target.base_revision)
+            self._inventory(target, contents=False)  # re-validate object policy
+            return True
 
     def create_safety_candidate(self, run_id: str, task_id: str, worker_id: str,
                                 approval_id: str, allowed_paths: tuple[str, ...],
@@ -773,8 +1086,21 @@ class WorkspaceManager:
         rest = argv[1:]
         if category == "isolation_probe" and argv == ["sandbox-probe"]:
             return [python, "-c", ISOLATION_PROBE]
+        if argv[0] in {"node", "tsc"}:
+            if self.node_root is None:
+                raise SandboxUnavailable("Node toolchain unavailable; host fallback prohibited")
+            node = "/opt/node/bin/node"
+            if category == "test" and argv[0] == "node" and len(rest) >= 2 and rest[0] == "--test":
+                inventory = self._inventory(grant, contents=False)
+                if not all(_node_test_path(path) and path in inventory for path in rest[1:]):
+                    raise SandboxViolation("Node test arguments exceed the manager template")
+                return [node, "--test", _node_isolation_flag(self.node_root), *rest[1:]]
+            if category == "check" and argv == ["tsc"]:
+                return [node, "/workspace/node_modules/typescript/bin/tsc", "--noEmit",
+                        "--incremental", "false", "--pretty", "false", "-p", "/workspace"]
+            raise SandboxViolation("Command does not match a manager-defined Node template")
         if executable not in {"python", "python3"}:
-            raise SandboxViolation("Only the immutable Python environment is executable")
+            raise SandboxViolation("Only the immutable Python environment and trusted Node templates are executable")
         if category in {"test", "check"} and len(rest) == 2 and rest[0] == "-c" and rest[1] in AST_CHECK_SNIPPETS:
             return [python, *rest]
         if category == "test" and len(rest) >= 2 and rest[:2] == ["-m", "pytest"]:
@@ -866,14 +1192,13 @@ class WorkspaceManager:
             profile.close()
 
     def run_command(self, workspace_id: str, category: str, argv: list[str], *,
-                    worker_id: str | None = None, timeout: float = 30) -> CommandResult:
+                    worker_id: str | None = None, timeout: float = 30,
+                    node_modules: Path | None = None) -> CommandResult:
         with self._lock:
             grant = self._get(workspace_id, worker_id)
             if not 0 < timeout <= 120:
                 raise SandboxViolation("Command time budget denied")
             inner = self._command(grant, category, argv)
-            if not Path("/usr/bin/bwrap").is_file():
-                raise SandboxUnavailable("bubblewrap unavailable; install/fix /usr/bin/bwrap; host fallback prohibited")
             dependency = Path(grant.dependency_root)
             if not (dependency / "bin/python").exists():
                 raise SandboxUnavailable("Immutable Python dependency environment unavailable")
@@ -894,51 +1219,103 @@ class WorkspaceManager:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(data)
                     target.chmod(mode & 0o555 or 0o444)
-                with self._network_filter() as network_filter:
-                    command = ["/usr/bin/bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc",
-                    "--unshare-uts", "--unshare-cgroup-try", "--die-with-parent", "--new-session",
-                    "--cap-drop", "ALL", "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin",
-                    "--symlink", "usr/lib", "/lib", "--symlink", _loader_dir_target(), "/lib64",
-                    "--proc", "/proc", "--dev", "/dev", "--bind", str(scratch), "/tmp",
-                    "--ro-bind", str(snapshot), "/workspace",
-                    "--ro-bind", str(dependency), "/opt/walter-env", "--chdir", "/workspace",
-                    "--clearenv", "--setenv", "PATH", "/opt/walter-env/bin:/usr/bin:/bin",
-                    "--setenv", "HOME", "/tmp", "--setenv", "PYTHONPATH", "/workspace/src",
-                    "--setenv", "PYTHONDONTWRITEBYTECODE", "1", "--seccomp", str(network_filter.fileno()), "--",
-                    "/usr/bin/prlimit", "--as=1073741824", "--cpu=60", "--fsize=8388608",
-                    "--nofile=128", "--nproc=32", "--", *inner]
-                    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
-                        proc = subprocess.Popen(command, stdout=out, stderr=err, start_new_session=True,
-                                                env={"PATH": "/usr/bin:/bin"},
-                                                pass_fds=(network_filter.fileno(),))
-                        deadline = time.monotonic() + timeout
-                        violation = None
-                        while proc.poll() is None:
-                            if time.monotonic() >= deadline:
-                                violation = "Sandbox command exceeded wall-time budget"; break
-                            processes, aggregate_rss, storage = self._usage(proc.pid, scratch)
-                            if processes > MAX_PROCESSES:
-                                violation = "Sandbox aggregate process limit exceeded"; break
-                            if aggregate_rss > MAX_AGGREGATE_RSS:
-                                violation = "Sandbox aggregate memory limit exceeded"; break
-                            if storage > MAX_SCRATCH_BYTES:
-                                violation = "Sandbox aggregate scratch-storage limit exceeded"; break
-                            time.sleep(0.02)
-                        if violation:
-                            try:
-                                os.killpg(proc.pid, signal.SIGKILL)
-                            except ProcessLookupError:
-                                pass
-                        proc.wait()
-                        out.seek(0); err.seek(0)
-                        stdout = out.read(MAX_OUTPUT_BYTES).decode(errors="replace")
-                        stderr = err.read(MAX_OUTPUT_BYTES).decode(errors="replace")
-                if violation:
-                    raise SandboxViolation(violation)
-                if proc.returncode and stderr.startswith("bwrap:"):
-                    raise SandboxUnavailable(
-                        "bubblewrap isolation backend failed; verify user namespaces/outer sandbox: " + stderr.strip())
-                return CommandResult(proc.returncode, stdout, stderr)
+                readonly = [(str(snapshot), "/workspace"), (str(dependency), "/opt/walter-env")]
+                path_prefix = "/opt/walter-env/bin"
+                node = inner[0].startswith("/opt/node/")
+                if node:
+                    readonly.append((str(self.node_root), "/opt/node"))
+                    path_prefix = "/opt/node/bin:" + path_prefix
+                    if node_modules is not None:
+                        if not self._is_dependency_dir(node_modules):
+                            raise SandboxViolation("Dependency directory is not a trusted install")
+                        (snapshot / "node_modules").mkdir(exist_ok=True)
+                        readonly.append((str(node_modules), "/workspace/node_modules"))
+                environment = [("PATH", path_prefix + ":/usr/bin:/bin"), ("HOME", "/tmp"),
+                               ("PYTHONPATH", "/workspace/src"), ("PYTHONDONTWRITEBYTECODE", "1")]
+                if node:
+                    environment.append(("NODE_OPTIONS", NODE_FLAGS))
+                return self.backend.run(ExecutionSpec(
+                    argv=tuple(inner), workdir="/workspace", readonly_mounts=tuple(readonly),
+                    writable_mounts=((str(scratch), "/tmp"),), environment=tuple(environment),
+                    network=False, timeout=timeout,
+                    address_space=NODE_ADDRESS_SPACE if node else PYTHON_ADDRESS_SPACE,
+                    monitor_scratch=str(scratch)))
+
+    def _is_dependency_dir(self, path: Path) -> bool:
+        root = (self.state_root / "node-deps").resolve()
+        resolved = Path(path).resolve()
+        return (resolved.name == "node_modules" and resolved.parent.parent == root
+                and (resolved.parent / ".complete").is_file())
+
+    def node_dependencies(self, workspace_id: str, *, worker_id: str | None = None) -> Path | None:
+        """Install (or reuse) the candidate's npm dependencies; None without package.json.
+
+        Runs npm in its own jail: network is available so the registry can be
+        reached, but lifecycle scripts are disabled (no package code executes),
+        the environment is cleared, and only the manifest, an npm cache and the
+        Node runtime are visible. The result is cached by manifest digest and
+        later mounted read-only into the network-denied execution jail.
+        """
+        with self._lock:
+            grant = self._get(workspace_id, worker_id)
+            inventory = self._inventory(grant)
+            manifest = inventory.get("package.json")
+            if manifest is None:
+                return None
+            if self.node_root is None:
+                raise SandboxUnavailable("Node toolchain unavailable; host fallback prohibited")
+            lock = inventory.get("package-lock.json")
+            digest = hashlib.sha256(b"package.json\0" + manifest[2] + b"\0package-lock.json\0" +
+                                    (lock[2] if lock else b"")).hexdigest()
+            target = self.state_root / "node-deps" / digest
+            if (target / ".complete").is_file():
+                return target / "node_modules"
+            cache = self.state_root / "npm-cache"
+            cache.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(dir=self.state_root, prefix="install-") as temporary:
+                work = Path(temporary) / "work"
+                work.mkdir()
+                (work / "package.json").write_bytes(manifest[2])
+                if lock is not None:
+                    (work / "package-lock.json").write_bytes(lock[2])
+                readonly = [(name, name) for name in
+                            ("/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/ssl")
+                            if Path(name).exists()]
+                readonly.append((str(self.node_root), "/opt/node"))
+                environment = [("PATH", "/opt/node/bin:/usr/bin:/bin"), ("HOME", "/tmp"),
+                               ("npm_config_cache", "/npm-cache"), ("npm_config_update_notifier", "false"),
+                               ("NODE_OPTIONS", NODE_FLAGS)]
+                environment += [(name, os.environ[name]) for name in PROXY_ENVIRONMENT if os.environ.get(name)]
+                extra_ca = os.environ.get("NODE_EXTRA_CA_CERTS")
+                if extra_ca and Path(extra_ca).is_file():
+                    readonly.append((extra_ca, "/etc/caveman-extra-ca.pem"))
+                    environment.append(("NODE_EXTRA_CA_CERTS", "/etc/caveman-extra-ca.pem"))
+                argv = ("/opt/node/bin/node", "/opt/node/lib/node_modules/npm/bin/npm-cli.js",
+                        "ci" if lock is not None else "install", "--ignore-scripts", "--no-audit",
+                        "--no-fund", f"--registry={NPM_REGISTRY}")
+                completed = self.backend.run(ExecutionSpec(
+                    argv=argv, workdir="/work", readonly_mounts=tuple(readonly),
+                    writable_mounts=((str(work), "/work"), (str(cache), "/npm-cache")),
+                    environment=tuple(environment), network=True, timeout=DEPENDENCY_INSTALL_SECONDS,
+                    address_space=None, cpu_seconds=DEPENDENCY_INSTALL_SECONDS, file_size=None,
+                    open_files=512, processes=None))
+                if completed.returncode:
+                    raise SandboxViolation("Dependency installation failed: "
+                                           + (completed.stderr or completed.stdout).strip()[-1500:])
+                installed = work / "node_modules"
+                if not installed.is_dir():
+                    installed.mkdir()
+                size = 0
+                for base, dirs, files in os.walk(installed, followlinks=False):
+                    for name in files:
+                        size += Path(base, name).lstat().st_size
+                    if size > MAX_DEPENDENCY_BYTES:
+                        raise SandboxViolation("Installed dependencies exceed the size limit")
+                target.mkdir(parents=True, exist_ok=True)
+                if not (target / "node_modules").exists():
+                    installed.rename(target / "node_modules")
+                (target / ".complete").write_text(digest)
+            return target / "node_modules"
 
     def _retire_candidate(self, grant: WorkspaceGrant) -> dict[str, object]:
         """Remove one candidate's worktree and branch and close its grants.

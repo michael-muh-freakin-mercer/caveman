@@ -1,0 +1,43 @@
+# Local/self-hosted topology: private API, one or more workers, and the web app.
+# Not a production deployment by itself: put the web app behind TLS, keep the
+# API on a private network, and use managed Postgres for auth (AUTH_DATABASE_URL).
+services:
+  api:
+    build: { context: .., dockerfile: deploy/api.Dockerfile }
+    env_file: ../.env
+    environment:
+      CAVEMAN_DATA_DIR: /data
+    volumes: [caveman-data:/data]
+    # No published port: only the web service reaches the API.
+    expose: ["8000"]
+    command: ["caveman", "api", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    build: { context: .., dockerfile: deploy/api.Dockerfile }
+    env_file: ../.env
+    environment:
+      CAVEMAN_DATA_DIR: /data
+    volumes: [caveman-data:/data]
+    command: ["caveman", "worker"]
+    # Bubblewrap needs to create user namespaces and mount /proc inside this
+    # container. Docker's default seccomp profile and masked /proc prevent that.
+    # These options were verified to work; they relax the *container's* outer
+    # filter, while Caveman's own sandbox still applies namespaces, a
+    # network-deny seccomp filter and resource limits to every candidate
+    # command. Prefer a seccomp profile derived from Docker's default that
+    # additionally permits unshare(CLONE_NEWUSER), or run workers on a VM.
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+      - systempaths=unconfined
+
+  web:
+    build: { context: ../web, dockerfile: ../deploy/web.Dockerfile }
+    env_file: ../web/.env.local
+    environment:
+      CAVEMAN_API_URL: http://api:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  caveman-data:

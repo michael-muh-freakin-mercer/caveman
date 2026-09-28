@@ -50,16 +50,7 @@ class SQLiteStore:
             raise ValueError(f"Unsupported operational schema {version}")
         try:
             if version == 0:
-                self.connection.executescript("""
-                CREATE TABLE runs(id TEXT PRIMARY KEY, version INTEGER NOT NULL, snapshot TEXT NOT NULL);
-                CREATE TABLE events(run_id TEXT NOT NULL REFERENCES runs(id), sequence INTEGER NOT NULL,
-                  payload TEXT NOT NULL, PRIMARY KEY(run_id,sequence));
-                CREATE TABLE schema_migration_backups(
-                  run_id TEXT NOT NULL, from_version INTEGER NOT NULL, to_version INTEGER NOT NULL,
-                  snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL,
-                  PRIMARY KEY(run_id,from_version,to_version));
-                PRAGMA user_version=2;
-                """)
+                self._create_schema()
             elif version == 1:
                 self._migrate_v1_to_v2()
             else:
@@ -69,6 +60,30 @@ class SQLiteStore:
                   PRIMARY KEY(run_id,from_version,to_version))""")
         except BaseException:
             self.connection.close()
+            raise
+
+    def _create_schema(self):
+        """Create the current schema under the write lock.
+
+        Several processes (API and workers) open a fresh database at once; the
+        version is re-read after taking the lock so only the first creates it.
+        """
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            if self.connection.execute("PRAGMA user_version").fetchone()[0] == 0:
+                for statement in (
+                    "CREATE TABLE runs(id TEXT PRIMARY KEY, version INTEGER NOT NULL, snapshot TEXT NOT NULL)",
+                    "CREATE TABLE events(run_id TEXT NOT NULL REFERENCES runs(id), sequence INTEGER NOT NULL, "
+                    "payload TEXT NOT NULL, PRIMARY KEY(run_id,sequence))",
+                    "CREATE TABLE schema_migration_backups(run_id TEXT NOT NULL, from_version INTEGER NOT NULL, "
+                    "to_version INTEGER NOT NULL, snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL, "
+                    "PRIMARY KEY(run_id,from_version,to_version))",
+                    f"PRAGMA user_version={self.SCHEMA_VERSION}",
+                ):
+                    self.connection.execute(statement)
+            self.connection.execute("COMMIT")
+        except BaseException:
+            self.connection.execute("ROLLBACK")
             raise
 
     @staticmethod
@@ -158,6 +173,10 @@ class SQLiteStore:
         with self._lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
+                if self.connection.execute("PRAGMA user_version").fetchone()[0] != 1:
+                    # Another process migrated while this one waited for the lock.
+                    self.connection.execute("COMMIT")
+                    return
                 self.connection.execute("""CREATE TABLE IF NOT EXISTS schema_migration_backups(
                   run_id TEXT NOT NULL, from_version INTEGER NOT NULL, to_version INTEGER NOT NULL,
                   snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL,
@@ -243,8 +262,38 @@ class SQLiteStore:
                 run_id, len(dropped), ", ".join(sorted(dropped)))
         return run
 
-    def load(self, run_id: str) -> Run:
+    _READ_BEGIN = "BEGIN"
+
+    @contextmanager
+    def _read(self):
+        """One consistent snapshot for a multi-statement read.
+
+        The run row and its events are separate statements; without a read
+        transaction another process could commit between them and the reader
+        would see a snapshot that does not match its events.
+        """
         with self._lock:
+            if self.connection.in_transaction:
+                yield
+                return
+            self.connection.execute(self._READ_BEGIN)
+            try:
+                yield
+            finally:
+                self.connection.execute("COMMIT")
+
+    def version_info(self, run_id: str) -> tuple[int, int]:
+        """(snapshot version, event cursor) without loading the snapshot."""
+        with self._read():
+            row = self.connection.execute("SELECT version FROM runs WHERE id=?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError(run_id)
+            cursor = self.connection.execute(
+                "SELECT COALESCE(MAX(sequence),0) FROM events WHERE run_id=?", (run_id,)).fetchone()
+            return row[0], cursor[0]
+
+    def load(self, run_id: str) -> Run:
+        with self._read():
             row = self.connection.execute("SELECT version,snapshot FROM runs WHERE id=?", (run_id,)).fetchone()
             if row is None:
                 raise KeyError(run_id)
@@ -272,7 +321,7 @@ class SQLiteStore:
             return [self.load(row[0]) for row in self.connection.execute("SELECT id FROM runs ORDER BY rowid")]
 
     def events(self, run_id: str) -> list[Event]:
-        with self._lock:
+        with self._read():
             # An unknown run must not read as an existing run with no history:
             # `walter run events <typo>` printed an empty list and exited 0.
             if self.connection.execute(
@@ -286,6 +335,28 @@ class SQLiteStore:
                     raise ValueError("Corrupt event payload identity or sequence")
                 events.append(event)
             return events
+
+    def delete_run(self, run_id: str) -> bool:
+        """Erase a run with its events and migration backups.
+
+        Only for honouring a user's request to delete their data; ordinary
+        operation never removes history.
+        """
+        with self._lock:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                self.connection.execute("DELETE FROM events WHERE run_id=?", (run_id,))
+                self.connection.execute("DELETE FROM schema_migration_backups WHERE run_id=?", (run_id,))
+                deleted = self.connection.execute("DELETE FROM runs WHERE id=?", (run_id,)).rowcount
+                self.connection.execute("COMMIT")
+            except BaseException:
+                self.connection.execute("ROLLBACK")
+                raise
+        return bool(deleted)
+
+    def run_ids(self) -> list[str]:
+        with self._lock:
+            return [row[0] for row in self.connection.execute("SELECT id FROM runs ORDER BY id")]
 
     def save(self, run: Run, events: list[Event], expected_version: int | None) -> Run:
         if not events:
@@ -316,3 +387,51 @@ class SQLiteStore:
                 self.connection.execute("ROLLBACK")
                 raise
             return candidate
+
+
+class PostgresStore(SQLiteStore):
+    """The same run store on PostgreSQL, for deployments with several hosts.
+
+    Snapshots, events and the optimistic version check are shared with
+    ``SQLiteStore``; ``walter.pg`` serializes writers with an advisory lock so
+    a read-modify-write behaves exactly as under SQLite's write lock. The
+    schema starts at the current version (there are no v1 PostgreSQL stores).
+    """
+
+    # Statements in a READ COMMITTED transaction each see their own snapshot.
+    _READ_BEGIN = "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"
+
+    def __init__(self, url: str, schema: str = "walter_ops"):
+        from .pg import PostgresConnection
+
+        self._lock = threading.RLock()
+        self.connection = PostgresConnection(url, schema)
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                self.connection.executescript("""
+                CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, version INTEGER NOT NULL,
+                  snapshot TEXT NOT NULL, seq BIGINT GENERATED ALWAYS AS IDENTITY);
+                CREATE TABLE IF NOT EXISTS events(run_id TEXT NOT NULL REFERENCES runs(id),
+                  sequence INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(run_id,sequence));
+                CREATE TABLE IF NOT EXISTS schema_migration_backups(
+                  run_id TEXT NOT NULL, from_version INTEGER NOT NULL, to_version INTEGER NOT NULL,
+                  snapshot TEXT NOT NULL, migrated_at TEXT NOT NULL,
+                  PRIMARY KEY(run_id,from_version,to_version))
+                """)
+                self.connection.execute("COMMIT")
+            except BaseException:
+                self.connection.execute("ROLLBACK")
+                raise
+        except BaseException:
+            self.connection.close()
+            raise
+
+
+def open_store(location: str | Path, *, schema: str = "walter_ops") -> SQLiteStore:
+    """A PostgreSQL store for postgres:// URLs, otherwise a SQLite file store."""
+    from .pg import is_postgres_url
+
+    if is_postgres_url(location):
+        return PostgresStore(str(location), schema)
+    return SQLiteStore(location)

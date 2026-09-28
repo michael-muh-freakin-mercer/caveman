@@ -555,3 +555,30 @@ def test_events_for_an_unknown_run_is_not_an_empty_history(tmp_path):
     with pytest.raises(KeyError):
         store.events("not-a-run")
     store.close()
+
+
+def _open_both(directory, barrier):
+    from caveman.platform_store import PlatformStore
+    barrier.wait()
+    SQLiteStore(directory + "/ops.db").close()
+    PlatformStore(directory + "/platform.db").close()
+
+
+def test_processes_opening_a_fresh_database_together_create_it_once(tmp_path):
+    """API and workers start at the same time against the same new files."""
+    import multiprocessing
+
+    context = multiprocessing.get_context("fork")
+    for attempt in range(20):
+        directory = tmp_path / f"fresh-{attempt}"
+        directory.mkdir()
+        barrier = context.Barrier(8)
+        processes = [context.Process(target=_open_both, args=(str(directory), barrier)) for _ in range(8)]
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(30)
+        assert [process.exitcode for process in processes] == [0] * 8
+        store = SQLiteStore(directory / "ops.db")
+        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == SQLiteStore.SCHEMA_VERSION
+        store.close()

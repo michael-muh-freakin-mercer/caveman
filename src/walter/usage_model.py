@@ -6,7 +6,7 @@ import logging
 from agents.models.interface import Model
 
 from .models import ModelUsageRecord
-from .usage import UsageBudget
+from .usage import UsageBudget, usage_cost
 
 
 class UsageRecordingModel(Model):
@@ -40,12 +40,19 @@ class UsageRecordingModel(Model):
                 input_tokens_used=sum(r.input_tokens or 0 for r in records),
                 output_tokens_used=sum(r.output_tokens or 0 for r in records),
                 total_tokens_used=sum(r.total_tokens or 0 for r in records),
+                cost_used_usd=sum(usage_cost(r.raw_usage) or 0.0 for r in records),
             )
         # Preserve field presence before the SDK replaces absent provider usage
         # with zero counters. Do not mutate shared agent settings.
         from dataclasses import replace
 
         settings = replace(model_settings, preserve_raw_usage=True)
+        if self.identity["provider"] == "openrouter":
+            # Ask OpenRouter to report the call's cost in its usage block; the
+            # spend ceiling can only count cost the provider actually reports.
+            extra = dict(settings.extra_body) if isinstance(settings.extra_body, dict) else {}
+            extra["usage"] = {**(extra.get("usage") or {}), "include": True}
+            settings = replace(settings, extra_body=extra)
         try:
             response = await self.wrapped.get_response(
                 system_instructions=system_instructions, input=input,

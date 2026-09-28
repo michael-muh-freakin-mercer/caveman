@@ -20,11 +20,14 @@ python -m pytest -q                                 # offline suite, no provider
 WALTER_LIVE_SMOKE=1 python -m pytest -q -m live     # opt-in, credit-bearing provider smoke
 ```
 
-There is no lint, format, or typecheck tooling configured; `pytest` (via `[tool.pytest.ini_options]`) is the only verification entrypoint. `tests/test_runtime.py` and `tests/test_adapter.py` use `pytest.importorskip("agents")`, so SDK-dependent coverage silently disappears if the SDK is not installed in the active venv.
+For Python there is no lint, format, or typecheck tooling configured; `pytest` is the verification entrypoint. The web app (`web/`) has `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` and `npx playwright test` (see README). `tests/test_runtime.py` and `tests/test_adapter.py` use `pytest.importorskip("agents")`, so SDK-dependent coverage silently disappears if the SDK is not installed in the active venv.
 
 Runtime config comes from a gitignored `.env` (see `.env.example`): `OPENROUTER_API_KEY`, `WALTER_MODEL_PROVIDER=openrouter`, `WALTER_MODEL`, `WALTER_WORKER_MODEL`, `OPENROUTER_BASE_URL`. OpenRouter is the only configured provider. Never commit a real key.
 
 ## Architecture
+
+The product is **Caveman**; `walter` is the historical internal name of the orchestration core. `src/caveman/` is the product layer (FastAPI API, durable leased-job worker, the default deterministic workflow driver, delivery, scripted test executor) and `web/` is the Next.js app. Neither may record validation, review, acceptance or completion: only the kernel does.
+
 
 - `src/walter/orchestration.py` — deterministic kernel: lifecycle, acceptance, approvals, authority. The model proposes; the kernel authorizes.
 - `src/walter/adapter.py` — Agents SDK boundary and Manager/worker tools; `runtime.py` wires `build_walter`, `cli.py` is the `walter` entrypoint.

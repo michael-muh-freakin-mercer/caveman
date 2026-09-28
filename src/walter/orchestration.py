@@ -23,8 +23,10 @@ class GateError(ValueError):
 # pytest = candidate-scoped alias of pytest_candidate (legacy name). The two
 # named forms exist so a task can require the candidate's own tests, the
 # pre-existing suite, or both (2026-09-21 decision).
+# node_test runs the candidate's Node test files (node:test, TypeScript via type
+# stripping); tsc type-checks the project with its own typescript dependency.
 EXECUTABLE_DEVELOPER_CHECKS = frozenset(
-    {"compile", "pytest", "pytest_candidate", "pytest_regression"})
+    {"compile", "pytest", "pytest_candidate", "pytest_regression", "node_test", "tsc"})
 
 # Bounded retries for append-only usage accounting when another process commits
 # to the same run between this load and save.
@@ -177,7 +179,7 @@ class Orchestrator:
         profile = capability or task.capability
         if (profile == CapabilityProfile.DEVELOPER_SANDBOX and
                 not EXECUTABLE_DEVELOPER_CHECKS.intersection(task.required_checks)):
-            raise GateError("Developer sandbox requires compile or pytest validation")
+            raise GateError("Developer sandbox requires compile or pytest validation (or node_test/tsc for Node projects)")
 
     def create_run(self, objective: str, completion_criteria: list[str], *, constraints: list[str] | None = None, max_replans: int = 3) -> Run:
         if not objective.strip() or not all(x.strip() for x in completion_criteria):
@@ -659,6 +661,32 @@ class Orchestrator:
             return decision
         return self._mutate(run_id, operation)
 
+    def record_integration(self, run_id: str, artifact_id: str, commit: str):
+        """Record that trusted code integrated this accepted candidate at ``commit``.
+
+        Only the current canonical accepted workspace artifact of an accepted
+        task can be integrated, once. Re-recording the same commit is a no-op
+        so an interrupted integration can be completed idempotently.
+        """
+        if not commit or len(commit) not in (40, 64) or any(c not in "0123456789abcdef" for c in commit):
+            raise GateError("Integration commit must be a full object id")
+        existing = self.get_run(run_id).artifacts.get(artifact_id)
+        if existing is not None and existing.integrated_commit == commit:
+            return  # already recorded; nothing to append
+        def operation(run, events):
+            artifact = run.artifacts.get(artifact_id)
+            task = run.tasks.get(artifact.task_id) if artifact else None
+            if (not artifact or not task or artifact.status != "accepted" or
+                    artifact_id not in run.accepted_artifacts or task.status != TaskStatus.ACCEPTED or
+                    task.artifact_ids[-1:] != [artifact_id] or not artifact.workspace_fingerprint):
+                raise GateError("Only the canonical accepted workspace artifact can be integrated")
+            if artifact.integrated_commit is not None:
+                raise GateError("Artifact is already integrated at a different commit")
+            artifact.integrated_commit = commit
+            self._event(run, events, "artifact.integrated", artifact_id=artifact_id,
+                        task_id=task.id, commit=commit)
+        self._mutate(run_id, operation)
+
     def _fail(self, run, events, task, classification: FailureClass, evidence: str) -> WorkerFailure:
         failure = WorkerFailure(task_id=task.id, classification=classification, evidence=evidence)
         self._transition(run, events, task, TaskStatus.FAILED, evidence)
@@ -699,7 +727,7 @@ class Orchestrator:
                 raise GateError("Failure already recovered or superseded")
             kind = failure.classification
             action = "REPLAN"
-            if kind in {FailureClass.PROVIDER_FAILURE, FailureClass.TIMEOUT}:
+            if kind in {FailureClass.PROVIDER_FAILURE, FailureClass.TIMEOUT, FailureClass.STALE_BASE}:
                 action = "RETRY"
             elif kind in {FailureClass.BAD_OUTPUT, FailureClass.MISSING_EVIDENCE}:
                 action = "REVISE"

@@ -1,5 +1,68 @@
 # Changelog
 
+## 2026-09-28 — Concurrent first start
+
+- Fix: `SQLiteStore` read `user_version == 0` and then created its tables without holding the write lock, so when the API and a worker opened a fresh database at the same moment one of them crashed with `table runs already exists` (a worker crash left every E2E build unexecuted in CI). Schema creation, the v1→v2 migration and the platform store's additive column migration now take the write lock and re-check before acting. A regression test opens both stores from eight processes released by a barrier; it reproduces the crash on the old code.
+
+## 2026-09-28 — PostgreSQL for operational state
+
+- `CAVEMAN_DATABASE_URL` puts the kernel's run store and the platform store in PostgreSQL (schemas `<CAVEMAN_DATABASE_SCHEMA>_ops` / `_platform`). `walter.pg` presents a psycopg connection with the SQLite calls the stores make: `BEGIN IMMEDIATE` becomes a transaction holding a per-schema advisory lock (single-writer semantics preserved, so the optimistic version check and the job queue behave identically across hosts), `?` placeholders and `rowid` are translated, and rows read by index or name. `PostgresStore` subclasses `SQLiteStore`; `walter.store.open_store` and `Settings.open_operations_store/open_platform_store` select the backend.
+- Fix (both backends): loading a run read its row and its events in separate statements, so a concurrent commit from another process could make a reader see a snapshot that did not match its events. Reads now happen inside one read transaction (repeatable read on PostgreSQL). `Engine.version` uses the store instead of opening the SQLite file.
+- The platform store's upserts use portable `ON CONFLICT ... DO UPDATE`.
+- CI runs the API suite and new store/queue concurrency tests against a PostgreSQL 16 service; locally the tests start a throwaway cluster when PostgreSQL is installed.
+
+## 2026-09-28 — Follow-up requests
+
+- "Ask for changes" on a completed build opens a new run in the same project; the planner sees the project's files and specialists start from its integration head. A scripted `#follow-up` scenario (its tests import the earlier run's code) and an API test plus an E2E journey prove the second delivery contains both runs' work.
+
+## 2026-09-28 — Forms never submit natively
+
+- Fix: a click on a form's submit button before the page hydrated fell through to a native GET submission, which reloads the page and would put field values (including the sign-in password) in the URL. It surfaced as an intermittent CI failure of the password-reset journey. Sign-in, sign-up, password reset and build forms now use `method="post"` and keep their submit buttons disabled until hydration (`useHydrated`); an E2E journey with JavaScript disabled pins this.
+
+## 2026-09-28 — Data export and account deletion
+
+- Decision: honouring a user's deletion request is the one case where durable run history is removed. `SQLiteStore.delete_run` erases a run's snapshot, events and migration backups; ordinary operation still never removes history.
+- `GET /api/account/export` returns the account's projects and runs (full event history and artifact contents); the web route `/api/account/export` adds the account record and sign-in methods (never tokens) and serves it as a download.
+- `DELETE /api/account` removes platform records in one transaction (refused with 409 while a job is running; queued jobs go with their runs), then kernel runs, agent sessions, project repositories and delivery archives. It is called only from Better Auth's `beforeDelete` hook, after the password (or session freshness) check, so the sign-in is deleted only after the data; the browser proxy does not expose it. `caveman ops purge-orphans` removes data left by an interrupted erasure (items younger than an hour are kept).
+- Settings has a "Your data" panel with the download and a typed-confirmation delete dialog.
+
+## 2026-09-28 — Existing code
+
+- New projects can start from a public GitHub repository (`repository_url` on `POST /api/builds` and `POST /api/projects`; "Start from a public GitHub repository" in the New build form). `src/caveman/importer.py` accepts only `https://github.com/<owner>/<repo>`, checks public visibility and size through GitHub's API before downloading, clones shallow over HTTPS only (`GIT_ALLOW_PROTOCOL=https`) with no hooks, templates, tags, submodules or credentials, inspects the tree before checkout, refuses symlinks, submodules and other special entries, drops paths the sandbox treats as state or secrets, and commits the kept files as the project's single first commit, discarding upstream history, refs and remote. Caveman's `.local/` is excluded through `.git/info/exclude`, leaving the project's own `.gitignore` untouched. The source (URL, upstream commit, branch, counts) is recorded in the project settings and shown on the project page.
+- The workflow planner now receives a listing of the project's current files (integration head, else `HEAD`; policy-visible paths only, capped at 200), so follow-up runs and imported projects are planned against existing code. `WorkspaceManager.tracked_files()` provides it.
+
+## 2026-09-28 — Publish to GitHub
+
+- Decision: publishing is a promotion performed only on the user's explicit request for one exact target (new repository name, visibility, verified integration commit). The user's click on the confirmation dialog is the human authorization; it is recorded in the platform `publications` table (the kernel refuses mutations on completed runs). Repository scope is requested incrementally at that moment; OAuth tokens are encrypted at rest (Better Auth `encryptOAuthTokens`), read server-side by a dedicated route, used once by the API, passed to git through environment config (never argv or repo config), and redacted from errors. Only newly created repositories are pushed to, so nothing is overwritten.
+
+## 2026-09-28 — Node/TypeScript toolchain and execution backend seam
+
+- New trusted checks `node_test` and `tsc` (see TOOLS.md). Node runs under the existing network-deny seccomp filter with in-process test isolation, because per-file test processes need `socketpair`, which the filter denies. Node gets a 4 GB address-space cap (V8 reserves far more than it uses) with a 768 MB heap limit, and remains bound by the 1 GB aggregate-RSS monitor; Python keeps 1 GB. Node 22+ is required.
+- npm dependencies install in a separate jail: network allowed, `--ignore-scripts`, cleared environment, manifest-only view, cached by manifest digest, mounted read-only.
+- Execution is now behind `ExecutionBackend` / `ExecutionSpec`; `BubblewrapBackend` is the implementation. A microVM or managed sandbox can be added without touching workspaces, checks or the kernel.
+- The worker image ships Node 22.
+
+## 2026-09-28 — Workflow driver
+
+- Decision: Caveman runs default to a deterministic workflow driver (`src/caveman/workflow.py`) instead of the Manager model's tool loop. Code drives plan → delegate → validate → review → accept/integrate → recover; a planner model produces criteria and a task graph that is validated (uniqueness, dependency order, criterion coverage, kernel task rules) before anything is recorded, with one corrected retry. Failures are classified by trusted code and routed by the kernel's recovery table; replan-blocked work is reopened only when the kernel judges the reopen non-material; capability requests become exact human approvals. The default scripted build dropped from 19 model calls to 8. `CAVEMAN_ORCHESTRATION=manager` keeps the original mode.
+- Adapter: worker errors are classified (budget interruption → TIMEOUT, malformed structured output or exhausted turns → BAD_OUTPUT, provider transport errors → PROVIDER_FAILURE); anything unrecognised stays TOOL_FAILURE. `_invoke` can call the manager model (used by the planner).
+
+## 2026-09-28 — Acceptance integration
+
+- Decision: for Caveman project repositories, accepting a developer candidate fast-forwards an internal `walter-integration` staging ref to exactly its validated bytes (fingerprint re-verified). New candidates start from that ref, so dependent tasks build on accepted upstream code. Integration is fast-forward only; a candidate on a stale base fails as the new `STALE_BASE` class (routed to RETRY) and the retry replays the previous attempt onto the new head. finish_run requires all accepted code to be integrated. Merging into user branches, pushing and deploying remain human-approved promotion. Off for the operator CLI.
+- Kernel: `Artifact.integrated_commit`, `Orchestrator.record_integration`, `FailureClass.STALE_BASE`.
+- Sandbox: `integration_head`, `integrate` (compare-and-swap ref update), `carry_over`, `create_candidate(base_revision=...)`.
+- Delivery archives the integration head after verifying it against the kernel's recorded commits.
+
+## 2026-09-27 — Caveman product layer
+
+- Product identity is now Caveman; `walter` remains the internal core package and a compatibility CLI.
+- Added `src/caveman/`: private FastAPI control plane, owner-scoped platform store, leased durable job queue, worker with interruption recovery, exact-scope approval decisions (bound to the displayed scope digest), SSE streaming, honest projections, verified delivery archives, and a scripted test executor refused in production.
+- Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
+- Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
+- Workers refuse to start when Bubblewrap isolation is unusable.
+
+
 ## Unreleased — 2026-09-27
 
 ### Fixed
