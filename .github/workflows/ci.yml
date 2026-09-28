@@ -82,6 +82,12 @@ jobs:
       - name: Offline evaluation scenarios
         run: .venv/bin/python evals/runner.py
 
+      - name: Secret scan
+        # Any secret-like string not audited into .secrets.baseline fails the build.
+        run: |
+          .venv/bin/python -m pip install "detect-secrets==1.5.0"
+          PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/check_secrets.py
+
       - name: Dependency audit (Python)
         run: |
           .venv/bin/python -m pip install pip-audit

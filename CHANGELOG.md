@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Secret scanning
+
+- CI runs `scripts/check_secrets.py`: detect-secrets rescans the tracked tree against `.secrets.baseline` and fails on any finding not audited as a false positive. The baseline's current entries are placeholders and test fixtures (`your_openrouter_key_here`, CI-only Postgres and auth values, fake tokens in tests).
+
 ## 2026-09-28 — Campaign spend guard
 
 - `scripts/live_campaign.py` starts a run only if its whole per-run ceiling still fits under `--total-budget-usd`, and stops the campaign after any run whose provider did not report cost for every call, since spend could then not be capped (`--allow-unknown-cost` overrides).
