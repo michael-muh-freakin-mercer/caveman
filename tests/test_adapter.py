@@ -1421,3 +1421,43 @@ def test_run_check_takes_a_check_name_and_builds_the_sandbox_template(tmp_path):
     assert "Unknown check" in check("make")["output"]
     refused = check("pytest", ["../outside.py"])
     assert not refused["passed"] and "refused" in refused["output"]
+
+
+def _exhausts_after_writing(controller, manager, *, write: bool):
+    from agents.exceptions import MaxTurnsExceeded
+
+    async def invoke(**kwargs):
+        if write:
+            grant = controller.inspect().tasks["task"].workspace_id
+            manager.write_file(grant, "tests/test_ok.py", "def test_ok():\n    assert True\n",
+                               worker_id=manager.inspect_grant(grant).worker_id)
+        raise MaxTurnsExceeded("Max turns (24) exceeded")
+    return invoke
+
+
+def test_exhausted_specialist_work_is_submitted_for_trusted_validation(tmp_path, monkeypatch):
+    controller, manager = _developer_pytest_controller(tmp_path)
+    controller.salvage_exhausted = True
+    monkeypatch.setattr(controller, "_invoke", _exhausts_after_writing(controller, manager, write=True))
+    artifact = asyncio.run(controller.delegate("task"))
+    state = controller.inspect()
+    task = state.tasks["task"]
+    # A candidate exists and awaits the kernel's gates; salvage accepts nothing itself.
+    assert task.artifact_ids == [artifact.id] and task.status == "SUBMITTED"
+    assert artifact.status == "candidate"
+    assert "used all its steps" in state.artifacts[artifact.id].content
+
+
+@pytest.mark.parametrize("salvage,write", [(False, True), (True, False)])
+def test_exhaustion_still_fails_without_salvage_or_without_work(tmp_path, monkeypatch, salvage, write):
+    from agents.exceptions import MaxTurnsExceeded
+
+    controller, manager = _developer_pytest_controller(tmp_path)
+    controller.salvage_exhausted = salvage
+    monkeypatch.setattr(controller, "_invoke", _exhausts_after_writing(controller, manager, write=write))
+    try:
+        asyncio.run(controller.delegate("task"))
+    except MaxTurnsExceeded:
+        pass
+    task = controller.inspect().tasks["task"]
+    assert task.artifact_ids == [] and task.status != "SUBMITTED"

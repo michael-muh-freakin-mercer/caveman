@@ -90,6 +90,9 @@ class Settings:
     account_monthly_max_calls: int = 3000
     budget_warning_ratio: float = 0.8
     manager_max_turns: int = 60
+    # Steps (model replies) per specialist attempt. Live runs showed capable
+    # specialists reaching green checks around step 24.
+    specialist_max_turns: int = 40
     worker_concurrency: int = 1
     lease_seconds: float = 90.0
     heartbeat_seconds: float = 5.0
@@ -217,6 +220,7 @@ class Settings:
             account_monthly_budget_usd=_float(values, "CAVEMAN_ACCOUNT_MONTHLY_BUDGET_USD", 25.0, minimum=0.01),
             account_monthly_max_calls=_int(values, "CAVEMAN_ACCOUNT_MONTHLY_MAX_CALLS", 3000),
             manager_max_turns=_int(values, "CAVEMAN_MANAGER_MAX_TURNS", 60),
+            specialist_max_turns=_int(values, "CAVEMAN_SPECIALIST_MAX_TURNS", 40),
             worker_concurrency=_int(values, "CAVEMAN_WORKER_CONCURRENCY", 1),
             lease_seconds=_float(values, "CAVEMAN_LEASE_SECONDS", 90.0, minimum=5.0),
             heartbeat_seconds=_float(values, "CAVEMAN_HEARTBEAT_SECONDS", 5.0, minimum=0.1),

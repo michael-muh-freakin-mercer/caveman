@@ -265,7 +265,7 @@ def workspace_tools(manager, workspace_id: str, worker_id: str, *, writable: boo
 
 class DurableController:
     def __init__(self, orchestrator, run_id: str, workspaces=None, config=None, *,
-                 integration: bool = False):
+                 integration: bool = False, salvage_exhausted: bool = False):
         self.core = orchestrator
         self.run_id = run_id
         self.workspaces = workspaces
@@ -274,6 +274,10 @@ class DurableController:
         # projects). The operator CLI on a user's own checkout leaves it off.
         self.integration = integration and workspaces is not None
         self._integration_lock = threading.RLock()
+        # When a developer specialist runs out of steps after changing its
+        # workspace, submit the workspace to trusted validation and review
+        # instead of discarding the attempt (Caveman). Off for the operator CLI.
+        self.salvage_exhausted = salvage_exhausted
 
     def instructions(self):
         extra = "\n" + INTEGRATION_INSTRUCTIONS if self.integration else ""
@@ -891,6 +895,36 @@ class DurableController:
             raise TypeError("Specialist returned an unexpected structured output")
         return result.final_output
 
+    def _salvage(self, exc: Exception, task, task_id: str):
+        """A result for a developer specialist that ran out of steps with work done.
+
+        The platform, not the specialist, authors this result and says so. It
+        claims nothing about quality: the candidate still has to pass every
+        trusted check and an independent review before the kernel accepts it.
+        Returns None when there is nothing to salvage.
+        """
+        from .models import CapabilityProfile
+
+        try:
+            from agents.exceptions import MaxTurnsExceeded
+        except ImportError:  # pragma: no cover
+            return None
+        if not (self.salvage_exhausted and isinstance(exc, MaxTurnsExceeded)
+                and task.capability == CapabilityProfile.DEVELOPER_SANDBOX and self.workspaces is not None):
+            return None
+        current = self.inspect().tasks[task_id]
+        if not current.workspace_id or not self.workspaces.diff(current.workspace_id).strip():
+            return None
+        return WorkerResult(
+            task_id=task_id, status="completed",
+            summary=("The specialist used all its steps before reporting. Caveman submitted its workspace "
+                     "as-is for trusted validation and independent review."),
+            deliverable=("Candidate workspace changes (see the diff). Submitted by Caveman: the specialist "
+                         "used all its steps before reporting, so it did not describe or self-check this work."),
+            evidence=["Submitted by the platform after the specialist's step budget ran out"],
+            uncertainties=["The specialist did not describe or self-check its final state"],
+        )
+
     def tools(self):
         from .models import FailureClass
 
@@ -1176,10 +1210,15 @@ class DurableController:
                     worker_instructions += (" Your workspace already contains your previous attempt, replayed onto the latest accepted project code. Inspect it with inspect_diff, fix whatever the task still needs, and verify.")
                 elif carried is False:
                     worker_instructions += (" Your previous attempt could not be replayed onto the latest accepted project code because it conflicts with it. Re-implement the task on the current code.")
-            result = await self._invoke(name=f"Specialist {worker_id}",
-                role="worker", task_id=task_id, assignment_id=assignment.id, worker_id=worker_id,
-                instructions=worker_instructions,
-                output_type=WorkerResult, tools=granted_tools, input=task.packet.model_dump_json())
+            try:
+                result = await self._invoke(name=f"Specialist {worker_id}",
+                    role="worker", task_id=task_id, assignment_id=assignment.id, worker_id=worker_id,
+                    instructions=worker_instructions,
+                    output_type=WorkerResult, tools=granted_tools, input=task.packet.model_dump_json())
+            except Exception as exc:
+                result = self._salvage(exc, task, task_id)
+                if result is None:
+                    raise
             result.task_id = task_id
             if result.status != "completed":
                 if result.capability_request is not None:

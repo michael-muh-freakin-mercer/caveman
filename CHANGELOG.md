@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — Step budget and salvage (first live completion)
+
+- With specialists able to run their checks, the fourth live smoke build completed: the specialist reached all-green checks at its 24th and final step, ran out before reporting, and its revision was accepted after trusted validation and independent review ($0.27, 33 model calls, 11 minutes).
+- Caveman gives specialists 40 steps per attempt (`CAVEMAN_SPECIALIST_MAX_TURNS`).
+- `DurableController(salvage_exhausted=True)` (Caveman only): when a developer specialist runs out of steps after changing its workspace, the platform submits the workspace as a candidate instead of discarding the attempt. The submission says in its deliverable that the platform submitted it and the specialist did not self-report; it must still pass every trusted check and independent review. Without changes, or with salvage off (operator CLI), exhaustion fails as before.
+
 ## 2026-09-28 — Planner robustness (from live probes)
 
 - Probing the planner on the smoke prompt: 2 of 3 plans were rejected because `required_inputs` held free text ("Specification from design-parser-spec", "DATA_MODEL.md for …") the kernel cannot resolve. The driver now maps entries naming an earlier task to that task id (and a dependency) and moves anything else into the task's context; the planner is told what the field accepts. After the change 3 of 3 probes planned successfully.
