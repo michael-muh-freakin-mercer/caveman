@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — Campaign spend guard
+
+- `scripts/live_campaign.py` starts a run only if its whole per-run ceiling still fits under `--total-budget-usd`, and stops the campaign after any run whose provider did not report cost for every call, since spend could then not be capped (`--allow-unknown-cost` overrides).
+
 ## 2026-09-28 — One job per project; scheduled maintenance
 
 - Fix: a project's sandbox state (candidate grants in `.local/sandboxes/grants.json`) is loaded once per `WorkspaceManager` and rewritten whole on save, and every job builds its own manager. Two runs of one project executing at once (allowed since users may have two builds running) could drop each other's grants or corrupt the file. The queue now never claims a job whose project already has a running job, across all workers and hosts.
