@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — Planner robustness (from live probes)
+
+- Probing the planner on the smoke prompt: 2 of 3 plans were rejected because `required_inputs` held free text ("Specification from design-parser-spec", "DATA_MODEL.md for …") the kernel cannot resolve. The driver now maps entries naming an earlier task to that task id (and a dependency) and moves anything else into the task's context; the planner is told what the field accepts. After the change 3 of 3 probes planned successfully.
+- Several plans put `pytest_regression` on the first code task of a new project, a check with nothing to run that the kernel records as a failure. The driver drops it where there are no pre-existing tests and no upstream Python code task; the planner is told when to use it and to keep code and its tests in one task.
+- Planning gets three attempts (was two), retries unparseable planner output too, and a final failure names the last validation problem.
+
 ## 2026-09-28 — Specialists can run their own checks
 
 - Found by the first live-model smoke build: specialists' `run_check(category, argv)` calls were all refused by the sandbox's strict templates ("Command category denied", "Only the immutable Python environment … are executable"), which the model was never told. Unable to test, the specialist rewrote 8–11 KB files blind until it ran out of turns, twice, and a syntax error went unnoticed.
