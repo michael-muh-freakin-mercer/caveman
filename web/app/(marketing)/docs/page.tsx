@@ -78,7 +78,7 @@ export default function DocsPage() {
         <h1 className="text-4xl font-semibold tracking-tight text-fg">Caveman documentation</h1>
         <p className="mt-4 text-lg text-fg-soft">
           Everything you need to use Caveman. Operators should read the{" "}
-          <a className="text-glacier underline-offset-4 hover:underline" href="https://github.com/who-is-michael-mercer/Walter#readme" rel="noreferrer">
+          <a className="text-glacier underline-offset-4 hover:underline" href="https://github.com/who-is-michael-mercer/caveman#readme" rel="noreferrer">
             setup guide in the repository
           </a>
           .

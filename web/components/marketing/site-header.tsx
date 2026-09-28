@@ -14,7 +14,7 @@ const NAV = [
   { href: "/docs", label: "Docs" },
 ];
 
-const GITHUB_URL = "https://github.com/who-is-michael-mercer/Walter";
+const GITHUB_URL = "https://github.com/who-is-michael-mercer/caveman";
 
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname();
