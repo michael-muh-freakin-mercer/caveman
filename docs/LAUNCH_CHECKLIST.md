@@ -27,7 +27,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end
 - [ ] 🤖 Verify Better Auth on Postgres
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`)
-- [ ] 🤖 SQLite → Postgres data migration tool
+- [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
 - [ ] 🧑 Approve the first deploy
 
 ### 4. Security review
