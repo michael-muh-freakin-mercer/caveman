@@ -152,6 +152,9 @@ test("a forgotten password is reset through the emailed link", async ({ browser 
   const page = await browser.newPage();
   await page.goto("/sign-in");
   await page.getByRole("link", { name: "Forgot password?" }).click();
+  // The sign-in page has an Email field too: wait for the reset page before filling.
+  await page.waitForURL(/\/forgot-password$/);
+  await expect(page.getByRole("button", { name: "Send reset link" })).toBeEnabled();
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send reset link" }).click();
   await expect(page.getByRole("status")).toContainText("reset link is on its way");
