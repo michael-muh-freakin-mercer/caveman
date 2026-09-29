@@ -1,0 +1,56 @@
+# Single-server production overlay (DigitalOcean guide: docs/DEPLOY_DIGITALOCEAN.md).
+#
+#   docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
+#
+# (run from the repository root; --env-file makes the root .env, which holds
+# CAVEMAN_DOMAIN, the interpolation source regardless of Compose version)
+#
+# - Caddy terminates TLS for CAVEMAN_DOMAIN and is the only thing listening on
+#   the internet; the web app and API stay on the private compose network.
+# - Workers run candidate code in E2B microVMs (CAVEMAN_SANDBOX_BACKEND=e2b in
+#   .env), so they need no relaxed container security options.
+# - Project repositories and delivery archives live on the attached block
+#   storage volume mounted at /mnt/caveman-data; run and account state lives in
+#   managed PostgreSQL (CAVEMAN_DATABASE_URL and AUTH_DATABASE_URL).
+#   deploy/postgres-ca.crt is the managed database's CA certificate; the
+#   connection strings verify the server against it (sslmode=verify-full).
+services:
+  api:
+    restart: unless-stopped
+    volumes:
+      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
+
+  worker:
+    restart: unless-stopped
+    security_opt: !reset []
+    volumes:
+      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
+    environment:
+      CAVEMAN_DATA_DIR: /data
+      CAVEMAN_SANDBOX_BACKEND: e2b
+
+  web:
+    restart: unless-stopped
+    ports: !reset []
+    expose: ["3000"]
+    volumes:
+      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [web]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      CAVEMAN_DOMAIN: ${CAVEMAN_DOMAIN:?set CAVEMAN_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caveman-data:
+    driver: local
+    driver_opts: { type: none, o: bind, device: /mnt/caveman-data }
+  caddy-data:
+  caddy-config:

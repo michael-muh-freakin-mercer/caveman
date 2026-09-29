@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for taking the time. Good bug reports are the best gift this project gets.
 
-        **Security holes go through [SECURITY.md](https://github.com/who-is-michael-mercer/caveman/blob/main/SECURITY.md), not here.**
+        **Security holes go through [SECURITY.md](https://github.com/michael-muh-freakin-mercer/caveman/blob/main/SECURITY.md), not here.**
         Redact anything sensitive first: run snapshots include task text.
   - type: textarea
     id: what-happened

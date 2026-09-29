@@ -140,10 +140,10 @@ def _toolchains() -> list[str]:
     return ["python"] + (["node"] if _detect_node_root() is not None else [])
 
 
-def _sandbox_status() -> dict:
+def _sandbox_status(backend: str = "bubblewrap") -> dict:
     from .sandbox_probe import probe
-    usable, detail = probe()
-    return {"available": usable, "detail": detail,
+    usable, detail = probe(backend=backend)
+    return {"available": usable, "detail": detail, "backend": backend,
             "bubblewrap": Path("/usr/bin/bwrap").exists(), "prlimit": Path("/usr/bin/prlimit").exists()}
 
 
@@ -259,7 +259,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   "# HELP caveman_deliveries Delivery archives by status.", "# TYPE caveman_deliveries gauge"]
         for status, count in sorted(platform.delivery_counts().items()):
             lines.append(f'caveman_deliveries{{status="{status}"}} {count}')
-        sandbox = _sandbox_status()
+        sandbox = _sandbox_status(settings.sandbox_backend)
         lines += ["# HELP caveman_sandbox_available Whether isolation works on the API host.",
                   "# TYPE caveman_sandbox_available gauge",
                   f"caveman_sandbox_available {1 if sandbox['available'] else 0}"]
@@ -290,7 +290,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                           "manager_model": manager, "worker_model": worker})
         return {"version": __version__, "executor": settings.executor, "model_modes": modes,
                 "orchestration": settings.orchestration, "provider": provider,
-                "sandbox": _sandbox_status(),
+                "sandbox": _sandbox_status(settings.sandbox_backend),
                 "budget": {"default_usd": settings.default_budget_usd, "max_usd": settings.max_budget_usd,
                            "account_monthly_usd": settings.account_monthly_budget_usd,
                            "account_monthly_calls": settings.account_monthly_max_calls,
