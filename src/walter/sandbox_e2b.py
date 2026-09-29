@@ -23,7 +23,10 @@ so candidate code never runs on the worker host at all. It honours the same
   loads the same network-deny seccomp filter the Bubblewrap backend uses before
   the command starts (E2B's kernel lacks the iptables owner match, so a
   per-account firewall is not available). If the filter cannot be loaded the
-  execution fails closed. The command runs with a cleared environment under ``timeout`` and ``prlimit`` with the spec's
+  execution fails closed. The monitored scratch directory is a tmpfs sized to the
+  scratch budget, so writes beyond it fail while the command runs; the other
+  world-writable directories E2B leaves open are closed. The command runs with a
+  cleared environment under ``timeout`` and ``prlimit`` with the spec's
   limits. Aggregate memory is bounded by the template's VM size, and scratch
   usage is measured after the run.
 - The VM is killed after every execution, whatever happened.
@@ -98,6 +101,9 @@ if lib.seccomp_load(context) != 0:
     fail("seccomp_load failed")
 os.execv(sys.argv[1], sys.argv[1:])
 '''
+
+# World-writable in E2B's base image; Bubblewrap exposes only the spec's writable mounts.
+CLOSED_WRITABLE = ("/usr/local", "/code", "/var/tmp", "/dev/shm", "/home/user")
 
 SandboxFactory = Callable[..., Any]
 
@@ -228,6 +234,11 @@ class E2BBackend:
             sandbox.files.write(NETWORK_FILTER, NETWORK_FILTER_SOURCE, user="root")
         setup = [f'test -e {q(target)} || {{ echo "template lacks {target}" >&2; exit {TEMPLATE_MISSING}; }}'
                  for target in provided]
+        scratch = next((target for source, target in writable if source == spec.monitor_scratch), None)
+        if scratch is not None:
+            setup += [f"mkdir -p {q(scratch)}",
+                      f"mount -t tmpfs -o size={MAX_SCRATCH_BYTES},mode=1777,nosuid,nodev tmpfs {q(scratch)}"]
+        setup += [f"chmod o-w {' '.join(CLOSED_WRITABLE)} 2>/dev/null || true"]
         setup += [f"tar -xzf {TRANSFER}/in.tgz -C / --no-same-owner", f"rm -f {TRANSFER}/in.tgz"]
         setup += [f"chown -R {RUN_USER}:{RUN_USER} {q(target)}" for _, target in writable]
         setup += [f"chown -R root:root {q(target)} && chmod -R a+rX,a-w {q(target)}" for target in readonly]
@@ -256,7 +267,6 @@ class E2BBackend:
         if returncode in (124, 137) and time.monotonic() - started >= spec.timeout:
             raise SandboxViolation("Sandbox command exceeded wall-time budget")
 
-        scratch = next((target for source, target in writable if source == spec.monitor_scratch), None)
         if scratch is not None:
             used = int(self._root(sandbox, f"du -sb {q(scratch)} | cut -f1").strip() or 0)
             if used > MAX_SCRATCH_BYTES:

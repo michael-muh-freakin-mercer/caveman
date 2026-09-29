@@ -128,6 +128,9 @@ def test_execution_uploads_candidate_bytes_and_runs_unprivileged_in_a_denied_net
     assert "chown -R root:root /workspace && chmod -R a+rX,a-w /workspace" in setup
     assert "chown -R sandbox:sandbox /tmp" in setup
     assert "chmod 444 /var/caveman/netdeny.py" in setup
+    assert f"mount -t tmpfs -o size={MAX_SCRATCH_BYTES},mode=1777,nosuid,nodev tmpfs /tmp" in setup
+    assert setup.index("mount -t tmpfs") < setup.index("tar -xzf")
+    assert "chmod o-w /usr/local /code" in setup
     assert "seccomp_load" in sandbox.uploads["/var/caveman/netdeny.py"]
     command, user = sandbox.commands_run[1]
     assert user == "root"
@@ -395,6 +398,7 @@ def test_worker_start_runs_the_isolation_probe_in_a_real_backend(tmp_path, monke
     assert probe_execution(backend_for(sandbox)) == (True, "e2b isolation probe passed.")
     command = sandbox.commands_run[1][0]
     assert "/opt/walter-env/bin/python -c" in command and sandbox.killed
+    assert "socket.socket()" in command  # an open network cannot pass the probe
 
     leaky = FakeSandbox(respond=lambda command, user: "0" if command.startswith("du ") else "",
                         stderr=b"AssertionError: network available\n")
@@ -407,3 +411,14 @@ def test_worker_start_runs_the_isolation_probe_in_a_real_backend(tmp_path, monke
     monkeypatch.setenv("E2B_API_KEY", PLACEHOLDER)
     with pytest.raises(SystemExit, match="refuses to start: e2b isolation probe failed"):
         worker_module.main(settings)
+
+
+def test_template_gives_candidates_the_workers_dependency_set():
+    import importlib.util
+    path = Path(__file__).resolve().parents[1] / "scripts/e2b_template.py"
+    spec = importlib.util.spec_from_file_location("e2b_template", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    requirements = module.worker_dependencies()
+    assert any(requirement.startswith("pytest") for requirement in requirements)
+    assert any(requirement.startswith("fastapi") for requirement in requirements)

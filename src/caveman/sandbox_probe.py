@@ -56,13 +56,25 @@ def probe(*, max_age: float = 60.0, backend: str = "bubblewrap") -> tuple[bool, 
     return result
 
 
+# ISOLATION_PROBE's connect() to a reserved address fails even with open
+# internet, so a remote backend must also show that sockets cannot be created.
+SOCKETS_DENIED = """import socket
+try:
+    socket.socket()
+except PermissionError:
+    pass
+else:
+    raise AssertionError('network available: socket() succeeded')
+"""
+
+
 def probe_execution(execution_backend) -> tuple[bool, str]:
     """Run the isolation probe through a real backend (used when a worker starts with E2B)."""
     with tempfile.TemporaryDirectory(prefix="caveman-probe-") as temporary:
         workspace, scratch = Path(temporary) / "workspace", Path(temporary) / "scratch"
         workspace.mkdir(); scratch.mkdir()
         spec = ExecutionSpec(
-            argv=("/opt/walter-env/bin/python", "-c", ISOLATION_PROBE), workdir="/workspace",
+            argv=("/opt/walter-env/bin/python", "-c", SOCKETS_DENIED + ISOLATION_PROBE), workdir="/workspace",
             readonly_mounts=((str(workspace), "/workspace"), (sys.prefix, "/opt/walter-env")),
             writable_mounts=((str(scratch), "/tmp"),), environment=(("PATH", "/usr/bin:/bin"),),
             network=False, timeout=60, monitor_scratch=str(scratch))

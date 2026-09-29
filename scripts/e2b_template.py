@@ -3,8 +3,9 @@
     E2B_API_KEY=... python scripts/e2b_template.py [--name caveman-sandbox]
 
 The template mirrors what the Bubblewrap backend binds from the worker host:
-a Python environment with pytest at /opt/walter-env and Node 22 (with npm) at
-/opt/node, both owned by root so candidate code cannot change them. Candidate
+a Python environment at /opt/walter-env with the worker's own dependency set
+(read from pyproject.toml, so candidate checks can import what they could under
+Bubblewrap) and Node 22 (with npm) at /opt/node, both owned by root so candidate code cannot change them. Candidate
 code runs as ``sandbox``, an account with no sudo (E2B's default ``user`` has
 passwordless sudo, so it is never used for candidate code). Offline checks load
 a network-deny seccomp filter through the base image's libseccomp. E2B caches
@@ -17,14 +18,21 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import sys
+import tomllib
+from pathlib import Path
 
-# Candidate checks run pytest from this environment (same bound as pyproject.toml).
-PYTEST = "pytest>=9.1.1,<10"
+PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 NODE_LINE = "latest-v22.x"
 CPU_COUNT = 2
 # Above the sandbox's 1 GiB aggregate-RSS budget, with room for the OS and envd.
 MEMORY_MB = 2048
+
+
+def worker_dependencies() -> list[str]:
+    """The worker venv's runtime requirements, which Bubblewrap exposes to candidate checks."""
+    return tomllib.loads(PYPROJECT.read_text())["project"]["dependencies"]
 
 
 def template():
@@ -46,7 +54,8 @@ def template():
                       "curl", "ca-certificates", "libseccomp2"], no_install_recommends=True)
         .run_cmd(node)
         .run_cmd(["python3 -m venv /opt/walter-env",
-                  f"/opt/walter-env/bin/pip install --no-cache-dir '{PYTEST}'",
+                  "/opt/walter-env/bin/pip install --no-cache-dir "
+                  + " ".join(shlex.quote(requirement) for requirement in worker_dependencies()),
                   "/opt/walter-env/bin/python -m pytest --version"])
         .run_cmd(["useradd --system --user-group --no-create-home --shell /usr/sbin/nologin sandbox",
                   "! id -nG sandbox | grep -qw sudo",
