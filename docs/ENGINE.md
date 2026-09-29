@@ -179,7 +179,7 @@ checkout's `doctrine/SYSTEM_PROMPT.md` at startup, so a non-editable install int
 `site-packages` will not start.
 
 ```bash
-git clone https://github.com/who-is-michael-mercer/caveman.git
+git clone https://github.com/michael-muh-freakin-mercer/caveman.git
 cd caveman
 python3 -m venv .venv
 source .venv/bin/activate

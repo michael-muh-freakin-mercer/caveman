@@ -21,3 +21,6 @@ scratch/
 htmlcov/
 build/
 dist/
+
+# Managed database CA certificate placed on the server (docs/DEPLOY_DIGITALOCEAN.md)
+deploy/postgres-ca.crt
