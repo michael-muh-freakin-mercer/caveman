@@ -34,3 +34,45 @@ def test_campaign_refuses_to_start_without_provider_config(tmp_path, monkeypatch
                                capture_output=True, text=True, timeout=120, env=env, cwd=tmp_path)
     assert completed.returncode == 2 and "OPENROUTER_API_KEY" in completed.stderr
     assert not (tmp_path / "out").exists()
+
+
+def _load_campaign():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("live_campaign", REPO / "scripts/live_campaign.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_gate_compares_the_unrounded_completion_rate():
+    campaign = _load_campaign()
+    args = campaign.parse_args(["--executor", "scripted", "--min-completion", "1.0"])
+    # 1999/2000 rounds to 1.0 at three places but is not every request.
+    assert campaign.gate_failures(args, 1999, 2000, cost_complete=True)
+    assert campaign.gate_failures(args, 2000, 2000, cost_complete=True) == []
+    assert campaign.gate_failures(campaign.parse_args([]), 0, 2, cost_complete=True) == []
+
+
+def test_gate_fails_when_the_provider_did_not_report_every_cost():
+    campaign = _load_campaign()
+    gated = campaign.parse_args(["--min-completion", "1.0"])
+    [failure] = campaign.gate_failures(gated, 1, 1, cost_complete=False)
+    assert "no cost" in failure
+    allowed = campaign.parse_args(["--min-completion", "1.0", "--allow-unknown-cost"])
+    assert campaign.gate_failures(allowed, 1, 1, cost_complete=False) == []
+    # The scripted executor reports no cost by design; its dry runs still pass.
+    scripted = campaign.parse_args(["--executor", "scripted", "--min-completion", "1.0"])
+    assert campaign.gate_failures(scripted, 1, 1, cost_complete=False) == []
+
+
+@pytest.mark.skipif(not Path("/usr/bin/bwrap").exists(), reason="Bubblewrap unavailable")
+def test_campaign_min_completion_exits_nonzero(tmp_path):
+    prompts = tmp_path / "prompts.txt"
+    prompts.write_text("Build a booking core\nBuild a booking core #approval\n")
+    completed = subprocess.run(
+        [sys.executable, str(REPO / "scripts/live_campaign.py"), "--executor", "scripted",
+         "--prompts", str(prompts), "--out", str(tmp_path / "out"), "--data-dir", str(tmp_path / "data"),
+         "--min-completion", "1.0"],
+        capture_output=True, text=True, timeout=300)
+    assert completed.returncode == 1
+    assert "Completion 1/2 is below the required 100%" in completed.stderr
