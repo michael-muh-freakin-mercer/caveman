@@ -90,8 +90,10 @@ def test_network_is_denied_unless_the_spec_allows_it(backend, tmp_path):
 
 def test_environment_is_cleared_and_runtime_is_read_only(backend, tmp_path):
     code = ("import os, pathlib\n"
-            "print(sorted(k for k in os.environ if k not in {'PATH', 'PWD', 'SHLVL', '_'}))\n"
+            "print(sorted(k for k in os.environ if k not in {'PATH', 'LC_CTYPE'}))\n"
             "print(os.getuid() != 0)\n"
+            "import subprocess\n"
+            "print(subprocess.run(['sudo', '-n', 'true'], capture_output=True).returncode != 0)\n"
             "for p in ('/opt/walter-env/x', '/opt/node/x', '/usr/x'):\n"
             "    try: pathlib.Path(p).write_text('x')\n"
             "    except OSError: print('denied', p)\n")
@@ -99,7 +101,8 @@ def test_environment_is_cleared_and_runtime_is_read_only(backend, tmp_path):
     lines = result.stdout.splitlines()
     assert lines[0] == "[]", result.stdout + result.stderr
     assert lines[1] == "True"
-    assert lines[2:] == ["denied /opt/walter-env/x", "denied /opt/node/x", "denied /usr/x"]
+    assert lines[2] == "True"  # no sudo, even passwordless
+    assert lines[3:] == ["denied /opt/walter-env/x", "denied /opt/node/x", "denied /usr/x"]
 
 
 def test_wall_time_is_enforced(backend, tmp_path):

@@ -6,18 +6,23 @@ so candidate code never runs on the worker host at all. It honours the same
 ``ExecutionSpec`` contract:
 
 - Mounts are copied, not bound. Read-only sources are uploaded, owned by root and
-  made unwritable; the command runs as the unprivileged ``user`` account, so it
-  cannot change them. Writable sources are uploaded, owned by ``user``, and copied
-  back to the host after the command (additions and changes; deletions are not
+  made unwritable; the command runs as the template's ``sandbox`` account (no
+  sudo, entered with ``setpriv --no-new-privs``), so it cannot change them. E2B's
+  own default ``user`` has passwordless sudo and is never used for candidate
+  code. Writable sources are uploaded, owned by ``sandbox``, and copied back to
+  the host after the command (additions and changes; deletions are not
   propagated). The monitored scratch directory is the exception: it is measured
-  and then discarded with the VM. Copy-back goes through ``tarfile``'s ``data`` filter, so a
-  hostile VM cannot write outside the target or plant absolute links.
+  and then discarded with the VM. Copy-back goes through ``tarfile``'s ``data``
+  filter, so a hostile VM cannot write outside the target or plant absolute links.
 - The runtimes (``/opt/walter-env`` and ``/opt/node``) come from the sandbox
   template, not the host: see ``scripts/e2b_template.py``. The host's resolver,
   CA and proxy settings describe the worker's network, not the VM's, so they are
   not copied in.
-- ``network=False`` creates the VM with internet access denied. The command runs
-  with a cleared environment under ``timeout`` and ``prlimit`` with the spec's
+- ``network=False`` creates the VM with internet access denied and, because that
+  setting alone did not stop outbound connections in testing (2026-09-29), also
+  installs iptables/ip6tables rules rejecting every packet the ``sandbox`` account
+  sends; if the rules cannot be installed the execution fails closed. The command
+  runs with a cleared environment under ``timeout`` and ``prlimit`` with the spec's
   limits. Aggregate memory is bounded by the template's VM size, and scratch
   usage is measured after the run.
 - The VM is killed after every execution, whatever happened.
@@ -56,7 +61,9 @@ TEMPLATE_RUNTIMES = frozenset({"/opt/walter-env", "/opt/node"})
 HOST_ONLY_TARGETS = frozenset({"/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/ssl",
                                "/etc/caveman-extra-ca.pem"})
 HOST_ONLY_ENVIRONMENT = frozenset(PROXY_ENVIRONMENT) | {"NODE_EXTRA_CA_CERTS"}
-RUN_USER = "user"
+RUN_USER = "sandbox"
+DROP_PRIVILEGES = ("/usr/bin/setpriv", f"--reuid={RUN_USER}", f"--regid={RUN_USER}", "--clear-groups",
+                   "--no-new-privs", "--inh-caps=-all", "--bounding-set=-all")
 TRANSFER = "/var/caveman"
 MAX_COPY_BACK_BYTES = 1_000_000_000
 # E2B's Hobby tier caps a sandbox's lifetime at one hour.
@@ -193,19 +200,22 @@ class E2BBackend:
                  for target in provided]
         setup += [f"tar -xzf {TRANSFER}/in.tgz -C / --no-same-owner", f"rm -f {TRANSFER}/in.tgz"]
         setup += [f"chown -R {RUN_USER}:{RUN_USER} {q(target)}" for _, target in writable]
-        setup += [f"chown -R root:root {q(target)} && chmod -R a-w {q(target)}" for target in readonly]
-        setup += [f"install -d -o {RUN_USER} -m 700 {TRANSFER}/io", f"test -d {q(spec.workdir)}"]
+        setup += [f"chown -R root:root {q(target)} && chmod -R a+rX,a-w {q(target)}" for target in readonly]
+        setup += [f"install -d -m 700 {TRANSFER}/io", f"test -d {q(spec.workdir)}"]
+        if not spec.network:
+            setup += [f"{tool} -I OUTPUT -m owner --uid-owner {RUN_USER} -j REJECT"
+                      for tool in ("iptables", "ip6tables")]
         self._root(sandbox, _script(*setup))
 
         environment = [f"{name}={value}" for name, value in spec.environment
                        if name not in HOST_ONLY_ENVIRONMENT]
-        inner = ["/usr/bin/env", "-i", *environment, "/usr/bin/timeout", "--kill-after=2",
+        inner = [*DROP_PRIVILEGES, "--", "/usr/bin/env", "-i", *environment, "/usr/bin/timeout", "--kill-after=2",
                  f"{spec.timeout:g}", *_limits(spec), "--", *spec.argv]
         command = (f"cd {q(spec.workdir)} && {shlex.join(inner)} "
                    f">{TRANSFER}/io/stdout 2>{TRANSFER}/io/stderr")
         started = time.monotonic()
         try:
-            sandbox.commands.run(command, user=RUN_USER, timeout=spec.timeout + 30)
+            sandbox.commands.run(command, user="root", timeout=spec.timeout + 30)
             returncode = 0
         except Exception as exc:
             if type(exc).__name__ == "TimeoutException":

@@ -4,8 +4,10 @@
 
 The template mirrors what the Bubblewrap backend binds from the worker host:
 a Python environment with pytest at /opt/walter-env and Node 22 (with npm) at
-/opt/node, both owned by root so candidate code, which runs as ``user``, cannot
-change them. prlimit, timeout, tar and du come from the base image. E2B caches
+/opt/node, both owned by root so candidate code cannot change them. Candidate
+code runs as ``sandbox``, an account with no sudo (E2B's default ``user`` has
+passwordless sudo, so it is never used for candidate code). iptables blocks the
+sandbox account's network when a check must be offline. E2B caches
 unchanged layers, so rebuilding after a small change is quick.
 
 Rebuild when this file changes; workers pick the new build up on their next
@@ -41,15 +43,17 @@ def template():
         .from_ubuntu_image("24.04")
         .set_user("root")
         .apt_install(["python3", "python3-venv", "util-linux", "coreutils", "tar", "gzip", "xz-utils",
-                      "curl", "ca-certificates"], no_install_recommends=True)
+                      "curl", "ca-certificates", "iptables"], no_install_recommends=True)
         .run_cmd(node)
         .run_cmd(["python3 -m venv /opt/walter-env",
                   f"/opt/walter-env/bin/pip install --no-cache-dir '{PYTEST}'",
                   "/opt/walter-env/bin/python -m pytest --version"])
-        .run_cmd(["id -u user >/dev/null 2>&1 || useradd --create-home --shell /bin/bash user",
+        .run_cmd(["useradd --system --user-group --no-create-home --shell /usr/sbin/nologin sandbox",
+                  "! id -nG sandbox | grep -qw sudo",
                   "chown -R root:root /opt/node /opt/walter-env",
                   "chmod -R go-w /opt/node /opt/walter-env",
-                  "test -x /usr/bin/prlimit && test -x /usr/bin/timeout && test -x /usr/bin/env"])
+                  "test -x /usr/bin/prlimit && test -x /usr/bin/timeout && test -x /usr/bin/env",
+                  "test -x /usr/bin/setpriv && command -v iptables && command -v ip6tables"])
         .set_user("user")
     )
 

@@ -123,10 +123,14 @@ def test_execution_uploads_candidate_bytes_and_runs_unprivileged_in_a_denied_net
     assert not any(name.startswith(("opt/", "etc/")) for name in names)
     setup, _ = sandbox.commands_run[0]
     assert "test -e /opt/walter-env" in setup
-    assert "chown -R root:root /workspace && chmod -R a-w /workspace" in setup
-    assert "chown -R user:user /tmp" in setup
+    assert "chown -R root:root /workspace && chmod -R a+rX,a-w /workspace" in setup
+    assert "chown -R sandbox:sandbox /tmp" in setup
+    assert "iptables -I OUTPUT -m owner --uid-owner sandbox -j REJECT" in setup
+    assert "ip6tables -I OUTPUT -m owner --uid-owner sandbox -j REJECT" in setup
     command, user = sandbox.commands_run[1]
-    assert user == "user"
+    assert user == "root"
+    assert command.index("/usr/bin/setpriv --reuid=sandbox --regid=sandbox --clear-groups --no-new-privs") \
+        < command.index("/usr/bin/env -i")
     assert "/usr/bin/env -i" in command and "HOME=/tmp" in command
     assert "HTTPS_PROXY" not in command
     assert "/usr/bin/timeout --kill-after=2 30" in command
@@ -139,11 +143,12 @@ def test_network_spec_creates_an_internet_enabled_vm(tmp_path):
     sandbox = FakeSandbox(respond=lambda command, user: "0" if command.startswith("du ") else "")
     backend_for(sandbox, created).run(spec_for(tmp_path, network=True))
     assert created[0]["allow_internet_access"] is True
+    assert "iptables" not in sandbox.commands_run[0][0]
 
 
 def test_nonzero_exit_is_returned_not_raised(tmp_path):
     def respond(command, user):
-        if user == "user":
+        if "setpriv" in command:
             raise CommandExit(1)
         return "0" if command.startswith("du ") else ""
     sandbox = FakeSandbox(respond=respond, stdout=b"1 failed\n")
@@ -154,7 +159,7 @@ def test_nonzero_exit_is_returned_not_raised(tmp_path):
 
 def test_wall_time_breaches_are_violations_and_the_vm_is_always_killed(tmp_path):
     def slow(command, user):
-        if user == "user":
+        if "setpriv" in command:
             time.sleep(0.05)
             raise CommandExit(124)
         return "0"
@@ -164,7 +169,7 @@ def test_wall_time_breaches_are_violations_and_the_vm_is_always_killed(tmp_path)
     assert sandbox.killed
 
     def stalled(command, user):
-        if user == "user":
+        if "setpriv" in command:
             raise TimeoutException("stream deadline")
         return "0"
     sandbox = FakeSandbox(respond=stalled)
@@ -175,7 +180,7 @@ def test_wall_time_breaches_are_violations_and_the_vm_is_always_killed(tmp_path)
 
 def test_a_program_exiting_124_quickly_is_not_a_timeout(tmp_path):
     def respond(command, user):
-        if user == "user":
+        if "setpriv" in command:
             raise CommandExit(124)
         return "0"
     result = backend_for(FakeSandbox(respond=respond)).run(spec_for(tmp_path))
