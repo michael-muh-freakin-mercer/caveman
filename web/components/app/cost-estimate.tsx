@@ -12,7 +12,8 @@ export function CostEstimate({ estimate, mode, modeLabel, budget }: {
   budget: number;
 }) {
   const history = estimate.modes[mode];
-  const remaining = estimate.account.remaining_usd;
+  const account = estimate.account;
+  const remaining = account.remaining_usd;
   const ceiling = Number.isFinite(budget) && budget > 0 ? budget : estimate.default_budget_usd;
   const typical =
     history && history.median_usd !== null && history.low_usd !== null && history.high_usd !== null ? (
@@ -29,11 +30,20 @@ export function CostEstimate({ estimate, mode, modeLabel, budget }: {
       <p>{typical}</p>
       <p className="mt-1">
         This build stops at <span className="text-fg-soft">{formatUsd(ceiling)}</span>. You have{" "}
-        <span className="text-fg-soft">{formatUsd(remaining)}</span> of {formatUsd(estimate.account.limit_usd)} left this month.
+        {account.cost_complete ? null : "at most "}
+        <span className="text-fg-soft">{formatUsd(remaining)}</span> of {formatUsd(account.limit_usd)} and{" "}
+        {account.remaining_calls} of {account.max_model_calls} model calls left this month.
+        {account.cost_complete
+          ? null
+          : ` ${account.calls_without_cost} ${account.calls_without_cost === 1 ? "call" : "calls"} reported no cost, so you may have less.`}
       </p>
-      {remaining < ceiling ? (
+      {account.exhausted || remaining <= 0 || account.remaining_calls <= 0 ? (
         <p role="status" className="mt-1 text-warn">
-          Your remaining monthly allowance is below this build&rsquo;s ceiling, so it may pause before finishing.
+          Your monthly allowance is used up, so new builds can&rsquo;t start until next month or an operator raises the limit.
+        </p>
+      ) : remaining < ceiling || account.remaining_calls < estimate.default_max_model_calls ? (
+        <p role="status" className="mt-1 text-warn">
+          Your remaining monthly allowance is below this build&rsquo;s limits, so it may pause before finishing.
         </p>
       ) : null}
     </div>

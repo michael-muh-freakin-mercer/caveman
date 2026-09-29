@@ -328,5 +328,14 @@ export interface EstimateView {
   modes: Record<string, ModeCostHistory>;
   default_budget_usd: number;
   max_budget_usd: number;
-  account: { remaining_usd: number; limit_usd: number; remaining_calls: number };
+  default_max_model_calls: number;
+  account: {
+    remaining_usd: number;
+    limit_usd: number;
+    remaining_calls: number;
+    max_model_calls: number;
+    cost_complete: boolean;
+    calls_without_cost: number;
+    exhausted: boolean;
+  };
 }

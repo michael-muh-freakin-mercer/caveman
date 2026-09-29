@@ -339,8 +339,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         spending = account_usage(engine, platform, settings, user)
         return {**cached[1],
                 "default_budget_usd": settings.default_budget_usd, "max_budget_usd": settings.max_budget_usd,
-                "account": {"remaining_usd": spending["remaining_usd"], "limit_usd": spending["limit_usd"],
-                            "remaining_calls": spending["remaining_calls"]}}
+                "default_max_model_calls": settings.default_max_model_calls,
+                "account": {key: spending[key] for key in (
+                    "remaining_usd", "limit_usd", "remaining_calls", "max_model_calls",
+                    "cost_complete", "calls_without_cost", "exhausted")}}
 
     @app.get("/api/account/export")
     def export_account(user: User):

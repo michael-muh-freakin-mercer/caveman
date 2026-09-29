@@ -85,9 +85,7 @@ def cost_history(engine, platform, *, days: int = 30, min_builds: int = 5,
     now = now or datetime.now(timezone.utc)
     since = (now - timedelta(days=days)).isoformat()
     costs: dict[str, list[float]] = {}
-    for record in platform.all_runs():
-        if record.created_at < since:
-            continue
+    for record in platform.runs_created_since(since):
         try:
             run = engine.load(record.id)
         except Exception:
@@ -107,7 +105,9 @@ def cost_history(engine, platform, *, days: int = 30, min_builds: int = 5,
         # The middle 80% (10th to 90th percentile, nearest rank) keeps one outlier from setting the range.
         def rank(q: float) -> float:
             return values[min(len(values) - 1, max(0, round(q * (len(values) - 1))))]
-        modes[mode] = {"builds": len(values), "median_usd": round(rank(0.5), 4),
+        middle = len(values) // 2
+        median = values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+        modes[mode] = {"builds": len(values), "median_usd": round(median, 4),
                        "low_usd": round(rank(0.1), 4), "high_usd": round(rank(0.9), 4)}
     return {"window_days": days, "min_builds": min_builds, "modes": modes}
 

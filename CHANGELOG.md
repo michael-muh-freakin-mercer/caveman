@@ -20,8 +20,8 @@
 
 ## 2026-09-28 — Cost estimate before a build
 
-- The new-build form shows what recent builds on this server actually cost in the chosen model mode (median and the 10th–90th percentile range of completed runs whose every call reported a cost, last 30 days), the build's ceiling, and the account's allowance left this month, with a warning when the allowance is below the ceiling. With fewer than 5 such builds it says there is no history instead of guessing.
-- `GET /api/estimate` serves these figures (aggregates only, cached for five minutes).
+- The new-build form shows what recent builds on this server actually cost in the chosen model mode (median and the 10th–90th percentile range of completed runs whose every call reported a cost, last 30 days), the build's ceiling, and the account's dollars and model calls left this month ("at most", with the count of calls that reported no cost, when some did), with a warning when either allowance is below the build's limits and a clear notice when it is used up. With fewer than 5 such builds it says there is no history instead of guessing.
+- `GET /api/estimate` serves these figures (aggregates only, cached for five minutes); it reads only runs created in the window.
 
 ## 2026-09-28 — Repository restructure and project presentation
 

@@ -116,6 +116,8 @@ def test_platform_queue_hands_each_job_to_exactly_one_worker(postgres_url):
         stores[0].save_publication(run_ids[0], "alice", "a/b", "https://github.com/a/b", "c" * 40, True)
         assert stores[1].publication(run_ids[0])["private"] == 1
         assert stores[1].get_run("alice", run_ids[0]).model_mode == "automatic"
+        assert len(stores[1].runs_created_since("2000-01-01T00:00:00+00:00")) == 12
+        assert stores[1].runs_created_since("9999-01-01T00:00:00+00:00") == []
         assert sorted(stores[1].delete_owner("alice")["projects"]) == sorted(run_ids)
     finally:
         for store in stores:

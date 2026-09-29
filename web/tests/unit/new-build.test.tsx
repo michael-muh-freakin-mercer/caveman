@@ -47,7 +47,16 @@ describe("cost estimate", () => {
     },
     default_budget_usd: 5,
     max_budget_usd: 100,
-    account: { remaining_usd: 24.5, limit_usd: 25, remaining_calls: 2900 },
+    default_max_model_calls: 60,
+    account: {
+      remaining_usd: 24.5,
+      limit_usd: 25,
+      remaining_calls: 2900,
+      max_model_calls: 3000,
+      cost_complete: true,
+      calls_without_cost: 0,
+      exhausted: false,
+    },
   };
 
   it("shows what recent builds cost, the ceiling and the allowance", () => {
@@ -55,7 +64,7 @@ describe("cost estimate", () => {
     const box = screen.getByTestId("cost-estimate");
     expect(box).toHaveTextContent("Recent Automatic builds here cost about $0.09");
     expect(box).toHaveTextContent("most between $0.04 and $0.15; 10 builds in the last 30 days");
-    expect(box).toHaveTextContent("This build stops at $5.00. You have $24.50 of $25.00 left this month.");
+    expect(box).toHaveTextContent("This build stops at $5.00. You have $24.50 of $25.00 and 2900 of 3000 model calls left this month.");
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -63,5 +72,23 @@ describe("cost estimate", () => {
     render(<CostEstimate estimate={estimate} mode="budget" modeLabel="Budget" budget={30} />);
     expect(screen.getByTestId("cost-estimate")).toHaveTextContent("No cost history for Budget builds yet");
     expect(screen.getByRole("status")).toHaveTextContent("may pause before finishing");
+  });
+
+  it("says the allowance may be lower when some calls reported no cost", () => {
+    const partial = { ...estimate, account: { ...estimate.account, cost_complete: false, calls_without_cost: 3 } };
+    render(<CostEstimate estimate={partial} mode="automatic" modeLabel="Automatic" budget={5} />);
+    const box = screen.getByTestId("cost-estimate");
+    expect(box).toHaveTextContent("You have at most $24.50 of $25.00");
+    expect(box).toHaveTextContent("3 calls reported no cost, so you may have less.");
+  });
+
+  it("warns when the model-call allowance is low or used up, even with dollars left", () => {
+    const low = { ...estimate, account: { ...estimate.account, remaining_calls: 10 } };
+    const { unmount } = render(<CostEstimate estimate={low} mode="automatic" modeLabel="Automatic" budget={5} />);
+    expect(screen.getByRole("status")).toHaveTextContent("may pause before finishing");
+    unmount();
+    const out = { ...estimate, account: { ...estimate.account, remaining_calls: 0, exhausted: true } };
+    render(<CostEstimate estimate={out} mode="automatic" modeLabel="Automatic" budget={5} />);
+    expect(screen.getByRole("status")).toHaveTextContent("allowance is used up");
   });
 });

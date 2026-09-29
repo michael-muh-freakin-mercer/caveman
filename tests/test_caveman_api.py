@@ -875,7 +875,7 @@ def test_cost_history_reports_only_real_completed_spend_per_mode():
     for i in range(3):
         add(f"b{i}", "budget", [0.01])
     engine = SimpleNamespace(load=lambda run_id: runs[run_id])
-    platform = SimpleNamespace(all_runs=lambda: records)
+    platform = SimpleNamespace(runs_created_since=lambda since: [r for r in records if r.created_at >= since])
 
     history = cost_history(engine, platform, now=now)
     automatic = history["modes"]["automatic"]
@@ -883,9 +883,30 @@ def test_cost_history_reports_only_real_completed_spend_per_mode():
     assert automatic["low_usd"] == 0.06 and automatic["high_usd"] == 0.15  # the $2 outlier sets no bound
     assert history["modes"]["budget"] == {"builds": 3, "median_usd": None, "low_usd": None, "high_usd": None}
 
+    add("a7", "automatic", [0.12])  # an even-sized sample: the median averages the middle two
+    assert cost_history(engine, platform, now=now)["modes"]["automatic"]["median_usd"] == 0.095
+
+
+def test_runs_created_since_returns_only_recent_runs(tmp_path):
+    from caveman.platform_store import PlatformStore
+
+    store = PlatformStore(tmp_path / "platform.db")
+    try:
+        store.create_project("alice", "Demo", project_id="p" * 32)
+        for run_id in ("old", "new"):
+            store.create_run(run_id, "p" * 32, "alice", "Build", executor="scripted",
+                             budget_usd=5.0, max_model_calls=10)
+        store.connection.execute("UPDATE runs SET created_at='2020-01-01T00:00:00+00:00' WHERE id='old'")
+        assert [r.id for r in store.runs_created_since("2026-01-01T00:00:00+00:00")] == ["new"]
+    finally:
+        store.close()
+
 
 def test_estimate_endpoint_returns_ceiling_and_allowance(client):
     body = client.get("/api/estimate", headers=ALICE).json()
     assert body["modes"] == {} and body["default_budget_usd"] == 5.0
     assert body["account"]["remaining_usd"] == body["account"]["limit_usd"]
+    assert body["account"]["cost_complete"] is True and body["account"]["exhausted"] is False
+    assert body["account"]["remaining_calls"] == body["account"]["max_model_calls"] > 0
+    assert body["default_max_model_calls"] > 0
     assert client.get("/api/estimate").status_code == 401
