@@ -95,8 +95,9 @@ workflow when the `E2B_API_KEY` secret is set.
   Project repositories and archives remain files on the shared volume (NFS/EFS
   is fine for them; SQLite on a network filesystem is not, which is why
   multi-host deployments should use PostgreSQL).
-- Existing SQLite state is not migrated automatically; switch before launch or
-  export/import deliberately.
+- Existing SQLite state is not migrated automatically. `caveman ops
+  migrate-to-postgres` copies it, auth included, with everything stopped
+  (`docs/RUNBOOK.md`, "Moving from SQLite to PostgreSQL").
 
 ## Operations
 
