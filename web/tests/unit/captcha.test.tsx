@@ -79,4 +79,54 @@ describe("sign-up CAPTCHA", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Send reset link" }));
     expect(requestPasswordReset.mock.calls[0][0].fetchOptions).toEqual({ headers: { "x-captcha-response": "token-2" } });
   });
+
+  it("keeps the reset form open when the check is rejected", async () => {
+    requestPasswordReset.mockResolvedValue({
+      data: null,
+      error: { status: 403, code: "VERIFICATION_FAILED", message: "Captcha verification failed" },
+    });
+    render(<ForgotPasswordForm captchaSiteKey="site-key" />);
+    await userEvent.type(screen.getByLabelText("Email"), "ada@example.com");
+    await waitFor(() => expect(screen.getByTestId("captcha")).toBeInTheDocument());
+    act(() => solve("token-3"));
+    await userEvent.click(await screen.findByRole("button", { name: "Send reset link" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("human check failed");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toHaveValue("ada@example.com");
+    await waitFor(() => expect(reset).toHaveBeenCalledWith("widget-1"));
+    expect(screen.getByRole("button", { name: "Send reset link" })).toBeDisabled();
+  });
+});
+
+describe("Turnstile script failure", () => {
+  it("says so and retries with a fresh script", async () => {
+    const turnstile = window.turnstile;
+    delete window.turnstile;
+    render(<ForgotPasswordForm captchaSiteKey="site-key" />);
+    const first = await waitFor(() => {
+      const script = document.head.querySelector<HTMLScriptElement>("script[src*='challenges.cloudflare.com']");
+      expect(script).not.toBeNull();
+      return script!;
+    });
+    act(() => first.dispatchEvent(new Event("error")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not load");
+    expect(first.isConnected).toBe(false);
+    expect(screen.getByRole("button", { name: "Send reset link" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "try again" }));
+    const second = await waitFor(() => {
+      const script = document.head.querySelector<HTMLScriptElement>("script[src*='challenges.cloudflare.com']");
+      expect(script).not.toBeNull();
+      return script!;
+    });
+    expect(second).not.toBe(first);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const unsolved = () => {};
+    solve = unsolved;
+    window.turnstile = turnstile;
+    act(() => second.dispatchEvent(new Event("load")));
+    await waitFor(() => expect(solve).not.toBe(unsolved));
+    act(() => solve("token-4"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send reset link" })).toBeEnabled());
+  });
 });

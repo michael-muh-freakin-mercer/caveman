@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Turnstile = {
   render: (element: HTMLElement, options: Record<string, unknown>) => string;
@@ -24,11 +24,14 @@ function loadTurnstile(): Promise<Turnstile> {
     const script = document.createElement("script");
     script.src = SCRIPT;
     script.async = true;
-    script.onload = () => (window.turnstile ? resolve(window.turnstile) : reject(new Error("Turnstile did not load")));
-    script.onerror = () => {
+    const fail = () => {
+      // Forget the failed attempt so a retry inserts a fresh script.
       loading = null;
+      script.remove();
       reject(new Error("Turnstile did not load"));
     };
+    script.onload = () => (window.turnstile ? resolve(window.turnstile) : fail());
+    script.onerror = fail;
     document.head.appendChild(script);
   });
   return loading;
@@ -51,6 +54,8 @@ export function TurnstileWidget({
   const container = useRef<HTMLDivElement>(null);
   const widget = useRef<string | null>(null);
   const report = useRef(onToken);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     report.current = onToken;
   }, [onToken]);
@@ -68,13 +73,17 @@ export function TurnstileWidget({
           "error-callback": () => report.current(null),
         });
       })
-      .catch(() => report.current(null));
+      .catch(() => {
+        if (cancelled) return;
+        report.current(null);
+        setFailed(true);
+      });
     return () => {
       cancelled = true;
       if (widget.current && window.turnstile) window.turnstile.remove(widget.current);
       widget.current = null;
     };
-  }, [siteKey]);
+  }, [siteKey, attempt]);
 
   useEffect(() => {
     if (resetKey && widget.current && window.turnstile) {
@@ -83,5 +92,25 @@ export function TurnstileWidget({
     }
   }, [resetKey]);
 
-  return <div ref={container} data-testid="captcha" className="min-h-[65px]" />;
+  return (
+    <div>
+      <div ref={container} data-testid="captcha" className={failed ? undefined : "min-h-[65px]"} />
+      {failed ? (
+        <p role="alert" className="text-sm text-bad">
+          The human check could not load. Check your connection or content blocker, then{" "}
+          <button
+            type="button"
+            className="text-ember hover:underline"
+            onClick={() => {
+              setFailed(false);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            try again
+          </button>
+          .
+        </p>
+      ) : null}
+    </div>
+  );
 }

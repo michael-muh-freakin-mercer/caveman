@@ -13,6 +13,9 @@ const field =
 const submit =
   "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60";
 
+// Error codes Better Auth's captcha plugin returns for a missing or rejected token.
+const CAPTCHA_REJECTED = new Set(["MISSING_RESPONSE", "VERIFICATION_FAILED"]);
+
 export function ForgotPasswordForm({ captchaSiteKey = null }: { captchaSiteKey?: string | null }) {
   const hydrated = useHydrated();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -41,6 +44,11 @@ export function ForgotPasswordForm({ captchaSiteKey = null }: { captchaSiteKey?:
         const result = await requestPasswordReset({ email, redirectTo: "/reset-password", fetchOptions });
         setBusy(false);
         if (captchaSiteKey) setCaptchaRound((round) => round + 1);
+        // A rejected human check says nothing about the account: keep the form for a fresh attempt.
+        if (result.error && CAPTCHA_REJECTED.has(result.error.code ?? "")) {
+          setError("The human check failed. Complete it again, then resend.");
+          return;
+        }
         // Same message whether or not the account exists, so addresses cannot be probed.
         if (result.error && result.error.status >= 500) setError("Password reset is unavailable right now. Try again later.");
         else setSent(true);
