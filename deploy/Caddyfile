@@ -1,0 +1,5 @@
+# TLS certificates are issued and renewed automatically for CAVEMAN_DOMAIN.
+{$CAVEMAN_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}

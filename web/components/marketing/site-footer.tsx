@@ -13,7 +13,7 @@ export function SiteFooter() {
           <Link href="/how-it-works" className="hover:text-fg">How It Works</Link>
           <Link href="/pricing" className="hover:text-fg">Pricing</Link>
           <Link href="/docs" className="hover:text-fg">Docs</Link>
-          <a href="https://github.com/who-is-michael-mercer/caveman" className="hover:text-fg" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/michael-muh-freakin-mercer/caveman" className="hover:text-fg" rel="noreferrer">GitHub</a>
           <span className="text-faint">MIT licensed</span>
         </nav>
       </div>
