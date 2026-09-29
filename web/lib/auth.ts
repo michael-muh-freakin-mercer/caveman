@@ -3,10 +3,12 @@ import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { nextCookies } from "better-auth/next-js";
+import { captcha } from "better-auth/plugins";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Pool } from "pg";
+import { CAPTCHA_ENDPOINTS, captchaSecretKey } from "./captcha";
 import { CavemanApiError, cavemanFetch } from "./caveman";
 import { linkEmail, sendEmail } from "./email";
 
@@ -93,7 +95,18 @@ const options = {
   account: { encryptOAuthTokens: true },
   rateLimit: { enabled: process.env.NODE_ENV === "production" && process.env.CAVEMAN_E2E !== "1" },
   telemetry: { enabled: false },
-  plugins: [nextCookies()],
+  plugins: [
+    ...(captchaSecretKey
+      ? [captcha({
+          provider: "cloudflare-turnstile",
+          secretKey: captchaSecretKey,
+          endpoints: CAPTCHA_ENDPOINTS,
+          // A token solved on another site with the same key is refused.
+          allowedHostnames: process.env.BETTER_AUTH_URL ? [new URL(process.env.BETTER_AUTH_URL).hostname] : undefined,
+        })]
+      : []),
+    nextCookies(),
+  ],
 };
 
 export const auth = betterAuth(options);

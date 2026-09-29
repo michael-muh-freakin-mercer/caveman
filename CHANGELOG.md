@@ -18,6 +18,11 @@
 
 - The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/caveman`.
 
+## 2026-09-28 — Sign-up CAPTCHA
+
+- With `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` set, Cloudflare Turnstile guards sign-up and password-reset requests (Better Auth's captcha plugin; tokens are checked server-side against the site's own hostname, single-use, and refreshed after every attempt). The submit button waits for the check. A rejected check on a reset request keeps the form open with an error instead of claiming an email was sent, and if the Turnstile script cannot load the form says so and offers a retry. Sign-in is unchanged; it is rate limited. Without the keys nothing changes; one key without the other is an error.
+- The CSP adds `frame-src` and `connect-src` for `https://challenges.cloudflare.com` only when the CAPTCHA is on, and otherwise now states `frame-src 'none'`.
+
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.

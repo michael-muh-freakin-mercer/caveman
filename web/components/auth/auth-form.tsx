@@ -4,13 +4,24 @@ import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
+import { TurnstileWidget } from "@/components/auth/turnstile";
 import { GithubIcon } from "@/components/brand/github-icon";
 import { signIn, signUp } from "@/lib/auth-client";
 import { safeNext } from "@/lib/prompt-storage";
 import { useHydrated } from "@/lib/use-hydrated";
 
 
-export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sign-up"; next: string | null; githubEnabled: boolean }) {
+export function AuthForm({
+  mode,
+  next,
+  githubEnabled,
+  captchaSiteKey = null,
+}: {
+  mode: "sign-in" | "sign-up";
+  next: string | null;
+  githubEnabled: boolean;
+  captchaSiteKey?: string | null;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const destination = safeNext(next);
@@ -18,6 +29,9 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const ids = { name: useId(), email: useId(), password: useId(), error: useId() };
+  const needsCaptcha = mode === "sign-up" && Boolean(captchaSiteKey);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,10 +41,13 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
     const name = String(data.get("name") ?? "").trim() || email.split("@")[0];
     setBusy(true);
     setError(null);
+    const fetchOptions = captchaToken ? { headers: { "x-captcha-response": captchaToken } } : undefined;
     const result =
       mode === "sign-up"
-        ? await signUp.email({ email, password, name })
+        ? await signUp.email({ email, password, name, fetchOptions })
         : await signIn.email({ email, password });
+    // Tokens are single-use: any further attempt needs a fresh check.
+    if (needsCaptcha) setCaptchaRound((round) => round + 1);
     if (result.error) {
       setError(
         result.error.code === "EMAIL_NOT_VERIFIED"
@@ -104,6 +121,9 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
             placeholder={mode === "sign-up" ? "At least 10 characters" : ""}
           />
         </div>
+        {needsCaptcha && captchaSiteKey ? (
+          <TurnstileWidget siteKey={captchaSiteKey} onToken={setCaptchaToken} resetKey={captchaRound} />
+        ) : null}
         {error ? (
           <p id={ids.error} role="alert" className="text-sm text-bad">
             {error}
@@ -116,7 +136,7 @@ export function AuthForm({ mode, next, githubEnabled }: { mode: "sign-in" | "sig
         ) : null}
         <button
           type="submit"
-          disabled={busy || !hydrated}
+          disabled={busy || !hydrated || (needsCaptcha && !captchaToken)}
           className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
