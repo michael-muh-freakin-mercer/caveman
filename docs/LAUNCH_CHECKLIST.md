@@ -30,7 +30,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end
 - [ ] 🤖 Verify Better Auth on Postgres
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`)
-- [ ] 🤖 SQLite → Postgres data migration tool
+- [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
 - [ ] 🧑 Approve the first deploy
 
 ### 4. Security review
@@ -51,7 +51,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 7. Abuse and tenancy limits
 - [x] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
 - [x] 🤖 Per-account caps: disk, projects, concurrent builds
-- [ ] 🤖 CAPTCHA or equivalent on sign-up
+- [x] 🤖 CAPTCHA or equivalent on sign-up (Cloudflare Turnstile on sign-up and password-reset requests; off until keys are set)
+- [ ] 🧑 Create a Turnstile widget in Cloudflare and set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` on the web app
 - [x] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
 - [ ] 🧑 Prompt and content policy: what gets refused
 
