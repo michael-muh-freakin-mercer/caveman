@@ -19,6 +19,9 @@ ORCHESTRATION_MANAGER = "manager"
 EXECUTOR_PROVIDER = "provider"
 EXECUTOR_SCRIPTED = "scripted"
 
+SANDBOX_BUBBLEWRAP = "bubblewrap"
+SANDBOX_E2B = "e2b"
+
 MIN_API_TOKEN_LENGTH = 32
 
 
@@ -129,6 +132,10 @@ class Settings:
     # Event streams end after this long; EventSource reconnects with Last-Event-ID.
     stream_max_seconds: float = 300.0
     stream_poll_seconds: float = 1.0
+    # Where candidate code runs: bubblewrap (namespaces on the worker host) or
+    # e2b (a fresh E2B microVM per check; the worker needs E2B_API_KEY).
+    sandbox_backend: str = SANDBOX_BUBBLEWRAP
+    e2b_template: str = "caveman-sandbox"
 
     @property
     def operations_db(self) -> Path:
@@ -151,6 +158,13 @@ class Settings:
         """Ownership, jobs, deliveries and publications."""
         from .platform_store import PlatformStore
         return PlatformStore(self.database_url or self.platform_db, schema=f"{self.database_schema}_platform")
+
+    def execution_backend(self):
+        """The isolation backend for candidate code; None means WorkspaceManager's Bubblewrap default."""
+        if self.sandbox_backend == SANDBOX_E2B:
+            from walter.sandbox_e2b import E2BBackend
+            return E2BBackend(template=self.e2b_template)
+        return None
 
     @property
     def projects_dir(self) -> Path:
@@ -183,6 +197,13 @@ class Settings:
             raise SettingsError(
                 f"CAVEMAN_ORCHESTRATION must be '{ORCHESTRATION_WORKFLOW}' or '{ORCHESTRATION_MANAGER}'; "
                 f"got {orchestration!r}.")
+        sandbox_backend = (values.get("CAVEMAN_SANDBOX_BACKEND") or SANDBOX_BUBBLEWRAP).strip().lower()
+        if sandbox_backend not in {SANDBOX_BUBBLEWRAP, SANDBOX_E2B}:
+            raise SettingsError(
+                f"CAVEMAN_SANDBOX_BACKEND must be '{SANDBOX_BUBBLEWRAP}' or '{SANDBOX_E2B}'; got {sandbox_backend!r}.")
+        e2b_template = (values.get("CAVEMAN_E2B_TEMPLATE") or "caveman-sandbox").strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_.:/-]{0,127}", e2b_template):
+            raise SettingsError("CAVEMAN_E2B_TEMPLATE must be an E2B template name such as caveman-sandbox.")
         data_dir = Path(values.get("CAVEMAN_DATA_DIR", ".local/caveman")).expanduser().resolve()
         database_url = (values.get("CAVEMAN_DATABASE_URL") or "").strip() or None
         if database_url and not database_url.startswith(("postgres://", "postgresql://")):
@@ -228,6 +249,8 @@ class Settings:
             maintenance_interval_seconds=_float(values, "CAVEMAN_MAINTENANCE_INTERVAL_SECONDS", 3600.0, minimum=60.0),
             node_deps_max_age_days=_float(values, "CAVEMAN_NODE_DEPS_MAX_AGE_DAYS", 7.0, minimum=0.0),
             scripted_step_delay=_float(values, "CAVEMAN_SCRIPTED_STEP_DELAY", 0.25),
+            sandbox_backend=sandbox_backend,
+            e2b_template=e2b_template,
         )
 
     def ensure_directories(self) -> None:

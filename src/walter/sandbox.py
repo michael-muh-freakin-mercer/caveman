@@ -119,7 +119,7 @@ SAFETY_PATHS = frozenset({
     "doctrine/AGENT_CREATION.md", "doctrine/QA_PROTOCOL.md", "doctrine/FAILURE_RECOVERY.md",
     "doctrine/TOOLS.md", "doctrine/TASK_PROTOCOL.md", "doctrine/OPERATING_MODEL.md",
     "doctrine/STATE_MODEL.md", "doctrine/CHARTER.md",
-    "src/walter/sandbox.py", "src/walter/orchestration.py", "src/walter/models.py",
+    "src/walter/sandbox.py", "src/walter/sandbox_e2b.py", "src/walter/orchestration.py", "src/walter/models.py",
     "src/walter/store.py", "src/walter/adapter.py", "src/walter/runtime.py",
     "src/walter/cli.py", "src/walter/readiness.py",
     # Cost control, the worker/task contract, the package surface, and the
@@ -335,7 +335,7 @@ class ExecutionSpec:
 
 
 class ExecutionBackend(Protocol):
-    """Isolation seam: Bubblewrap today, a microVM or managed sandbox later."""
+    """Isolation seam: Bubblewrap here, or E2B microVMs (``walter.sandbox_e2b``)."""
 
     name: str
 

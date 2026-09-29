@@ -4,7 +4,7 @@
 
 <br>
 
-[![CI](https://github.com/who-is-michael-mercer/caveman/actions/workflows/ci.yml/badge.svg)](https://github.com/who-is-michael-mercer/caveman/actions/workflows/ci.yml)
+[![CI](https://github.com/michael-muh-freakin-mercer/caveman/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-muh-freakin-mercer/caveman/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ff6a1f.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-2fd4ee.svg)](pyproject.toml)
 [![Node 22+](https://img.shields.io/badge/node-22%2B-2fd4ee.svg)](web/package.json)
@@ -146,7 +146,7 @@ sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 **1. Clone and install**
 
 ```bash
-git clone https://github.com/who-is-michael-mercer/caveman.git
+git clone https://github.com/michael-muh-freakin-mercer/caveman.git
 cd caveman
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[test]'
@@ -327,10 +327,10 @@ The honesty section. Everything here is a known gap, not a surprise.
   and Node/TypeScript (`node_test` via Node's test runner, `tsc`). Project build
   scripts and dev servers are not run, and other stacks get reviewed source and
   documents without executable checks.
-- Isolation is Bubblewrap on a shared kernel. Execution goes through an
-  `ExecutionBackend` interface (`src/walter/sandbox.py`), so a microVM or
-  managed-sandbox backend can replace it; for a public multi-tenant service,
-  do that before launch.
+- Isolation is Bubblewrap on a shared kernel by default. For a public
+  multi-tenant service, use the E2B backend (`CAVEMAN_SANDBOX_BACKEND=e2b`),
+  which runs every check in its own throwaway microVM; see
+  [deploy/README.md](deploy/README.md#e2b-instead-of-bubblewrap).
 - OpenRouter is the only configured model provider (any tool-calling model on it,
   e.g. Kimi, DeepSeek, Qwen). Model modes (Budget, Balanced, Maximum Quality)
   appear only when an operator configures them (`CAVEMAN_MODELS_*`).
