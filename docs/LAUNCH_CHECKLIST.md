@@ -24,7 +24,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
 
 ### 3. Deployment
-- [ ] 🧑 Approve infrastructure: web host, API/worker hosts, managed Postgres, shared volume, object storage for archives, domain and TLS
+- [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain still to choose
+- [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
 - [ ] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end
 - [ ] 🤖 Verify Better Auth on Postgres
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`)

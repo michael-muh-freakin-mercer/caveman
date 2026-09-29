@@ -1,5 +1,8 @@
 # Deploying Caveman
 
+Step-by-step for the chosen host: [docs/DEPLOY_DIGITALOCEAN.md](../docs/DEPLOY_DIGITALOCEAN.md)
+(one Droplet with `compose.prod.yaml` and Caddy, managed Postgres, E2B sandboxes).
+
 Nothing here deploys anything by itself. These files describe a deployable
 topology; running them against real infrastructure is an explicit operator step.
 
