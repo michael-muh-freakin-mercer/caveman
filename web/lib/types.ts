@@ -314,3 +314,28 @@ export interface AccountSpending {
   exhausted: boolean;
   warning: boolean;
 }
+
+export interface ModeCostHistory {
+  builds: number;
+  median_usd: number | null;
+  low_usd: number | null;
+  high_usd: number | null;
+}
+
+export interface EstimateView {
+  window_days: number;
+  min_builds: number;
+  modes: Record<string, ModeCostHistory>;
+  default_budget_usd: number;
+  max_budget_usd: number;
+  default_max_model_calls: number;
+  account: {
+    remaining_usd: number;
+    limit_usd: number;
+    remaining_calls: number;
+    max_model_calls: number;
+    cost_complete: boolean;
+    calls_without_cost: number;
+    exhausted: boolean;
+  };
+}

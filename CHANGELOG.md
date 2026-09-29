@@ -37,6 +37,11 @@
 - `GET /api/metrics` adds `caveman_spend_month_usd`, `caveman_model_calls_month` and `caveman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts, counted by when each call was made (runs whose jobs all finished before the month are skipped). `caveman_deliveries{status="failed"}` is now always exported, at 0 until the first failure.
 - `deploy/monitoring/`: Prometheus alert rules (scrape down, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls; none on `caveman_sandbox_available`, which is probed on the API host, not the workers) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
 
+## 2026-09-28 — Cost estimate before a build
+
+- The new-build form shows what recent builds on this server actually cost in the chosen model mode (median and the 10th–90th percentile range of completed runs whose every call reported a cost, last 30 days), the build's ceiling, and the account's dollars and model calls left this month ("at most", with the count of calls that reported no cost, when some did), with a warning when either allowance is below the build's limits and a clear notice when it is used up. With fewer than 5 such builds it says there is no history instead of guessing.
+- `GET /api/estimate` serves these figures (aggregates only, cached for five minutes); it reads only runs created in the window.
+
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.

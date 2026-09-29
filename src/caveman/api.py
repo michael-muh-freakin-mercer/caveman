@@ -21,6 +21,7 @@ import json
 import math
 import re
 import shutil
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +35,7 @@ from walter.orchestration import GateError
 
 from . import __version__
 from .config import EXECUTOR_PROVIDER, Settings
-from .accounts import account_disk_bytes, account_usage, server_usage
+from .accounts import account_disk_bytes, account_usage, cost_history, server_usage
 from .delivery import deliver_run
 from .engine import ApprovalScopeChanged, Engine
 from .platform_store import RunRecord, new_id
@@ -335,6 +336,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/account")
     def account(user: User):
         return {"spending": account_usage(engine, platform, settings, user)}
+
+    history_cache: dict[str, tuple[float, dict]] = {}
+
+    @app.get("/api/estimate")
+    def estimate(user: User):
+        """What to expect before starting a build: real recent costs, the
+        build's ceiling and the account's remaining allowance."""
+        cached = history_cache.get("history")
+        if cached is None or time.monotonic() - cached[0] > 300:
+            cached = (time.monotonic(), cost_history(engine, platform))
+            history_cache["history"] = cached
+        spending = account_usage(engine, platform, settings, user)
+        return {**cached[1],
+                "default_budget_usd": settings.default_budget_usd, "max_budget_usd": settings.max_budget_usd,
+                "default_max_model_calls": settings.default_max_model_calls,
+                "account": {key: spending[key] for key in (
+                    "remaining_usd", "limit_usd", "remaining_calls", "max_model_calls",
+                    "cost_complete", "calls_without_cost", "exhausted")}}
 
     @app.get("/api/account/export")
     def export_account(user: User):

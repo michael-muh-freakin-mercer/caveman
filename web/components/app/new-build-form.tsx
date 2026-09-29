@@ -3,8 +3,10 @@
 import { ArrowRight, ChevronDown, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
+import { CostEstimate } from "@/components/app/cost-estimate";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
 import { unverifiedStacks } from "@/lib/stack-support";
+import type { EstimateView } from "@/lib/types";
 import { useHydrated } from "@/lib/use-hydrated";
 
 const GITHUB_REPOSITORY = /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}?(\.git)?\/?$/;
@@ -24,6 +26,7 @@ export function NewBuildForm({
   maxBudget,
   disabledReason,
   modes = ["automatic"],
+  estimate = null,
 }: {
   initialPrompt: string;
   projectId: string | null;
@@ -32,6 +35,7 @@ export function NewBuildForm({
   maxBudget: number;
   disabledReason: string | null;
   modes?: string[];
+  estimate?: EstimateView | null;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -177,6 +181,9 @@ export function NewBuildForm({
         </div>
       </details>
 
+      {estimate ? (
+        <CostEstimate estimate={estimate} mode={mode} modeLabel={MODE_LABELS[mode] ?? mode} budget={Number(budget)} />
+      ) : null}
       {disabledReason ? (
         <p role="alert" className="mt-4 rounded-lg border border-warn/30 bg-warn/5 px-4 py-3 text-sm text-warn">{disabledReason}</p>
       ) : null}

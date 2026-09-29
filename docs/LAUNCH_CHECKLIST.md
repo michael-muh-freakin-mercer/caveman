@@ -76,7 +76,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Say in the UI which stacks get real tests (Python, Node/TypeScript) and which are reviewed code only
 - [x] 🤖 Warn before mobile or unsupported-stack builds
 - [ ] 🤖 Run project build scripts (`npm run build`), not just tests
-- [ ] 🤖 Cost estimate before a build starts
+- [x] 🤖 Cost estimate before a build starts (from what recent completed builds here actually cost, per model mode; plus the ceiling and the monthly allowance left)
 
 ### 11. Talking with a build
 - [ ] 🤖 Clarifying questions as first-class "Caveman needs your input" requests
