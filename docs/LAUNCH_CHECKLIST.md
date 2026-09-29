@@ -15,7 +15,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Campaign: ~10 prompts across Python, TypeScript and documents; record success rate, cost and failure causes (`docs/live-campaign/`: 10/10 complete, median $0.09)
 - [x] 🤖 Tune planner and specialist prompts, turn limits and recovery from the results. Bar: ≥70% complete, median cost under the $5 default budget (met: 100%, $0.09)
 - [x] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers (matches OpenRouter's usage counter within $0.005)
-- [ ] 🤖 Opt-in, budget-capped live smoke in CI
+- [x] 🤖 Opt-in, budget-capped live smoke in CI (`.github/workflows/live-smoke.yml`, run by hand from Actions)
+- [ ] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run
 
 ### 2. Stronger isolation for untrusted code
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
@@ -29,7 +30,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end
 - [ ] 🤖 Verify Better Auth on Postgres
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`)
-- [ ] 🤖 SQLite → Postgres data migration tool
+- [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
 - [ ] 🧑 Approve the first deploy
 
 ### 4. Security review
@@ -50,13 +51,14 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 7. Abuse and tenancy limits
 - [x] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
 - [x] 🤖 Per-account caps: disk, projects, concurrent builds
-- [ ] 🤖 CAPTCHA or equivalent on sign-up
+- [x] 🤖 CAPTCHA or equivalent on sign-up (Cloudflare Turnstile on sign-up and password-reset requests; off until keys are set)
+- [ ] 🧑 Create a Turnstile widget in Cloudflare and set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` on the web app
 - [x] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
 - [ ] 🧑 Prompt and content policy: what gets refused
 
 ### 8. Operations
 - [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)
-- [ ] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (metrics endpoint exists)
+- [x] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (`deploy/monitoring/`; needs a Prometheus and Grafana to run in, chosen with error reporting below)
 - [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting
 - [ ] 🤖 Integrate them
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)

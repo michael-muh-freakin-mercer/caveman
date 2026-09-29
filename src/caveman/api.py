@@ -35,7 +35,7 @@ from walter.orchestration import GateError
 
 from . import __version__
 from .config import EXECUTOR_PROVIDER, Settings
-from .accounts import account_disk_bytes, account_usage, cost_history
+from .accounts import account_disk_bytes, account_usage, cost_history, server_usage
 from .delivery import deliver_run
 from .engine import ApprovalScopeChanged, Engine
 from .platform_store import RunRecord, new_id
@@ -258,12 +258,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   "# HELP caveman_runs Runs recorded on this server.", "# TYPE caveman_runs gauge",
                   f"caveman_runs {len(platform.all_runs())}",
                   "# HELP caveman_deliveries Delivery archives by status.", "# TYPE caveman_deliveries gauge"]
-        for status, count in sorted(platform.delivery_counts().items()):
+        # Always export the failed series, so the first failure is a rise from 0.
+        for status, count in sorted({"failed": 0, **platform.delivery_counts()}.items()):
             lines.append(f'caveman_deliveries{{status="{status}"}} {count}')
         sandbox = _sandbox_status(settings.sandbox_backend)
         lines += ["# HELP caveman_sandbox_available Whether isolation works on the API host.",
                   "# TYPE caveman_sandbox_available gauge",
                   f"caveman_sandbox_available {1 if sandbox['available'] else 0}"]
+        spend = server_usage(engine, platform)
+        lines += ["# HELP caveman_spend_month_usd Provider-reported model cost this calendar month (UTC), all accounts.",
+                  "# TYPE caveman_spend_month_usd gauge",
+                  f"caveman_spend_month_usd {spend['spent_usd']:.6f}",
+                  "# HELP caveman_model_calls_month Model calls this calendar month, all accounts.",
+                  "# TYPE caveman_model_calls_month gauge",
+                  f"caveman_model_calls_month {spend['model_calls']}",
+                  "# HELP caveman_model_calls_without_cost_month Calls this month whose provider reported no cost.",
+                  "# TYPE caveman_model_calls_without_cost_month gauge",
+                  f"caveman_model_calls_without_cost_month {spend['calls_without_cost']}"]
         return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
     # System -----------------------------------------------------------

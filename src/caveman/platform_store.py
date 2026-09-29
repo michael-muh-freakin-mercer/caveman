@@ -566,6 +566,17 @@ class PlatformStore:
         return [self._run(row) for row in self._query(
             "SELECT * FROM runs WHERE created_at >= ? ORDER BY created_at DESC", (since,))]
 
+    def runs_with_work_since(self, since: str) -> list[RunRecord]:
+        """Runs that may have made model calls at or after ``since``.
+
+        Model calls happen only inside a job, so a run whose every job finished
+        before ``since`` is left out. Runs with no job at all are kept.
+        """
+        return [self._run(row) for row in self._query(
+            "SELECT * FROM runs WHERE NOT EXISTS (SELECT 1 FROM jobs WHERE jobs.run_id = runs.id) "
+            "OR EXISTS (SELECT 1 FROM jobs WHERE jobs.run_id = runs.id "
+            "AND (jobs.finished_at IS NULL OR jobs.finished_at >= ?)) ORDER BY created_at DESC", (since,))]
+
     def delivery_counts(self) -> dict[str, int]:
         return {row["status"]: row["n"] for row in self._query(
             "SELECT status, COUNT(*) AS n FROM deliveries GROUP BY status")}

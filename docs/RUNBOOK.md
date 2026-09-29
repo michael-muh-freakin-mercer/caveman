@@ -13,8 +13,15 @@ the same environment as the services (`CAVEMAN_DATA_DIR`, `CAVEMAN_DATABASE_URL`
 | `caveman_queue_oldest_seconds` | under a minute | over 10 minutes: workers are down, saturated, or every queued job's project is busy |
 | `caveman_expired_leases` | 0 | above 0 for more than 2 × `CAVEMAN_LEASE_SECONDS`: a worker died and nothing is reaping (no worker running) |
 | `caveman_jobs{status="failed",outcome=...}` | slow growth | a sudden rise in one outcome (for example `interrupted`, `error`) |
-| `caveman_sandbox_available` | 1 on worker hosts | 0: builds cannot validate anything (see "Sandbox unavailable") |
+| `caveman_sandbox_available` | 1 | 0: isolation is not usable on the API host (not alerted: workers probe their own sandbox at startup and exit if it fails, which shows as a queue backlog) |
 | `caveman_deliveries{status="failed"}` | 0 or flat | any growth |
+| `caveman_spend_month_usd` | within plan | above what you meant to spend this month (all accounts, provider-reported) |
+| `caveman_model_calls_without_cost_month` | flat | any growth: the provider stopped reporting cost, so only call caps bound those calls |
+
+`deploy/monitoring/` turns this table into alert rules (`alerts.yml`, tested
+by `alerts_test.yml` in CI), a Prometheus scrape config and a Grafana
+dashboard (`grafana-dashboard.json`, import it and pick the Prometheus data
+source). Thresholds are beta starting points; the spend alert is set at $100.
 
 Logs: set `CAVEMAN_LOG_FORMAT=json` for one JSON object per line. Job failures
 name the job id, and recovery failures name the run id.
@@ -106,6 +113,38 @@ validations fail with an isolation error.
 4. Check `caveman ops list --attention` and the metrics above.
 
 Restore drills are on the launch checklist; record each drill's date and result here.
+
+### Moving from SQLite to PostgreSQL
+
+`caveman ops migrate-to-postgres` copies both SQLite stores into the schemas
+`CAVEMAN_DATABASE_URL` names, and optionally the web app's Better Auth file.
+
+1. Back up the SQLite files and the data directory (above).
+2. Stop the web app, workers and API. The copy refuses while any job holds a
+   live lease.
+3. Create the auth tables in the new database: start the web app once with
+   the new `AUTH_DATABASE_URL` (tables are created on first use), or run
+   `npx auth migrate`, then stop it again.
+4. With `CAVEMAN_DATABASE_URL` set, rehearse, then copy:
+
+   ```bash
+   caveman ops migrate-to-postgres --dry-run \
+     --auth-sqlite web/.local/caveman-auth.db --auth-url "$AUTH_DATABASE_URL"
+   caveman ops migrate-to-postgres \
+     --auth-sqlite web/.local/caveman-auth.db --auth-url "$AUTH_DATABASE_URL"
+   ```
+
+   Every store is copied in a transaction that is rolled back first, so a
+   refusal (a non-empty target table, a column PostgreSQL lacks, a conversion
+   error) leaves nothing behind. Row counts are printed and checked.
+5. Keep `CAVEMAN_DATABASE_URL` and the new `AUTH_DATABASE_URL` set, start the
+   API, workers and web app, and sign in to check a few runs. Sign-in sessions
+   carry over while `BETTER_AUTH_SECRET` is unchanged. Keep the SQLite files until you are satisfied.
+
+If the connection drops between the stores' commits, drop the target schemas
+(`<schema>_ops`, `<schema>_platform`, and the auth tables) and run it again.
+Project repositories and archives stay where they are on the data volume;
+manager-mode conversation sessions stay in SQLite.
 
 ## Accounts and data
 

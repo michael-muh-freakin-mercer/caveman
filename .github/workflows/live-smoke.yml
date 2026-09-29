@@ -1,0 +1,108 @@
+name: Live smoke (real models, spends credits)
+
+# Opt-in only: it never runs on push or pull requests. Start it from the
+# Actions tab ("Run workflow"). It needs the repository secret
+# OPENROUTER_API_KEY and spends at most the total budget below, enforced on
+# the provider-reported cost of every call (the campaign stops, and the job
+# fails, if a provider reports no cost, since the cap could not then be
+# enforced). Every model call goes through the campaign so the cap covers them
+# all; the unmetered provider smoke test (tests/test_live_smoke.py) is not run
+# here, as the builds already exercise tool calls and multi-turn continuity.
+
+on:
+  workflow_dispatch:
+    inputs:
+      builds:
+        description: "How many of the campaign's standard requests to build (1-10)"
+        default: "1"
+      run_budget_usd:
+        description: "Ceiling per build, USD"
+        default: "1"
+      total_budget_usd:
+        description: "Ceiling for the whole run, USD"
+        default: "2"
+      model:
+        description: "OpenRouter model for planner and specialists"
+        default: "deepseek/deepseek-v4-pro"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-smoke
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: live builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      WALTER_MODEL_PROVIDER: openrouter
+      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
+      WALTER_MODEL: ${{ inputs.model }}
+      WALTER_WORKER_MODEL: ${{ inputs.model }}
+    steps:
+      - name: Check the key and the limits
+        env:
+          BUILDS: ${{ inputs.builds }}
+          RUN_BUDGET: ${{ inputs.run_budget_usd }}
+          TOTAL_BUDGET: ${{ inputs.total_budget_usd }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::Add the OPENROUTER_API_KEY repository secret to run the live smoke."
+            exit 1
+          fi
+          # Hard ceiling regardless of input, so a typo cannot spend real money.
+          python3 - <<'EOF'
+          import os, sys
+          builds, run, total = int(os.environ["BUILDS"]), float(os.environ["RUN_BUDGET"]), float(os.environ["TOTAL_BUDGET"])
+          if not 1 <= builds <= 10 or not 0 < run <= 5 or not 0 < total <= 20:
+              sys.exit("::error::builds must be 1-10, run budget at most $5, total at most $20")
+          EOF
+
+      - uses: actions/checkout@v5
+
+      - name: Install the isolation backend
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap libseccomp2 util-linux python3-venv
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install Caveman
+        # The distribution interpreter, as in the main CI (see ci.yml).
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e '.[test]'
+
+      - name: Live builds
+        env:
+          BUILDS: ${{ inputs.builds }}
+          RUN_BUDGET: ${{ inputs.run_budget_usd }}
+          TOTAL_BUDGET: ${{ inputs.total_budget_usd }}
+        run: |
+          .venv/bin/python -u scripts/live_campaign.py \
+            --limit "$BUILDS" \
+            --run-budget-usd "$RUN_BUDGET" \
+            --total-budget-usd "$TOTAL_BUDGET" \
+            --out "$RUNNER_TEMP/live-report" \
+            --min-completion 1.0
+
+      - name: Report
+        if: always()
+        run: cat "$RUNNER_TEMP"/live-report/*.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-smoke-report
+          path: ${{ runner.temp }}/live-report
+          retention-days: 30
