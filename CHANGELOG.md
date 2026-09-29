@@ -1,11 +1,15 @@
 # Changelog
 
+## 2026-09-28 — GitHub account rename
+
+- The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/caveman`.
+
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.
 - The Manager's instructions now load from `doctrine/SYSTEM_PROMPT.md`, and the API image copies `doctrine/`.
 - `SAFETY_PATHS` protects the same doctrine files at their new `doctrine/` paths; the set is otherwise unchanged. Protection is an exact path match, so a new test fails if any protected path names a file that does not exist, which would otherwise leave a moved file silently unprotected.
-- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `who-is-michael-mercer/caveman`.
+- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `michael-muh-freakin-mercer/caveman`.
 - The tagline "So easy a caveman could do it" was retired as too close to an existing slogan; it is now "You describe. Caveman delivers." The web app gained a favicon, Apple touch icon and link-preview image drawn from the flint mark.
 
 ## 2026-09-28 — Step budget and salvage (first live completion)
