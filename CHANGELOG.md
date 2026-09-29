@@ -18,6 +18,30 @@
 
 - The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/caveman`.
 
+## 2026-09-28 — Sign-up CAPTCHA
+
+- With `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` set, Cloudflare Turnstile guards sign-up and password-reset requests (Better Auth's captcha plugin; tokens are checked server-side against the site's own hostname, single-use, and refreshed after every attempt). The submit button waits for the check. A rejected check on a reset request keeps the form open with an error instead of claiming an email was sent, and if the Turnstile script cannot load the form says so and offers a retry. Sign-in is unchanged; it is rate limited. Without the keys nothing changes; one key without the other is an error.
+- The CSP adds `frame-src` and `connect-src` for `https://challenges.cloudflare.com` only when the CAPTCHA is on, and otherwise now states `frame-src 'none'`.
+
+## 2026-09-28 — SQLite to PostgreSQL migration
+
+- `caveman ops migrate-to-postgres` copies the operational and platform stores from SQLite into `CAVEMAN_DATABASE_URL`, and with `--auth-sqlite`/`--auth-url` the web app's Better Auth tables (booleans and timestamps converted). It refuses while a job holds a live lease, when only one of the two core SQLite stores exists, when the auth file lacks any Better Auth table, when any target table has rows, or when SQLite has a column PostgreSQL lacks. Every store is rehearsed in a rolled-back transaction before any is committed, and row counts are checked. `--dry-run` stops after the rehearsal. Steps are in `docs/RUNBOOK.md`.
+
+## 2026-09-28 — Opt-in live smoke in CI
+
+- A new workflow, **Live smoke (real models, spends credits)**, runs only when started by hand from the Actions tab. It runs 1–10 of the live campaign's standard builds with real models, capped per build and in total (defaults $1 and $2; hard limits $5 and $20 whatever is typed); every model call goes through the campaign, so the cap covers the whole workflow. It fails unless every build completes and the provider reported the cost of every call, and the report lands in the job summary and as an artifact. It needs the `OPENROUTER_API_KEY` repository secret.
+- `scripts/live_campaign.py --min-completion RATE` exits 1 when fewer requests complete (compared unrounded) or, with the provider executor, when some calls reported no cost, so automation can't pass on a bad report.
+
+## 2026-09-28 — Dashboards and alerts
+
+- `GET /api/metrics` adds `caveman_spend_month_usd`, `caveman_model_calls_month` and `caveman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts, counted by when each call was made (runs whose jobs all finished before the month are skipped). `caveman_deliveries{status="failed"}` is now always exported, at 0 until the first failure.
+- `deploy/monitoring/`: Prometheus alert rules (scrape down, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls; none on `caveman_sandbox_available`, which is probed on the API host, not the workers) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
+
+## 2026-09-28 — Cost estimate before a build
+
+- The new-build form shows what recent builds on this server actually cost in the chosen model mode (median and the 10th–90th percentile range of completed runs whose every call reported a cost, last 30 days), the build's ceiling, and the account's dollars and model calls left this month ("at most", with the count of calls that reported no cost, when some did), with a warning when either allowance is below the build's limits and a clear notice when it is used up. With fewer than 5 such builds it says there is no history instead of guessing.
+- `GET /api/estimate` serves these figures (aggregates only, cached for five minutes); it reads only runs created in the window.
+
 ## 2026-09-28 — Compose deployment verified on PostgreSQL
 
 - `deploy/e2e.sh` builds the API and web images, starts `compose.yaml` with `deploy/compose.e2e.yaml` (Postgres for Better Auth and operational state, two workers sharing the job queue, scripted executor) and runs the 15 web journeys against it. A new CI job, `deploy`, runs it on every push.

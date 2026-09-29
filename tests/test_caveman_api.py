@@ -503,6 +503,62 @@ def test_metrics_are_disabled_by_default_and_token_protected(settings):
         body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
     assert 'caveman_jobs{status="queued",outcome=""} 1' in body
     assert "caveman_runs 1" in body and "caveman_sandbox_available" in body
+    assert "caveman_spend_month_usd 0.000000" in body and "caveman_model_calls_month 0" in body
+    # Exported before any delivery has failed, so the first failure is a visible rise.
+    assert 'caveman_deliveries{status="failed"} 0' in body
+
+
+def test_server_usage_counts_this_months_calls_by_when_they_were_made(tmp_path):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from caveman.accounts import server_usage
+
+    now = datetime(2026, 9, 15, tzinfo=timezone.utc)
+    store = PlatformStore(str(tmp_path / "platform.db"))
+    store.create_project("alice", "P", project_id="p1")
+    usage = {}
+    for run_id, created, finished, calls in (
+            # Created four months ago, still working this month.
+            ("old-active", "2026-05-02T00:00:00+00:00", "2026-09-10T00:00:00+00:00",
+             [("2026-05-02T01:00:00+00:00", 5.0), ("2026-09-09T00:00:00+00:00", 2.0)]),
+            # Created and finished before this month: not counted, and not read.
+            ("old-done", "2026-08-01T00:00:00+00:00", "2026-08-20T00:00:00+00:00",
+             [("2026-08-02T00:00:00+00:00", 7.0)]),
+            # Created this month and still running.
+            ("new", "2026-09-12T00:00:00+00:00", None, [("2026-09-12T01:00:00+00:00", 1.5)])):
+        store.create_run(run_id, "p1", "alice", "x", executor="scripted", budget_usd=10, max_model_calls=10)
+        store.enqueue(run_id, "start")
+        job = store.claim("w", 60)
+        if finished:
+            store.finish(job.id, "w", "succeeded", "done")
+        store.connection.execute("UPDATE runs SET created_at=? WHERE id=?", (created, run_id))
+        store.connection.execute("UPDATE jobs SET started_at=?, finished_at=? WHERE run_id=?",
+                                 (created, finished, run_id))
+        store.connection.commit()
+        usage[run_id] = [SimpleNamespace(created_at=at, raw_usage={"cost": cost}) for at, cost in calls]
+    loaded = []
+
+    def load(run_id):
+        loaded.append(run_id)
+        return SimpleNamespace(usage_records=usage[run_id])
+
+    result = server_usage(SimpleNamespace(load=load), store, now=now)
+    store.close()
+    assert result == {"spent_usd": 3.5, "model_calls": 2, "calls_without_cost": 0}
+    assert sorted(loaded) == ["new", "old-active"]
+
+
+@needs_sandbox
+def test_metrics_count_this_months_model_calls(settings):
+    from dataclasses import replace
+    metered = replace(settings, metrics_token="m" * 32)
+    with TestClient(create_app(metered)) as client:
+        build(client)
+        drain(metered)
+        body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
+    calls = next(int(line.split()[1]) for line in body.splitlines() if line.startswith("caveman_model_calls_month "))
+    # The scripted executor reports no cost, so every call is counted as uncosted.
+    assert calls > 0 and f"caveman_model_calls_without_cost_month {calls}" in body
 
 
 def test_operator_commands_list_requeue_and_abandon(settings, capsys):
@@ -850,3 +906,63 @@ def test_maintenance_retires_finished_work_without_losing_deliveries(client, set
     second = build(client, prompt="Add cancellation #follow-up", project_id=first["project_id"])
     drain(settings)
     assert client.get(f"/api/runs/{second['run_id']}", headers=ALICE).json()["state"] == "complete"
+
+
+def test_cost_history_reports_only_real_completed_spend_per_mode():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    from caveman.accounts import cost_history
+
+    now = datetime(2026, 9, 28, tzinfo=timezone.utc)
+    runs, records = {}, []
+
+    def add(run_id, mode, costs, status="completed", age_days=1):
+        records.append(SimpleNamespace(id=run_id, model_mode=mode,
+                                       created_at=(now - timedelta(days=age_days)).isoformat()))
+        runs[run_id] = SimpleNamespace(status=status, usage_records=[
+            SimpleNamespace(raw_usage={"cost": c} if c is not None else {}) for c in costs])
+
+    for i, cost in enumerate([0.04, 0.06, 0.09, 0.09, 0.10, 0.15, 2.00]):
+        add(f"a{i}", "automatic", [cost / 2, cost / 2])
+    add("unknown", "automatic", [0.05, None])           # a call reported no cost
+    add("blocked", "automatic", [9.0], status="active")  # not completed
+    add("old", "automatic", [9.0], age_days=45)          # outside the window
+    for i in range(3):
+        add(f"b{i}", "budget", [0.01])
+    engine = SimpleNamespace(load=lambda run_id: runs[run_id])
+    platform = SimpleNamespace(runs_created_since=lambda since: [r for r in records if r.created_at >= since])
+
+    history = cost_history(engine, platform, now=now)
+    automatic = history["modes"]["automatic"]
+    assert automatic["builds"] == 7 and automatic["median_usd"] == 0.09
+    assert automatic["low_usd"] == 0.06 and automatic["high_usd"] == 0.15  # the $2 outlier sets no bound
+    assert history["modes"]["budget"] == {"builds": 3, "median_usd": None, "low_usd": None, "high_usd": None}
+
+    add("a7", "automatic", [0.12])  # an even-sized sample: the median averages the middle two
+    assert cost_history(engine, platform, now=now)["modes"]["automatic"]["median_usd"] == 0.095
+
+
+def test_runs_created_since_returns_only_recent_runs(tmp_path):
+    from caveman.platform_store import PlatformStore
+
+    store = PlatformStore(tmp_path / "platform.db")
+    try:
+        store.create_project("alice", "Demo", project_id="p" * 32)
+        for run_id in ("old", "new"):
+            store.create_run(run_id, "p" * 32, "alice", "Build", executor="scripted",
+                             budget_usd=5.0, max_model_calls=10)
+        store.connection.execute("UPDATE runs SET created_at='2020-01-01T00:00:00+00:00' WHERE id='old'")
+        assert [r.id for r in store.runs_created_since("2026-01-01T00:00:00+00:00")] == ["new"]
+    finally:
+        store.close()
+
+
+def test_estimate_endpoint_returns_ceiling_and_allowance(client):
+    body = client.get("/api/estimate", headers=ALICE).json()
+    assert body["modes"] == {} and body["default_budget_usd"] == 5.0
+    assert body["account"]["remaining_usd"] == body["account"]["limit_usd"]
+    assert body["account"]["cost_complete"] is True and body["account"]["exhausted"] is False
+    assert body["account"]["remaining_calls"] == body["account"]["max_model_calls"] > 0
+    assert body["default_max_model_calls"] > 0
+    assert client.get("/api/estimate").status_code == 401

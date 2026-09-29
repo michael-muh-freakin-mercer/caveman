@@ -7,7 +7,7 @@ call cap bounds calls whose cost the provider did not report.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from walter.usage import usage_cost
 
@@ -17,10 +17,10 @@ def month_start(now: datetime | None = None) -> str:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
 
-def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | None = None) -> dict:
-    since = month_start(now)
+def _usage_since(engine, records, since: str) -> tuple[float, int, int]:
+    """Provider-reported cost, model calls, and calls without a reported cost."""
     cost, calls, unknown = 0.0, 0, 0
-    for record in platform.list_runs(owner_id):
+    for record in records:
         try:
             run = engine.load(record.id)
         except Exception:
@@ -34,6 +34,24 @@ def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | 
                 unknown += 1
             else:
                 cost += reported
+    return cost, calls, unknown
+
+
+def server_usage(engine, platform, *, now: datetime | None = None) -> dict:
+    """This month's spend across every account, for the operator metrics.
+
+    Calls are counted by when they were made, not when their run was created,
+    so a long-lived run's calls this month count. Runs whose every job finished
+    before the month started cannot have made calls since, so they are not read.
+    """
+    since = month_start(now)
+    cost, calls, unknown = _usage_since(engine, platform.runs_with_work_since(since), since)
+    return {"spent_usd": round(cost, 6), "model_calls": calls, "calls_without_cost": unknown}
+
+
+def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | None = None) -> dict:
+    since = month_start(now)
+    cost, calls, unknown = _usage_since(engine, platform.list_runs(owner_id), since)
     limit_usd = settings.account_monthly_budget_usd
     limit_calls = settings.account_monthly_max_calls
     return {
@@ -71,3 +89,43 @@ def account_disk_bytes(settings, platform, owner_id: str) -> int:
         if archive.exists():
             total += archive.stat().st_size
     return total
+
+
+def cost_history(engine, platform, *, days: int = 30, min_builds: int = 5,
+                 now: datetime | None = None) -> dict:
+    """What recent builds on this server actually cost, per model mode.
+
+    Only completed runs whose every model call reported a cost count, so the
+    figures are real spend, never token-based guesses. A mode with fewer than
+    ``min_builds`` such runs reports no figures: too few to tell a user what to
+    expect. Figures are aggregates across accounts; no single run is exposed.
+    """
+    now = now or datetime.now(timezone.utc)
+    since = (now - timedelta(days=days)).isoformat()
+    costs: dict[str, list[float]] = {}
+    for record in platform.runs_created_since(since):
+        try:
+            run = engine.load(record.id)
+        except Exception:
+            continue
+        if run.status != "completed" or not run.usage_records:
+            continue
+        reported = [usage_cost(usage.raw_usage) for usage in run.usage_records]
+        if any(cost is None for cost in reported):
+            continue
+        costs.setdefault(record.model_mode, []).append(sum(reported))
+    modes = {}
+    for mode, values in costs.items():
+        values.sort()
+        if len(values) < min_builds:
+            modes[mode] = {"builds": len(values), "median_usd": None, "low_usd": None, "high_usd": None}
+            continue
+        # The middle 80% (10th to 90th percentile, nearest rank) keeps one outlier from setting the range.
+        def rank(q: float) -> float:
+            return values[min(len(values) - 1, max(0, round(q * (len(values) - 1))))]
+        middle = len(values) // 2
+        median = values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+        modes[mode] = {"builds": len(values), "median_usd": round(median, 4),
+                       "low_usd": round(rank(0.1), 4), "high_usd": round(rank(0.9), 4)}
+    return {"window_days": days, "min_builds": min_builds, "modes": modes}
+

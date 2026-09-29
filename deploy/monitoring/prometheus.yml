@@ -1,0 +1,25 @@
+# Example Prometheus configuration for Caveman. Scrapes the API's metrics
+# endpoint (enabled by CAVEMAN_METRICS_TOKEN) and loads the alert rules.
+# Adjust the target to where the API listens on your private network, and put
+# the same token in the file named by credentials_file.
+global:
+  scrape_interval: 60s
+  evaluation_interval: 60s
+
+rule_files:
+  - alerts.yml
+
+# Point this at your Alertmanager (or your hosted Prometheus's equivalent).
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: caveman
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/caveman-metrics-token
+    static_configs:
+      - targets: ["api:8000"]

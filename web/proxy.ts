@@ -12,6 +12,8 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 function contentSecurityPolicy(nonce: string): string {
   const development = process.env.NODE_ENV !== "production";
+  // Cloudflare Turnstile (sign-up CAPTCHA) runs in its own frame and calls home.
+  const captcha = process.env.TURNSTILE_SITE_KEY ? " https://challenges.cloudflare.com" : "";
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
@@ -19,7 +21,8 @@ function contentSecurityPolicy(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://avatars.githubusercontent.com",
     "font-src 'self'",
-    `connect-src 'self'${development ? " ws:" : ""}`,
+    `connect-src 'self'${captcha}${development ? " ws:" : ""}`,
+    `frame-src ${captcha ? captcha.trim() : "'none'"}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

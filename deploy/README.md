@@ -20,7 +20,7 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| Web | Vercel or any Node 22 host | Needs `CAVEMAN_API_URL`, `CAVEMAN_API_TOKEN`, `BETTER_AUTH_*`, `AUTH_DATABASE_URL`. |
+| Web | Vercel or any Node 22 host | Needs `CAVEMAN_API_URL`, `CAVEMAN_API_TOKEN`, `BETTER_AUTH_*`, `AUTH_DATABASE_URL`. Hosted: `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` for the sign-up CAPTCHA (needs outbound HTTPS to `challenges.cloudflare.com`). |
 | Auth database | Managed Postgres (recommended) | `AUTH_DATABASE_URL=postgres://...`. Tables are created on first use unless `CAVEMAN_AUTH_AUTO_MIGRATE=0`. |
 | API | Linux container, private network | Never executes generated code; runs fine under Docker's default security profile. Needs outbound HTTPS to `api.github.com` and `github.com` only if repository import is enabled (`CAVEMAN_IMPORT_MAX_MB=0` disables it). |
 | Worker(s) | Linux VM or container; user namespaces only for Bubblewrap | Holds the provider key. Refuses to start if its isolation backend is unusable: Bubblewrap on the host (default) or E2B microVMs (`CAVEMAN_SANDBOX_BACKEND=e2b`, needs `E2B_API_KEY` and outbound HTTPS to E2B). |
@@ -104,14 +104,17 @@ workflow when the `E2B_API_KEY` secret is set.
   Project repositories and archives remain files on the shared volume (NFS/EFS
   is fine for them; SQLite on a network filesystem is not, which is why
   multi-host deployments should use PostgreSQL).
-- Existing SQLite state is not migrated automatically; switch before launch or
-  export/import deliberately.
+- Existing SQLite state is not migrated automatically. `caveman ops
+  migrate-to-postgres` copies it, auth included, with everything stopped
+  (`docs/RUNBOOK.md`, "Moving from SQLite to PostgreSQL").
 
 ## Operations
 
 - `GET /api/metrics` (Prometheus text) is enabled by `CAVEMAN_METRICS_TOKEN` and
   requires it as a bearer token: jobs by status and outcome, age of the oldest
-  queued job, expired leases, runs, deliveries and sandbox availability.
+  queued job, expired leases, runs, deliveries, sandbox availability, and this
+  month's model spend and calls. `deploy/monitoring/` has alert rules, a
+  scrape config and a Grafana dashboard for it.
 - `CAVEMAN_LOG_FORMAT=json` writes one JSON object per log line.
 - `caveman ops list [--attention]`, `caveman ops requeue RUN_ID` and
   `caveman ops abandon RUN_ID --reason ...` act on durable state across all
