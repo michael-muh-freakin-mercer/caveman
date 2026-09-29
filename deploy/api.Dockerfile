@@ -35,7 +35,7 @@ COPY doctrine ./doctrine
 
 RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
- && /opt/venv/bin/pip install --no-cache-dir -e .
+ && /opt/venv/bin/pip install --no-cache-dir -e '.[e2b]'
 
 ENV PATH=/opt/venv/bin:$PATH \
     CAVEMAN_DATA_DIR=/data \
