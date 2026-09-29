@@ -29,7 +29,7 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U caveman" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install the isolation backend and the system interpreter
         # Walter's sandbox fails closed without bubblewrap and libseccomp, so the
@@ -55,7 +55,7 @@ jobs:
           python3 -c "import ctypes; ctypes.CDLL('libseccomp.so.2'); print('libseccomp resolves')"
           ls -ld /lib /lib64 /usr/lib64 || true
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           # The sandboxed Node toolchain needs Node 22+ (type stripping, in-process test isolation).
           node-version: 22
@@ -100,8 +100,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -127,8 +127,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [suite, web]
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -155,7 +155,7 @@ jobs:
         env:
           CI: "1"
         run: npx playwright test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
