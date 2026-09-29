@@ -257,7 +257,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   "# HELP caveman_runs Runs recorded on this server.", "# TYPE caveman_runs gauge",
                   f"caveman_runs {len(platform.all_runs())}",
                   "# HELP caveman_deliveries Delivery archives by status.", "# TYPE caveman_deliveries gauge"]
-        for status, count in sorted(platform.delivery_counts().items()):
+        # Always export the failed series, so the first failure is a rise from 0.
+        for status, count in sorted({"failed": 0, **platform.delivery_counts()}.items()):
             lines.append(f'caveman_deliveries{{status="{status}"}} {count}')
         sandbox = _sandbox_status(settings.sandbox_backend)
         lines += ["# HELP caveman_sandbox_available Whether isolation works on the API host.",

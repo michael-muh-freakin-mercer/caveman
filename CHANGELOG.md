@@ -20,8 +20,8 @@
 
 ## 2026-09-28 — Dashboards and alerts
 
-- `GET /api/metrics` adds `caveman_spend_month_usd`, `caveman_model_calls_month` and `caveman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts (runs created in the month or the 31 days before it).
-- `deploy/monitoring/`: Prometheus alert rules (scrape down, sandbox unavailable, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
+- `GET /api/metrics` adds `caveman_spend_month_usd`, `caveman_model_calls_month` and `caveman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts, counted by when each call was made (runs whose jobs all finished before the month are skipped). `caveman_deliveries{status="failed"}` is now always exported, at 0 until the first failure.
+- `deploy/monitoring/`: Prometheus alert rules (scrape down, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls; none on `caveman_sandbox_available`, which is probed on the API host, not the workers) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
 
 ## 2026-09-28 — Repository restructure and project presentation
 

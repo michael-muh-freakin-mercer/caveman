@@ -7,8 +7,8 @@ tests:
   input_series:
   - series: caveman_queue_oldest_seconds{job="caveman"}
     values: 0 0 700x10
-  - series: caveman_sandbox_available{job="caveman"}
-    values: 1x5 0x10
+  - series: caveman_deliveries{job="caveman",status="failed"}
+    values: 0x5 1x10
   - series: caveman_jobs{job="caveman",status="failed",outcome="error"}
     values: 0+1x70
   - series: caveman_spend_month_usd{job="caveman"}
@@ -27,16 +27,19 @@ tests:
         summary: A build has waited over 10 minutes for a worker.
         description: The oldest queued job is 11m 40s old. Workers may be down, stuck, or too few.
         runbook: docs/RUNBOOK.md#worker-outage
-  - eval_time: 12m
-    alertname: CavemanSandboxUnavailable
+  # The failed series is exported at 0, so the first-ever failure fires.
+  - eval_time: 4m
+    alertname: CavemanDeliveryFailures
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: CavemanDeliveryFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
-        job: caveman
+        severity: warning
       exp_annotations:
-        summary: Bubblewrap isolation is not usable on the API host.
-        description: Checks fail closed and nothing can be accepted until isolation works again.
-        runbook: docs/RUNBOOK.md#sandbox-unavailable
+        summary: A finished build failed to package its delivery.
+        description: Users see a completed build they cannot download. Check the API and disk space on the data volume.
+        runbook: docs/RUNBOOK.md#maintenance
   - eval_time: 70m
     alertname: CavemanJobFailures
     exp_alerts:

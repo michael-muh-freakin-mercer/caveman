@@ -1,6 +1,12 @@
 # Alert rules for Caveman, built on GET /api/metrics. Thresholds are starting
 # points for a small beta; tune them once real traffic exists. Each alert's
 # runbook link points at the matching section of docs/RUNBOOK.md.
+#
+# There is deliberately no alert on caveman_sandbox_available: it is probed on
+# the API host, which is not where candidate code runs (Compose gives only the
+# workers Bubblewrap privileges; with E2B the API only checks the SDK and key).
+# A worker whose sandbox check fails refuses to start, so a broken sandbox on
+# the workers shows up as CavemanQueueBacklog / CavemanQueueStalled.
 groups:
   - name: caveman
     rules:
@@ -12,15 +18,6 @@ groups:
           summary: Prometheus cannot scrape the Caveman API.
           description: The API is down, unreachable from Prometheus, or rejecting the metrics token.
           runbook: docs/RUNBOOK.md#api-outage
-
-      - alert: CavemanSandboxUnavailable
-        expr: caveman_sandbox_available == 0
-        for: 5m
-        labels: { severity: critical }
-        annotations:
-          summary: Bubblewrap isolation is not usable on the API host.
-          description: Checks fail closed and nothing can be accepted until isolation works again.
-          runbook: docs/RUNBOOK.md#sandbox-unavailable
 
       - alert: CavemanQueueBacklog
         expr: caveman_queue_oldest_seconds > 600
@@ -60,6 +57,8 @@ groups:
           runbook: docs/RUNBOOK.md#stuck-runs
 
       - alert: CavemanDeliveryFailures
+        # The API always exports the failed series (0 until the first failure),
+        # so the very first failure is a rise that delta() can see.
         expr: sum(delta(caveman_deliveries{status="failed"}[1h])) > 0
         labels: { severity: warning }
         annotations:

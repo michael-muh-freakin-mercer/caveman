@@ -7,7 +7,7 @@ call cap bounds calls whose cost the provider did not report.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from walter.usage import usage_cost
 
@@ -40,13 +40,12 @@ def _usage_since(engine, records, since: str) -> tuple[float, int, int]:
 def server_usage(engine, platform, *, now: datetime | None = None) -> dict:
     """This month's spend across every account, for the operator metrics.
 
-    Only runs created in this month or the 31 days before it are read, so a
-    scrape stays cheap as history grows; calls a run makes more than a month
-    after it was created are not counted here (the per-account caps still are).
+    Calls are counted by when they were made, not when their run was created,
+    so a long-lived run's calls this month count. Runs whose every job finished
+    before the month started cannot have made calls since, so they are not read.
     """
     since = month_start(now)
-    horizon = (datetime.fromisoformat(since) - timedelta(days=31)).isoformat()
-    cost, calls, unknown = _usage_since(engine, (r for r in platform.all_runs() if r.created_at >= horizon), since)
+    cost, calls, unknown = _usage_since(engine, platform.runs_with_work_since(since), since)
     return {"spent_usd": round(cost, 6), "model_calls": calls, "calls_without_cost": unknown}
 
 

@@ -504,6 +504,48 @@ def test_metrics_are_disabled_by_default_and_token_protected(settings):
     assert 'caveman_jobs{status="queued",outcome=""} 1' in body
     assert "caveman_runs 1" in body and "caveman_sandbox_available" in body
     assert "caveman_spend_month_usd 0.000000" in body and "caveman_model_calls_month 0" in body
+    # Exported before any delivery has failed, so the first failure is a visible rise.
+    assert 'caveman_deliveries{status="failed"} 0' in body
+
+
+def test_server_usage_counts_this_months_calls_by_when_they_were_made(tmp_path):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from caveman.accounts import server_usage
+
+    now = datetime(2026, 9, 15, tzinfo=timezone.utc)
+    store = PlatformStore(str(tmp_path / "platform.db"))
+    store.create_project("alice", "P", project_id="p1")
+    usage = {}
+    for run_id, created, finished, calls in (
+            # Created four months ago, still working this month.
+            ("old-active", "2026-05-02T00:00:00+00:00", "2026-09-10T00:00:00+00:00",
+             [("2026-05-02T01:00:00+00:00", 5.0), ("2026-09-09T00:00:00+00:00", 2.0)]),
+            # Created and finished before this month: not counted, and not read.
+            ("old-done", "2026-08-01T00:00:00+00:00", "2026-08-20T00:00:00+00:00",
+             [("2026-08-02T00:00:00+00:00", 7.0)]),
+            # Created this month and still running.
+            ("new", "2026-09-12T00:00:00+00:00", None, [("2026-09-12T01:00:00+00:00", 1.5)])):
+        store.create_run(run_id, "p1", "alice", "x", executor="scripted", budget_usd=10, max_model_calls=10)
+        store.enqueue(run_id, "start")
+        job = store.claim("w", 60)
+        if finished:
+            store.finish(job.id, "w", "succeeded", "done")
+        store.connection.execute("UPDATE runs SET created_at=? WHERE id=?", (created, run_id))
+        store.connection.execute("UPDATE jobs SET started_at=?, finished_at=? WHERE run_id=?",
+                                 (created, finished, run_id))
+        store.connection.commit()
+        usage[run_id] = [SimpleNamespace(created_at=at, raw_usage={"cost": cost}) for at, cost in calls]
+    loaded = []
+
+    def load(run_id):
+        loaded.append(run_id)
+        return SimpleNamespace(usage_records=usage[run_id])
+
+    result = server_usage(SimpleNamespace(load=load), store, now=now)
+    store.close()
+    assert result == {"spent_usd": 3.5, "model_calls": 2, "calls_without_cost": 0}
+    assert sorted(loaded) == ["new", "old-active"]
 
 
 @needs_sandbox
