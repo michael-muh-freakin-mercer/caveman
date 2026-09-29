@@ -18,8 +18,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Opt-in, budget-capped live smoke in CI
 
 ### 2. Stronger isolation for untrusted code
-- [ ] 🧑 Choose and pay for a microVM or managed sandbox (Firecracker hosts, gVisor, E2B, Modal, …)
-- [ ] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests
+- [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
+- [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVEMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
+- [ ] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers
 - [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
 
 ### 3. Deployment
