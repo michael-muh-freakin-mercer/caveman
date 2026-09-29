@@ -1,6 +1,6 @@
 import "server-only";
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { nextCookies } from "better-auth/next-js";
 import { captcha } from "better-auth/plugins";
@@ -46,6 +46,9 @@ const github =
 export const githubEnabled = Boolean(github);
 
 const signupAllowlist = parseSignupAllowlist(process.env.CAVEMAN_SIGNUP_ALLOWLIST);
+// An allowlist is only as good as proof that the address belongs to the person
+// signing up, so turning it on also requires email verification.
+const requireEmailVerification = process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1" || signupAllowlist !== null;
 
 const options = {
   appName: "Caveman",
@@ -58,8 +61,8 @@ const options = {
     maxPasswordLength: 128,
     autoSignIn: true,
     // Off by default so a fresh install works without an email provider;
-    // hosted deployments should set CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1.
-    requireEmailVerification: process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1",
+    // hosted deployments should set CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1 (implied by CAVEMAN_SIGNUP_ALLOWLIST).
+    requireEmailVerification,
     resetPasswordTokenExpiresIn: 60 * 60,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
@@ -68,7 +71,7 @@ const options = {
     },
   },
   emailVerification: {
-    sendOnSignUp: process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1",
+    sendOnSignUp: requireEmailVerification,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
       await sendEmail(linkEmail(user.email, "Verify your email for Caveman",
@@ -92,6 +95,15 @@ const options = {
         }
       },
     },
+  },
+  hooks: {
+    // Say "invite-only" up front: with verification on, Better Auth answers a refused
+    // password sign-up with a generic success (to hide which emails exist).
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") return;
+      const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+      if (!signupAllowed(email, signupAllowlist)) throw new APIError("FORBIDDEN", { message: SIGNUP_CLOSED_MESSAGE });
+    }),
   },
   databaseHooks: {
     user: {

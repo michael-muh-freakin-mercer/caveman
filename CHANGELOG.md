@@ -2,7 +2,7 @@
 
 ## 2026-09-29 — Invite-only sign-up and HSTS
 
-- `CAVEMAN_SIGNUP_ALLOWLIST` (web) limits who can create an account to listed emails and `@domain` entries, for password and GitHub sign-up alike. Others see "Caveman is invite-only for now". Unset keeps sign-up open; existing accounts are unaffected.
+- `CAVEMAN_SIGNUP_ALLOWLIST` (web) limits who can create an account to listed emails and `@domain` entries, for password and GitHub sign-up alike. Others see "Caveman is invite-only for now". Setting it also requires email verification (so someone cannot claim an allowlisted address they do not own), which needs `RESEND_API_KEY`. Unset keeps sign-up open; existing accounts are unaffected.
 - Caddy now sends `Strict-Transport-Security` (one year), so browsers stop trying plain HTTP.
 
 ## 2026-09-29 — DigitalOcean deployment guide

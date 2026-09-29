@@ -3,6 +3,8 @@
  * email addresses and whole domains ("@example.com"). When it is set, only
  * matching addresses can create an account, by password or GitHub alike;
  * existing accounts keep signing in. Unset or empty means anyone can sign up.
+ * Setting it also turns on email verification (see auth.ts), so it needs an
+ * email provider (RESEND_API_KEY) in production.
  */
 export type SignupAllowlist = { emails: Set<string>; domains: Set<string> } | null;
 
