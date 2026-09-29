@@ -15,7 +15,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Campaign: ~10 prompts across Python, TypeScript and documents; record success rate, cost and failure causes (`docs/live-campaign/`: 10/10 complete, median $0.09)
 - [x] 🤖 Tune planner and specialist prompts, turn limits and recovery from the results. Bar: ≥70% complete, median cost under the $5 default budget (met: 100%, $0.09)
 - [x] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers (matches OpenRouter's usage counter within $0.005)
-- [ ] 🤖 Opt-in, budget-capped live smoke in CI
+- [x] 🤖 Opt-in, budget-capped live smoke in CI (`.github/workflows/live-smoke.yml`, run by hand from Actions)
+- [ ] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run
 
 ### 2. Stronger isolation for untrusted code
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
