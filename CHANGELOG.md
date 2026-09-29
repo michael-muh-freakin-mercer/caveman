@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-29 — DigitalOcean deployment guide
+
+- `docs/DEPLOY_DIGITALOCEAN.md` walks through the first deploy: SSH key, an 8 GB / 4 vCPU Droplet, a block storage volume, managed PostgreSQL restricted to the Droplet, a cloud firewall, DNS, and which secret goes in which server file.
+- `deploy/compose.prod.yaml` layers production settings over `compose.yaml`: Caddy with automatic HTTPS as the only public listener, restart policies, workers on the E2B backend without relaxed container security options, the data volume on block storage, and Postgres connections verified against the provider's CA (`sslmode=verify-full`).
+
 ## 2026-09-28 — GitHub account rename
 
 - The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/caveman`.
