@@ -18,12 +18,14 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Opt-in, budget-capped live smoke in CI
 
 ### 2. Stronger isolation for untrusted code
-- [ ] 🧑 Choose and pay for a microVM or managed sandbox (Firecracker hosts, gVisor, E2B, Modal, …)
-- [ ] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests
+- [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
+- [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVEMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
+- [ ] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers
 - [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
 
 ### 3. Deployment
-- [ ] 🧑 Approve infrastructure: web host, API/worker hosts, managed Postgres, shared volume, object storage for archives, domain and TLS
+- [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain still to choose
+- [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
 - [x] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end (`deploy/e2e.sh`, CI job `deploy`: all 15 journeys pass)
 - [x] 🤖 Verify Better Auth on Postgres (same run)
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested

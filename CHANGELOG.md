@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-29 — DigitalOcean deployment guide
+
+- `docs/DEPLOY_DIGITALOCEAN.md` walks through the first deploy: SSH key, an 8 GB / 4 vCPU Droplet, a block storage volume, managed PostgreSQL restricted to the Droplet, a cloud firewall, DNS, and which secret goes in which server file.
+- `deploy/compose.prod.yaml` layers production settings over `compose.yaml`: Caddy with automatic HTTPS as the only public listener, restart policies, workers on the E2B backend without relaxed container security options, the data volume on block storage, and Postgres connections verified against the provider's CA (`sslmode=verify-full`).
+- `web/.dockerignore` keeps `web/.env.local` and other local files out of the web image; secrets reach the app only through the runtime `env_file`.
+## 2026-09-29 — E2B microVM sandbox
+
+- New isolation backend: with `CAVEMAN_SANDBOX_BACKEND=e2b`, every candidate check and npm install runs in a fresh E2B microVM that is killed afterwards, so generated code never runs on the worker host. Bubblewrap stays the default.
+- The VM gets the same contract as Bubblewrap: a read-only candidate snapshot owned by root, a dedicated `sandbox` account entered with `setpriv --no-new-privs` (E2B's default `user` has passwordless sudo and is never used), a cleared environment, `prlimit` limits and a wall-time budget. Offline checks load Bubblewrap's network-deny seccomp filter inside the VM, because the first live run showed E2B's `allow_internet_access=False` alone did not stop outbound connections. Writable outputs come back through `tarfile`'s `data` filter. Any E2B failure is `SandboxUnavailable`; there is no host fallback.
+- `scripts/e2b_template.py` builds the `caveman-sandbox` template (Ubuntu 24.04, pytest at `/opt/walter-env`, Node 22 at `/opt/node`). Install the SDK with `pip install '.[e2b]'`; the API image now includes it.
+- A worker starting with E2B runs the isolation probe in a real VM and refuses to start if it fails. The health check reports the configured backend without starting a VM.
+- `src/walter/sandbox_e2b.py` joins `SAFETY_PATHS`.
+- The "E2B sandbox" workflow builds the template and runs the live tests (`-m e2b`) when the `E2B_API_KEY` secret is set.
+
+## 2026-09-28 — GitHub account rename
+
+- The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/caveman`.
+
 ## 2026-09-28 — Compose deployment verified on PostgreSQL
 
 - `deploy/e2e.sh` builds the API and web images, starts `compose.yaml` with `deploy/compose.e2e.yaml` (Postgres for Better Auth and operational state, two workers sharing the job queue, scripted executor) and runs the 15 web journeys against it. A new CI job, `deploy`, runs it on every push.
@@ -10,7 +28,7 @@
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.
 - The Manager's instructions now load from `doctrine/SYSTEM_PROMPT.md`, and the API image copies `doctrine/`.
 - `SAFETY_PATHS` protects the same doctrine files at their new `doctrine/` paths; the set is otherwise unchanged. Protection is an exact path match, so a new test fails if any protected path names a file that does not exist, which would otherwise leave a moved file silently unprotected.
-- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `who-is-michael-mercer/caveman`.
+- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `michael-muh-freakin-mercer/caveman`.
 - The tagline "So easy a caveman could do it" was retired as too close to an existing slogan; it is now "You describe. Caveman delivers." The web app gained a favicon, Apple touch icon and link-preview image drawn from the flint mark.
 
 ## 2026-09-28 — Step budget and salvage (first live completion)

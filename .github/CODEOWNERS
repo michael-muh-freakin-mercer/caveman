@@ -1,7 +1,7 @@
 # Default reviewer for everything.
-* @who-is-michael-mercer
+* @michael-muh-freakin-mercer
 
 # Authority boundaries: doctrine, kernel, sandbox and CI deserve a deliberate look.
-/doctrine/            @who-is-michael-mercer
-/src/walter/          @who-is-michael-mercer
-/.github/workflows/   @who-is-michael-mercer
+/doctrine/            @michael-muh-freakin-mercer
+/src/walter/          @michael-muh-freakin-mercer
+/.github/workflows/   @michael-muh-freakin-mercer
