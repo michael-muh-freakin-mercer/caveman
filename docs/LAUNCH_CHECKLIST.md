@@ -46,7 +46,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🧑👥 Terms of service, privacy policy, acceptable-use policy
 - [ ] 🧑👥 List of third parties processing user data (OpenRouter and model providers, email, hosting)
 - [ ] 🧑👥 Data retention policy, cookie notice, minimum age
-- [ ] 🤖 Pages and links in the app (data export and account deletion already exist)
+- [x] 🤖 Pages and links in the app (data export and account deletion already exist): drafts at `/terms`, `/privacy`, `/acceptable-use`; owner facts in `web/lib/legal.ts`
 
 ### 7. Abuse and tenancy limits
 - [x] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
@@ -54,7 +54,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 CAPTCHA or equivalent on sign-up (Cloudflare Turnstile on sign-up and password-reset requests; off until keys are set)
 - [ ] 🧑 Create a Turnstile widget in Cloudflare and set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` on the web app
 - [x] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
-- [ ] 🧑 Prompt and content policy: what gets refused
+- [ ] 🧑 Prompt and content policy: what gets refused (draft in the Acceptable Use Policy; approve it)
 
 ### 8. Operations
 - [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-29 — Terms, Privacy and Acceptable Use pages
+
+- New public pages at `/terms`, `/privacy` and `/acceptable-use`, linked from the site footer and from a line under the sign-up button. The Acceptable Use Policy lists what Caveman refuses to build. The privacy policy names every third party that sees user data (OpenRouter and model providers, E2B, DigitalOcean, Cloudflare, Resend, GitHub).
+- Operator name, contact address, governing law and minimum age live in `web/lib/legal.ts`.
+
 ## 2026-09-29 — DigitalOcean deployment guide
 
 - `docs/DEPLOY_DIGITALOCEAN.md` walks through the first deploy: SSH key, an 8 GB / 4 vCPU Droplet, a block storage volume, managed PostgreSQL restricted to the Droplet, a cloud firewall, DNS, and which secret goes in which server file.

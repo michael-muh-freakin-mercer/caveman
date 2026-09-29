@@ -142,6 +142,14 @@ export function AuthForm({
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {mode === "sign-up" ? "Create account" : "Sign in"}
         </button>
+        {mode === "sign-up" ? (
+          <p className="text-center text-xs text-muted">
+            By creating an account you agree to the{" "}
+            <Link href="/terms" className="underline-offset-4 hover:text-fg hover:underline">Terms</Link>,{" "}
+            <Link href="/privacy" className="underline-offset-4 hover:text-fg hover:underline">Privacy Policy</Link> and{" "}
+            <Link href="/acceptable-use" className="underline-offset-4 hover:text-fg hover:underline">Acceptable Use Policy</Link>.
+          </p>
+        ) : null}
       </form>
       <p className="mt-6 text-center text-sm text-muted">
         {mode === "sign-in" ? "New to Caveman? " : "Already have an account? "}
