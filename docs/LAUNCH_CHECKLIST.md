@@ -21,17 +21,17 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 2. Stronger isolation for untrusted code
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
 - [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVEMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
-- [ ] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers
+- [x] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers (template `caveman-sandbox`; isolation probe passed on caveman-1, 2026-09-29)
 - [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
 
 ### 3. Deployment
-- [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain still to choose
+- [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain cavman.dev
 - [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
 - [x] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end (`deploy/e2e.sh`, CI job `deploy`: all 15 journeys pass)
 - [x] 🤖 Verify Better Auth on Postgres (same run)
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested
 - [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
-- [ ] 🧑 Approve the first deploy
+- [x] 🧑 Approve the first deploy (live at https://cavman.dev on Droplet caveman-1, 2026-09-29)
 
 ### 4. Security review
 - [ ] 👥 External review or pen test: sandbox, browser-to-API proxy and CSP, authentication, repository import, GitHub token handling, account deletion
