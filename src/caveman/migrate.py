@@ -87,7 +87,7 @@ def copy_sqlite_to_postgres(source_path: Path, url: str, schema: str, *, name: s
 
     The target tables must already exist (the stores create them on first open;
     Better Auth creates its own) and be empty. ``only`` limits the copy to the
-    tables named in it.
+    tables named in it, and every one of them must exist in SQLite.
     """
     import psycopg
 
@@ -95,7 +95,12 @@ def copy_sqlite_to_postgres(source_path: Path, url: str, schema: str, *, name: s
         raise MigrationRefused(f"{name}: {source_path} does not exist")
     source = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True)
     try:
-        tables = [table for table in _sqlite_tables(source) if only is None or table in only]
+        present_tables = _sqlite_tables(source)
+        if only is not None:
+            absent = sorted(only - set(present_tables))
+            if absent:
+                raise MigrationRefused(f"{name}: {source_path} lacks table(s) {', '.join(absent)}")
+        tables = [table for table in present_tables if only is None or table in only]
         with psycopg.connect(url) as target:
             plan: list[tuple[str, list[str], dict[str, str]]] = []
             for table in tables:
@@ -175,6 +180,12 @@ def migrate_to_postgres(settings, *, auth_sqlite: Path | None = None, auth_url: 
 
     from .platform_store import PlatformStore
 
+    core = {"operations": settings.operations_db, "platform": settings.platform_db}
+    found = [name for name, path in core.items() if path.is_file()]
+    if len(found) == 1:
+        missing = next(path for name, path in core.items() if name not in found)
+        raise MigrationRefused(f"Found the {found[0]} store but not {missing}; "
+                               "copy both core stores together or neither")
     sources = []
     if settings.operations_db.is_file():
         SQLiteStore(settings.operations_db).close()

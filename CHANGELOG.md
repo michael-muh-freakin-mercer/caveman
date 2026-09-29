@@ -20,7 +20,7 @@
 
 ## 2026-09-28 — SQLite to PostgreSQL migration
 
-- `caveman ops migrate-to-postgres` copies the operational and platform stores from SQLite into `CAVEMAN_DATABASE_URL`, and with `--auth-sqlite`/`--auth-url` the web app's Better Auth tables (booleans and timestamps converted). It refuses while a job holds a live lease, when any target table has rows, or when SQLite has a column PostgreSQL lacks. Every store is rehearsed in a rolled-back transaction before any is committed, and row counts are checked. `--dry-run` stops after the rehearsal. Steps are in `docs/RUNBOOK.md`.
+- `caveman ops migrate-to-postgres` copies the operational and platform stores from SQLite into `CAVEMAN_DATABASE_URL`, and with `--auth-sqlite`/`--auth-url` the web app's Better Auth tables (booleans and timestamps converted). It refuses while a job holds a live lease, when only one of the two core SQLite stores exists, when the auth file lacks any Better Auth table, when any target table has rows, or when SQLite has a column PostgreSQL lacks. Every store is rehearsed in a rolled-back transaction before any is committed, and row counts are checked. `--dry-run` stops after the rehearsal. Steps are in `docs/RUNBOOK.md`.
 
 ## 2026-09-28 — Repository restructure and project presentation
 

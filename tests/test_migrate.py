@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from caveman.api import create_app
 from caveman.config import Settings
-from caveman.migrate import MigrationRefused, copy_sqlite_to_postgres, migrate_to_postgres
+from caveman.migrate import AUTH_TABLES, MigrationRefused, copy_sqlite_to_postgres, migrate_to_postgres
 from caveman.worker import Worker
 
 TOKEN = "t" * 40
@@ -129,3 +129,24 @@ def test_converts_better_auth_types_and_refuses_unknown_columns(tmp_path, postgr
         connection.execute(f'DELETE FROM "{schema}"."user"')
     with pytest.raises(MigrationRefused, match="surprise"):
         copy_sqlite_to_postgres(source, postgres_url, schema, name="auth")
+
+
+def test_refuses_an_auth_file_missing_better_auth_tables(tmp_path):
+    pytest.importorskip("psycopg")
+    source = tmp_path / "auth.db"
+    with sqlite3.connect(source) as connection:
+        connection.execute('CREATE TABLE "user"(id TEXT PRIMARY KEY)')
+    # Refused before PostgreSQL is contacted, so the URL is never used.
+    with pytest.raises(MigrationRefused, match="account, session, verification"):
+        copy_sqlite_to_postgres(source, "postgresql://unused.invalid/db", "public", name="auth",
+                                only=AUTH_TABLES)
+
+
+def test_refuses_when_only_one_core_store_exists(tmp_path):
+    from caveman.platform_store import PlatformStore
+    settings = _settings(tmp_path, database_url="postgresql://unused.invalid/db")
+    settings.data_dir.mkdir(parents=True)
+    PlatformStore(settings.platform_db).close()
+    assert not settings.operations_db.exists()
+    with pytest.raises(MigrationRefused, match="both core stores"):
+        migrate_to_postgres(settings)
