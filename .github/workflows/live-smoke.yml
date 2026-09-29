@@ -3,8 +3,11 @@ name: Live smoke (real models, spends credits)
 # Opt-in only: it never runs on push or pull requests. Start it from the
 # Actions tab ("Run workflow"). It needs the repository secret
 # OPENROUTER_API_KEY and spends at most the total budget below, enforced on
-# the provider-reported cost of every call (the campaign stops if a provider
-# reports no cost, since the cap could not then be enforced).
+# the provider-reported cost of every call (the campaign stops, and the job
+# fails, if a provider reports no cost, since the cap could not then be
+# enforced). Every model call goes through the campaign so the cap covers them
+# all; the unmetered provider smoke test (tests/test_live_smoke.py) is not run
+# here, as the builds already exercise tool calls and multi-turn continuity.
 
 on:
   workflow_dispatch:
@@ -79,11 +82,6 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -e '.[test]'
-
-      - name: Provider smoke (tool call and conversation continuity)
-        env:
-          WALTER_LIVE_SMOKE: "1"
-        run: .venv/bin/python -m pytest -q -m live tests/test_live_smoke.py
 
       - name: Live builds
         env:

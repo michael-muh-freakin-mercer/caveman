@@ -20,8 +20,8 @@
 
 ## 2026-09-28 — Opt-in live smoke in CI
 
-- A new workflow, **Live smoke (real models, spends credits)**, runs only when started by hand from the Actions tab. It runs the provider smoke test and 1–10 of the live campaign's standard builds with real models, capped per build and in total (defaults $1 and $2; hard limits $5 and $20 whatever is typed). It fails unless every build completes, and the report lands in the job summary and as an artifact. It needs the `OPENROUTER_API_KEY` repository secret.
-- `scripts/live_campaign.py --min-completion RATE` exits 1 when fewer requests complete, so automation can't pass on a bad report.
+- A new workflow, **Live smoke (real models, spends credits)**, runs only when started by hand from the Actions tab. It runs 1–10 of the live campaign's standard builds with real models, capped per build and in total (defaults $1 and $2; hard limits $5 and $20 whatever is typed); every model call goes through the campaign, so the cap covers the whole workflow. It fails unless every build completes and the provider reported the cost of every call, and the report lands in the job summary and as an artifact. It needs the `OPENROUTER_API_KEY` repository secret.
+- `scripts/live_campaign.py --min-completion RATE` exits 1 when fewer requests complete (compared unrounded) or, with the provider executor, when some calls reported no cost, so automation can't pass on a bad report.
 
 ## 2026-09-28 — Repository restructure and project presentation
 

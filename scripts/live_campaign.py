@@ -60,8 +60,23 @@ def parse_args(argv):
                         help="Approve specialist capability requests automatically (campaign data only)")
     parser.add_argument("--min-completion", type=float, default=None, metavar="RATE",
                         help="Exit 1 if fewer than this share of requests complete (e.g. 1.0 for all); "
-                             "for CI, where a report alone would pass silently")
+                             "for CI, where a report alone would pass silently; with the provider "
+                             "executor it also exits 1 if some calls reported no cost, unless "
+                             "--allow-unknown-cost is given")
     return parser.parse_args(argv)
+
+
+def gate_failures(args, completed: int, requests: int, cost_complete: bool) -> list[str]:
+    """Reasons a --min-completion gate fails; empty when it passes (or no gate was asked for)."""
+    if args.min_completion is None:
+        return []
+    failures = []
+    rate = completed / requests if requests else 0.0  # unrounded: rounding could lift 0.9995 to 1.0
+    if rate < args.min_completion:
+        failures.append(f"Completion {completed}/{requests} is below the required {args.min_completion:.0%}")
+    if not cost_complete and args.executor == "provider" and not args.allow_unknown_cost:
+        failures.append("Some calls reported no cost, so the spend cap was not enforced")
+    return failures
 
 
 def main(argv=None) -> int:
@@ -171,11 +186,10 @@ def main(argv=None) -> int:
             f"{row['elapsed_s']}s" if "elapsed_s" in row else ""))
     (args.out / f"{stamp}.md").write_text("\n".join(lines) + "\n")
     print(f"Report: {args.out / (stamp + '.md')}")
-    if args.min_completion is not None and summary["completion_rate"] < args.min_completion:
-        print(f"Completion {summary['completion_rate']:.0%} is below the required "
-              f"{args.min_completion:.0%}", file=sys.stderr)
-        return 1
-    return 0
+    failures = gate_failures(args, len(completed), len(rows), summary["cost_complete"])
+    for failure in failures:
+        print(failure, file=sys.stderr)
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
