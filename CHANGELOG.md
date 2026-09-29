@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-29 — Invite-only sign-up and HSTS
+
+- `CAVEMAN_SIGNUP_ALLOWLIST` (web) limits who can create an account to listed emails and `@domain` entries, for password and GitHub sign-up alike. Others see "Caveman is invite-only for now". Unset keeps sign-up open; existing accounts are unaffected.
+- Caddy now sends `Strict-Transport-Security` (one year), so browsers stop trying plain HTTP.
+
 ## 2026-09-29 — DigitalOcean deployment guide
 
 - `docs/DEPLOY_DIGITALOCEAN.md` walks through the first deploy: SSH key, an 8 GB / 4 vCPU Droplet, a block storage volume, managed PostgreSQL restricted to the Droplet, a cloud firewall, DNS, and which secret goes in which server file.

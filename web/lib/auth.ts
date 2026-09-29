@@ -11,6 +11,7 @@ import { Pool } from "pg";
 import { CAPTCHA_ENDPOINTS, captchaSecretKey } from "./captcha";
 import { CavemanApiError, cavemanFetch } from "./caveman";
 import { linkEmail, sendEmail } from "./email";
+import { SIGNUP_CLOSED_MESSAGE, parseSignupAllowlist, signupAllowed } from "./signups";
 
 /**
  * Authentication uses Better Auth, an established library: password hashing,
@@ -43,6 +44,8 @@ const github =
     : undefined;
 
 export const githubEnabled = Boolean(github);
+
+const signupAllowlist = parseSignupAllowlist(process.env.CAVEMAN_SIGNUP_ALLOWLIST);
 
 const options = {
   appName: "Caveman",
@@ -87,6 +90,17 @@ const options = {
           const message = error instanceof Error ? error.message : "Caveman could not delete your data.";
           throw new APIError(status === 409 ? "CONFLICT" : "SERVICE_UNAVAILABLE", { message });
         }
+      },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Runs for every new account, password or GitHub, so neither path skips the invite list.
+        before: async (user: { email: string }) => {
+          if (!signupAllowed(user.email, signupAllowlist)) throw new APIError("FORBIDDEN", { message: SIGNUP_CLOSED_MESSAGE });
+          return { data: user };
+        },
       },
     },
   },
