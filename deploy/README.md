@@ -23,7 +23,7 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
 | Web | Vercel or any Node 22 host | Needs `CAVEMAN_API_URL`, `CAVEMAN_API_TOKEN`, `BETTER_AUTH_*`, `AUTH_DATABASE_URL`. |
 | Auth database | Managed Postgres (recommended) | `AUTH_DATABASE_URL=postgres://...`. Tables are created on first use unless `CAVEMAN_AUTH_AUTO_MIGRATE=0`. |
 | API | Linux container, private network | Never executes generated code; runs fine under Docker's default security profile. Needs outbound HTTPS to `api.github.com` and `github.com` only if repository import is enabled (`CAVEMAN_IMPORT_MAX_MB=0` disables it). |
-| Worker(s) | Linux VM or container with user namespaces | Holds the provider key. Refuses to start if Bubblewrap isolation is unusable. |
+| Worker(s) | Linux VM or container; user namespaces only for Bubblewrap | Holds the provider key. Refuses to start if its isolation backend is unusable: Bubblewrap on the host (default) or E2B microVMs (`CAVEMAN_SANDBOX_BACKEND=e2b`, needs `E2B_API_KEY` and outbound HTTPS to E2B). |
 | Operational state | Managed Postgres (several hosts) or the shared volume (one host) | `CAVEMAN_DATABASE_URL=postgres://...` puts the kernel's runs/events and the platform tables in schemas `<CAVEMAN_DATABASE_SCHEMA>_ops` and `_platform` (default `caveman`), created on first use. Unset: SQLite in WAL mode on the volume. |
 | Files | Persistent volume shared by API and workers | Project repositories (git) and delivery archives under `CAVEMAN_DATA_DIR`. |
 
@@ -58,6 +58,29 @@ worker host must allow unprivileged user namespaces:
   `unshare`/`clone` with `CLONE_NEWUSER`.
 
 Never set up a worker without isolation. There is no host-execution fallback.
+
+### E2B instead of Bubblewrap
+
+With `CAVEMAN_SANDBOX_BACKEND=e2b` candidate code never runs on the worker host:
+every check and every npm install gets a fresh E2B microVM that is killed
+afterwards. The worker then needs no user namespaces and can run under Docker's
+default security profile (drop the `security_opt` lines from the `worker`
+service), but it does need outbound HTTPS to E2B.
+
+1. Build the template once, and again whenever `scripts/e2b_template.py` changes:
+   `E2B_API_KEY=... python scripts/e2b_template.py` (Python 3.11+, `pip install '.[e2b]'`).
+2. On the workers set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` (and
+   `CAVEMAN_E2B_TEMPLATE` if you built it under another name). Set them on the
+   API too so its health check reports the same backend.
+3. Start a worker. It runs the isolation probe in a real VM and refuses to start
+   if the key, template or network policy is wrong.
+
+The same limits apply as under Bubblewrap: read-only candidate snapshot, an
+unprivileged user, a cleared environment, `prlimit` limits, a wall-time budget,
+and no network except for dependency installs. Aggregate memory is bounded by
+the template's VM size (2 GiB) and scratch space is measured after each check.
+The live tests (`tests/test_sandbox_e2b_live.py`) run in the "E2B sandbox" GitHub
+workflow when the `E2B_API_KEY` secret is set.
 
 ## Durability
 

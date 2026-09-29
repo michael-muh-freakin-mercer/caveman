@@ -42,9 +42,14 @@ walter = "walter.cli:main"
 
 [project.optional-dependencies]
 test = ["httpx>=0.28.1"]
+# CAVEMAN_SANDBOX_BACKEND=e2b: run candidate code in E2B microVMs.
+e2b = ["e2b>=2.51,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
-markers = ["live: opt-in credit-bearing provider smoke test"]
+markers = [
+  "live: opt-in credit-bearing provider smoke test",
+  "e2b: opt-in tests against real E2B microVMs (CAVEMAN_E2B_LIVE=1 and E2B_API_KEY)",
+]
