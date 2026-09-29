@@ -41,8 +41,17 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
 - The same image ran a TypeScript build (sandboxed `node_test`) and a parallel
   build with a stale-base retry and integration, under the same options.
 
-Not verified here: `deploy/web.Dockerfile`, `compose.yaml` end to end, Vercel,
-and Postgres-backed auth (the SQLite path is what the tests exercise).
+- `deploy/e2e.sh` (CI job `deploy`) builds both images and starts `compose.yaml`
+  with `compose.e2e.yaml` layered on: Postgres for Better Auth and for
+  operational state, and two worker containers sharing one job queue. All 15
+  web journeys pass against it (sign-up, builds with approvals and recovery,
+  password reset, export and deletion, follow-ups, sessions), and both workers
+  took leases during the run. The journeys also pass with the local dev stack
+  on Postgres (`AUTH_DATABASE_URL` and `CAVEMAN_DATABASE_URL` set to
+  `postgres://` URLs before `npx playwright test`).
+
+Not verified here: Vercel, and workers on separate machines sharing the data
+volume over a network filesystem (the two workers above share one host).
 
 ## Isolation requirements (do not skip)
 

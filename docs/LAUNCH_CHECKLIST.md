@@ -27,9 +27,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 3. Deployment
 - [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain still to choose
 - [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
-- [ ] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end
-- [ ] 🤖 Verify Better Auth on Postgres
-- [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`)
+- [x] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end (`deploy/e2e.sh`, CI job `deploy`: all 15 journeys pass)
+- [x] 🤖 Verify Better Auth on Postgres (same run)
+- [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested
 - [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
 - [ ] 🧑 Approve the first deploy
 
