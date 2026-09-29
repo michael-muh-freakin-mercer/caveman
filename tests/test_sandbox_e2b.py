@@ -17,6 +17,8 @@ from walter.sandbox import (
 )
 from walter.sandbox_e2b import E2BBackend
 
+PLACEHOLDER = "e2b_test"  # not a key; the fake never contacts E2B
+
 
 class CommandExit(Exception):
     def __init__(self, exit_code, stderr=""):
@@ -89,7 +91,7 @@ def backend_for(sandbox, created=None):
         if created is not None:
             created.append(kwargs)
         return sandbox
-    return E2BBackend(api_key="e2b_test", sandbox_factory=factory)
+    return E2BBackend(api_key=PLACEHOLDER, sandbox_factory=factory)
 
 
 def spec_for(tmp_path, *, network=False, timeout=30.0, writable=None, environment=()):
@@ -272,7 +274,7 @@ def test_backend_failures_fail_closed(tmp_path, monkeypatch):
     def refuse(**_):
         raise RuntimeError("401 unauthorized")
     with pytest.raises(SandboxUnavailable, match="could not be created"):
-        E2BBackend(api_key="e2b_test", sandbox_factory=refuse).run(spec_for(tmp_path))
+        E2BBackend(api_key=PLACEHOLDER, sandbox_factory=refuse).run(spec_for(tmp_path))
 
     def no_runtime(command, user):
         if "test -e /opt/walter-env" in command:
@@ -336,7 +338,7 @@ def test_settings_select_the_backend_and_refuse_unknown_values(tmp_path, monkeyp
     assert Settings.from_env(base).execution_backend() is None
     chosen = Settings.from_env({**base, "CAVEMAN_SANDBOX_BACKEND": "E2B", "CAVEMAN_E2B_TEMPLATE": "caveman-sandbox:v2"})
     assert (chosen.sandbox_backend, chosen.e2b_template) == ("e2b", "caveman-sandbox:v2")
-    monkeypatch.setenv("E2B_API_KEY", "e2b_test")
+    monkeypatch.setenv("E2B_API_KEY", PLACEHOLDER)
     backend = chosen.execution_backend()
     assert isinstance(backend, E2BBackend) and backend.template == "caveman-sandbox:v2"
     with pytest.raises(SettingsError, match="CAVEMAN_SANDBOX_BACKEND"):
@@ -350,7 +352,7 @@ def test_health_probe_checks_e2b_configuration_without_starting_a_vm(monkeypatch
     monkeypatch.setattr(sandbox_probe.importlib.util, "find_spec", lambda name: object())
     monkeypatch.delenv("E2B_API_KEY", raising=False)
     assert sandbox_probe.probe(max_age=0, backend="e2b") == (False, "E2B is selected but E2B_API_KEY is not set.")
-    monkeypatch.setenv("E2B_API_KEY", "e2b_test")
+    monkeypatch.setenv("E2B_API_KEY", PLACEHOLDER)
     usable, detail = sandbox_probe.probe(max_age=0, backend="e2b")
     assert usable and "E2B microVMs" in detail
     monkeypatch.setattr(sandbox_probe.importlib.util, "find_spec", lambda name: None)
@@ -378,6 +380,6 @@ def test_worker_start_runs_the_isolation_probe_in_a_real_backend(tmp_path, monke
     settings = Settings(data_dir=tmp_path / "data", api_token=TOKEN, sandbox_backend="e2b")
     monkeypatch.setattr(sandbox_probe, "probe", lambda **_: (True, "configured"))
     monkeypatch.setattr(sandbox_probe, "probe_execution", lambda backend: (False, "e2b isolation probe failed: x"))
-    monkeypatch.setenv("E2B_API_KEY", "e2b_test")
+    monkeypatch.setenv("E2B_API_KEY", PLACEHOLDER)
     with pytest.raises(SystemExit, match="refuses to start: e2b isolation probe failed"):
         worker_module.main(settings)
