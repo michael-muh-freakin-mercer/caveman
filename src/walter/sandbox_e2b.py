@@ -20,9 +20,10 @@ so candidate code never runs on the worker host at all. It honours the same
   not copied in.
 - ``network=False`` creates the VM with internet access denied and, because that
   setting alone did not stop outbound connections in testing (2026-09-29), also
-  installs iptables/ip6tables rules rejecting every packet the ``sandbox`` account
-  sends; if the rules cannot be installed the execution fails closed. The command
-  runs with a cleared environment under ``timeout`` and ``prlimit`` with the spec's
+  loads the same network-deny seccomp filter the Bubblewrap backend uses before
+  the command starts (E2B's kernel lacks the iptables owner match, so a
+  per-account firewall is not available). If the filter cannot be loaded the
+  execution fails closed. The command runs with a cleared environment under ``timeout`` and ``prlimit`` with the spec's
   limits. Aggregate memory is bounded by the template's VM size, and scratch
   usage is measured after the run.
 - The VM is killed after every execution, whatever happened.
@@ -45,6 +46,7 @@ from typing import Any
 from .sandbox import (
     MAX_OUTPUT_BYTES,
     MAX_SCRATCH_BYTES,
+    NETWORK_SYSCALLS,
     PROXY_ENVIRONMENT,
     CommandResult,
     ExecutionSpec,
@@ -70,6 +72,32 @@ MAX_COPY_BACK_BYTES = 1_000_000_000
 MAX_LIFETIME_SECONDS = 3600
 SETUP_SECONDS = 300
 TEMPLATE_MISSING = 90
+NETWORK_FILTER_FAILED = 91
+NETWORK_FILTER = f"{TRANSFER}/netdeny.py"
+# Loaded inside the VM after privileges are dropped (no_new_privs is set, so an
+# unprivileged process may install it); inherited across exec by the command.
+NETWORK_FILTER_SOURCE = f'''import ctypes, errno, os, sys
+def fail(reason):
+    sys.stderr.write("caveman-netdeny: " + reason + "\\n"); sys.exit({NETWORK_FILTER_FAILED})
+try:
+    lib = ctypes.CDLL("libseccomp.so.2", use_errno=True)
+except OSError as exc:
+    fail("libseccomp unavailable: %s" % exc)
+lib.seccomp_init.argtypes = [ctypes.c_uint32]; lib.seccomp_init.restype = ctypes.c_void_p
+lib.seccomp_rule_add.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint]
+lib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]
+lib.seccomp_load.argtypes = [ctypes.c_void_p]
+context = lib.seccomp_init(0x7FFF0000)
+if not context:
+    fail("seccomp_init failed")
+for name in {[name.decode() for name in NETWORK_SYSCALLS]!r}:
+    number = lib.seccomp_syscall_resolve_name(name.encode())
+    if number < 0 or lib.seccomp_rule_add(context, 0x00050000 | errno.EPERM, number, 0) != 0:
+        fail("cannot deny " + name)
+if lib.seccomp_load(context) != 0:
+    fail("seccomp_load failed")
+os.execv(sys.argv[1], sys.argv[1:])
+'''
 
 SandboxFactory = Callable[..., Any]
 
@@ -196,6 +224,8 @@ class E2BBackend:
         q = shlex.quote
         with archive.open("rb") as handle:
             sandbox.files.write(f"{TRANSFER}/in.tgz", handle, user="root")
+        if not spec.network:
+            sandbox.files.write(NETWORK_FILTER, NETWORK_FILTER_SOURCE, user="root")
         setup = [f'test -e {q(target)} || {{ echo "template lacks {target}" >&2; exit {TEMPLATE_MISSING}; }}'
                  for target in provided]
         setup += [f"tar -xzf {TRANSFER}/in.tgz -C / --no-same-owner", f"rm -f {TRANSFER}/in.tgz"]
@@ -203,13 +233,13 @@ class E2BBackend:
         setup += [f"chown -R root:root {q(target)} && chmod -R a+rX,a-w {q(target)}" for target in readonly]
         setup += [f"install -d -m 700 {TRANSFER}/io", f"test -d {q(spec.workdir)}"]
         if not spec.network:
-            setup += [f"{tool} -I OUTPUT -m owner --uid-owner {RUN_USER} -j REJECT"
-                      for tool in ("iptables", "ip6tables")]
+            setup += [f"chmod 755 {TRANSFER} && chown root:root {NETWORK_FILTER} && chmod 444 {NETWORK_FILTER}"]
         self._root(sandbox, _script(*setup))
 
         environment = [f"{name}={value}" for name, value in spec.environment
                        if name not in HOST_ONLY_ENVIRONMENT]
-        inner = [*DROP_PRIVILEGES, "--", "/usr/bin/env", "-i", *environment, "/usr/bin/timeout", "--kill-after=2",
+        deny = [] if spec.network else ["/usr/bin/python3", "-I", NETWORK_FILTER]
+        inner = [*DROP_PRIVILEGES, "--", *deny, "/usr/bin/env", "-i", *environment, "/usr/bin/timeout", "--kill-after=2",
                  f"{spec.timeout:g}", *_limits(spec), "--", *spec.argv]
         command = (f"cd {q(spec.workdir)} && {shlex.join(inner)} "
                    f">{TRANSFER}/io/stdout 2>{TRANSFER}/io/stderr")
@@ -237,6 +267,9 @@ class E2BBackend:
             f"head -c {MAX_OUTPUT_BYTES} {TRANSFER}/io/stderr > {TRANSFER}/stderr"))
         stdout = bytes(sandbox.files.read(f"{TRANSFER}/stdout", format="bytes", user="root"))
         stderr = bytes(sandbox.files.read(f"{TRANSFER}/stderr", format="bytes", user="root"))
+        if returncode == NETWORK_FILTER_FAILED and stderr.startswith(b"caveman-netdeny:"):
+            raise SandboxUnavailable("E2B network filter could not be installed: "
+                                     + stderr.decode(errors="replace").strip())
 
         budget = MAX_COPY_BACK_BYTES
         for index, (source, target) in enumerate(writable):

@@ -127,12 +127,12 @@ def test_execution_uploads_candidate_bytes_and_runs_unprivileged_in_a_denied_net
     assert "test -e /opt/walter-env" in setup
     assert "chown -R root:root /workspace && chmod -R a+rX,a-w /workspace" in setup
     assert "chown -R sandbox:sandbox /tmp" in setup
-    assert "iptables -I OUTPUT -m owner --uid-owner sandbox -j REJECT" in setup
-    assert "ip6tables -I OUTPUT -m owner --uid-owner sandbox -j REJECT" in setup
+    assert "chmod 444 /var/caveman/netdeny.py" in setup
+    assert "seccomp_load" in sandbox.uploads["/var/caveman/netdeny.py"]
     command, user = sandbox.commands_run[1]
     assert user == "root"
-    assert command.index("/usr/bin/setpriv --reuid=sandbox --regid=sandbox --clear-groups --no-new-privs") \
-        < command.index("/usr/bin/env -i")
+    assert (command.index("/usr/bin/setpriv --reuid=sandbox --regid=sandbox --clear-groups --no-new-privs")
+            < command.index("/usr/bin/python3 -I /var/caveman/netdeny.py /usr/bin/env -i"))
     assert "/usr/bin/env -i" in command and "HOME=/tmp" in command
     assert "HTTPS_PROXY" not in command
     assert "/usr/bin/timeout --kill-after=2 30" in command
@@ -145,7 +145,8 @@ def test_network_spec_creates_an_internet_enabled_vm(tmp_path):
     sandbox = FakeSandbox(respond=lambda command, user: "0" if command.startswith("du ") else "")
     backend_for(sandbox, created).run(spec_for(tmp_path, network=True))
     assert created[0]["allow_internet_access"] is True
-    assert "iptables" not in sandbox.commands_run[0][0]
+    assert "netdeny" not in sandbox.commands_run[1][0]
+    assert "/var/caveman/netdeny.py" not in sandbox.uploads
 
 
 def test_nonzero_exit_is_returned_not_raised(tmp_path):
@@ -291,6 +292,29 @@ def test_backend_failures_fail_closed(tmp_path, monkeypatch):
     with pytest.raises(SandboxUnavailable, match="envd unreachable"):
         backend_for(sandbox).run(spec_for(tmp_path))
     assert sandbox.killed
+
+
+def test_a_network_filter_that_cannot_load_fails_closed(tmp_path):
+    def respond(command, user):
+        if "setpriv" in command:
+            raise CommandExit(91)
+        return "0"
+    sandbox = FakeSandbox(respond=respond, stderr=b"caveman-netdeny: libseccomp unavailable\n")
+    with pytest.raises(SandboxUnavailable, match="network filter could not be installed"):
+        backend_for(sandbox).run(spec_for(tmp_path))
+    assert sandbox.killed
+
+
+def test_the_network_filter_denies_sockets_and_then_runs_the_command(tmp_path):
+    from walter.sandbox_e2b import NETWORK_FILTER_SOURCE
+    script = tmp_path / "netdeny.py"
+    script.write_text(NETWORK_FILTER_SOURCE)
+    probe = ("import socket\ntry: socket.socket()\nexcept OSError as exc: print('denied', exc.errno)\n"
+             "else: print('allowed')")
+    # As in the VM: no_new_privs lets an unprivileged process load the filter.
+    completed = subprocess.run(["/usr/bin/setpriv", "--no-new-privs", "/usr/bin/python3", "-I", str(script), "/usr/bin/python3", "-c", probe],
+                               capture_output=True, text=True, timeout=30)
+    assert completed.stdout.strip() == "denied 1", completed.stderr
 
 
 def test_unsafe_mount_targets_are_refused(tmp_path):

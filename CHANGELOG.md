@@ -3,7 +3,7 @@
 ## 2026-09-29 — E2B microVM sandbox
 
 - New isolation backend: with `CAVEMAN_SANDBOX_BACKEND=e2b`, every candidate check and npm install runs in a fresh E2B microVM that is killed afterwards, so generated code never runs on the worker host. Bubblewrap stays the default.
-- The VM gets the same contract as Bubblewrap: a read-only candidate snapshot owned by root, an unprivileged `user`, a cleared environment, `prlimit` limits and a wall-time budget, and internet access only when the spec allows it (dependency installs). Writable outputs come back through `tarfile`'s `data` filter. Any E2B failure is `SandboxUnavailable`; there is no host fallback.
+- The VM gets the same contract as Bubblewrap: a read-only candidate snapshot owned by root, a dedicated `sandbox` account entered with `setpriv --no-new-privs` (E2B's default `user` has passwordless sudo and is never used), a cleared environment, `prlimit` limits and a wall-time budget. Offline checks load Bubblewrap's network-deny seccomp filter inside the VM, because the first live run showed E2B's `allow_internet_access=False` alone did not stop outbound connections. Writable outputs come back through `tarfile`'s `data` filter. Any E2B failure is `SandboxUnavailable`; there is no host fallback.
 - `scripts/e2b_template.py` builds the `caveman-sandbox` template (Ubuntu 24.04, pytest at `/opt/walter-env`, Node 22 at `/opt/node`). Install the SDK with `pip install '.[e2b]'`; the API image now includes it.
 - A worker starting with E2B runs the isolation probe in a real VM and refuses to start if it fails. The health check reports the configured backend without starting a VM.
 - `src/walter/sandbox_e2b.py` joins `SAFETY_PATHS`.

@@ -6,8 +6,8 @@ The template mirrors what the Bubblewrap backend binds from the worker host:
 a Python environment with pytest at /opt/walter-env and Node 22 (with npm) at
 /opt/node, both owned by root so candidate code cannot change them. Candidate
 code runs as ``sandbox``, an account with no sudo (E2B's default ``user`` has
-passwordless sudo, so it is never used for candidate code). iptables blocks the
-sandbox account's network when a check must be offline. E2B caches
+passwordless sudo, so it is never used for candidate code). Offline checks load
+a network-deny seccomp filter through the base image's libseccomp. E2B caches
 unchanged layers, so rebuilding after a small change is quick.
 
 Rebuild when this file changes; workers pick the new build up on their next
@@ -43,7 +43,7 @@ def template():
         .from_ubuntu_image("24.04")
         .set_user("root")
         .apt_install(["python3", "python3-venv", "util-linux", "coreutils", "tar", "gzip", "xz-utils",
-                      "curl", "ca-certificates", "iptables"], no_install_recommends=True)
+                      "curl", "ca-certificates", "libseccomp2"], no_install_recommends=True)
         .run_cmd(node)
         .run_cmd(["python3 -m venv /opt/walter-env",
                   f"/opt/walter-env/bin/pip install --no-cache-dir '{PYTEST}'",
@@ -53,7 +53,7 @@ def template():
                   "chown -R root:root /opt/node /opt/walter-env",
                   "chmod -R go-w /opt/node /opt/walter-env",
                   "test -x /usr/bin/prlimit && test -x /usr/bin/timeout && test -x /usr/bin/env",
-                  "test -x /usr/bin/setpriv && command -v iptables && command -v ip6tables"])
+                  "test -x /usr/bin/setpriv && test -x /usr/bin/python3"])
         .set_user("user")
     )
 
