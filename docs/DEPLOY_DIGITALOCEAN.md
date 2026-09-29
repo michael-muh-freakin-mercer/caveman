@@ -123,6 +123,7 @@ CAVEMAN_SANDBOX_BACKEND=e2b
 E2B_API_KEY=<your E2B key>
 CAVEMAN_ACCOUNT_MONTHLY_BUDGET_USD=3
 CAVEMAN_METRICS_TOKEN=<optional: a third random value>
+CAVEMAN_DOMAIN=<your domain, for Caddy's HTTPS certificate>
 ```
 
 `/opt/caveman/web/.env.local` (web app):
@@ -137,25 +138,20 @@ AUTH_DATABASE_URL=<same Postgres connection string, verify-full form>
 # TURNSTILE_SECRET_KEY=<Cloudflare Turnstile secret key>
 ```
 
-`/opt/caveman/deploy/.env` (read by Compose for the Caddy site):
-
-```bash
-CAVEMAN_DOMAIN=<your domain>
-```
-
 `/opt/caveman/deploy/postgres-ca.crt`: the CA certificate you downloaded in
 step 4 (open it on your computer, copy the text, `nano deploy/postgres-ca.crt`,
 paste). It is public, not a secret, but the app refuses to connect without it.
 
-Lock the secrets down: `chmod 600 .env web/.env.local deploy/.env`.
+Lock the secrets down: `chmod 600 .env web/.env.local`. The web image build
+leaves `web/.env.local` out (`web/.dockerignore`); the app reads it only at runtime.
 
 ## 9. Start it
 
 ```bash
 cd /opt/caveman
-docker compose -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
-docker compose -f deploy/compose.yaml -f deploy/compose.prod.yaml ps
-docker compose -f deploy/compose.yaml -f deploy/compose.prod.yaml logs worker | tail
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml ps
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml logs worker | tail
 ```
 
 The worker log should say `e2b isolation probe passed.`; if the probe fails the
@@ -166,7 +162,7 @@ open `https://<your domain>`, create your account, and run a small build.
 
 ```bash
 cd /opt/caveman && git pull
-docker compose -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
 ```
 
 Runs survive restarts: jobs are leased, and an interrupted job is recovered by
@@ -176,7 +172,7 @@ the next worker (see [RUNBOOK.md](RUNBOOK.md)).
 
 - Postgres: DigitalOcean takes daily backups with 7-day point-in-time recovery.
 - Volume: **Volumes → caveman volume → Take Snapshot**, or a scheduled snapshot.
-- Secrets: keep a copy of the three env files in your password manager.
+- Secrets: keep a copy of the two env files in your password manager.
 
 ## Where each secret lives
 

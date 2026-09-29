@@ -4,6 +4,7 @@
 
 - `docs/DEPLOY_DIGITALOCEAN.md` walks through the first deploy: SSH key, an 8 GB / 4 vCPU Droplet, a block storage volume, managed PostgreSQL restricted to the Droplet, a cloud firewall, DNS, and which secret goes in which server file.
 - `deploy/compose.prod.yaml` layers production settings over `compose.yaml`: Caddy with automatic HTTPS as the only public listener, restart policies, workers on the E2B backend without relaxed container security options, the data volume on block storage, and Postgres connections verified against the provider's CA (`sslmode=verify-full`).
+- `web/.dockerignore` keeps `web/.env.local` and other local files out of the web image; secrets reach the app only through the runtime `env_file`.
 ## 2026-09-29 — E2B microVM sandbox
 
 - New isolation backend: with `CAVEMAN_SANDBOX_BACKEND=e2b`, every candidate check and npm install runs in a fresh E2B microVM that is killed afterwards, so generated code never runs on the worker host. Bubblewrap stays the default.
