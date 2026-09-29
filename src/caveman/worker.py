@@ -71,6 +71,7 @@ class Worker:
         self.projector = Projector(self.engine.redact, settings)
         self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{uuid4().hex[:8]}"
         self._stopping = asyncio.Event()
+        self.execution_backend = settings.execution_backend()
         self._scripted = None
         if settings.executor == EXECUTOR_SCRIPTED:
             from .scripted import PROVIDER, ScriptedProvider
@@ -199,7 +200,8 @@ class Worker:
         cancelled_by_user = False
         try:
             controller = DurableController(Orchestrator(store), job.run_id,
-                                           WorkspaceManager(self.engine.project_repo(project_id)),
+                                           WorkspaceManager(self.engine.project_repo(project_id),
+                                                            backend=self.execution_backend),
                                            config=config, integration=True, salvage_exhausted=True)
             if self.settings.orchestration == ORCHESTRATION_WORKFLOW:
                 driver = WorkflowDriver(
@@ -252,8 +254,10 @@ def main(settings: Settings | None = None) -> None:
     from .logs import configure_logging
     configure_logging()
     settings = settings or Settings.from_env()
-    from .sandbox_probe import probe
-    usable, detail = probe()
+    from .sandbox_probe import probe, probe_execution
+    usable, detail = probe(backend=settings.sandbox_backend)
+    if usable and settings.sandbox_backend != "bubblewrap":
+        usable, detail = probe_execution(settings.execution_backend())
     if not usable:
         # Fail closed: without isolation every executable check would fail, and
         # there is no host fallback. See deploy/README.md for container options.

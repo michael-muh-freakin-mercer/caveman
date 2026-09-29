@@ -20,6 +20,13 @@ updates:
     ignore:
       # Pinned so the E2E browser matches the preinstalled Chromium; bump deliberately.
       - dependency-name: "@playwright/test"
+      # eslint-config-next's bundled lint plugins don't support these majors yet
+      # (typescript-eslint rejects TS 7; eslint-plugin-react crashes on ESLint 10).
+      # Lift once eslint-config-next supports them.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

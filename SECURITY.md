@@ -8,7 +8,7 @@ nice work. Second, please tell us before you tell the internet.
 
 **Please don't open a public issue.** Use GitHub's private vulnerability
 reporting instead:
-[Report a vulnerability](https://github.com/who-is-michael-mercer/caveman/security/advisories/new).
+[Report a vulnerability](https://github.com/michael-muh-freakin-mercer/caveman/security/advisories/new).
 
 Helpful things to include:
 
