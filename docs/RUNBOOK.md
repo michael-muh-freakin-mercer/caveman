@@ -13,8 +13,15 @@ the same environment as the services (`CAVEMAN_DATA_DIR`, `CAVEMAN_DATABASE_URL`
 | `caveman_queue_oldest_seconds` | under a minute | over 10 minutes: workers are down, saturated, or every queued job's project is busy |
 | `caveman_expired_leases` | 0 | above 0 for more than 2 × `CAVEMAN_LEASE_SECONDS`: a worker died and nothing is reaping (no worker running) |
 | `caveman_jobs{status="failed",outcome=...}` | slow growth | a sudden rise in one outcome (for example `interrupted`, `error`) |
-| `caveman_sandbox_available` | 1 on worker hosts | 0: builds cannot validate anything (see "Sandbox unavailable") |
+| `caveman_sandbox_available` | 1 | 0: isolation is not usable on the API host (not alerted: workers probe their own sandbox at startup and exit if it fails, which shows as a queue backlog) |
 | `caveman_deliveries{status="failed"}` | 0 or flat | any growth |
+| `caveman_spend_month_usd` | within plan | above what you meant to spend this month (all accounts, provider-reported) |
+| `caveman_model_calls_without_cost_month` | flat | any growth: the provider stopped reporting cost, so only call caps bound those calls |
+
+`deploy/monitoring/` turns this table into alert rules (`alerts.yml`, tested
+by `alerts_test.yml` in CI), a Prometheus scrape config and a Grafana
+dashboard (`grafana-dashboard.json`, import it and pick the Prometheus data
+source). Thresholds are beta starting points; the spend alert is set at $100.
 
 Logs: set `CAVEMAN_LOG_FORMAT=json` for one JSON object per line. Job failures
 name the job id, and recovery failures name the run id.

@@ -17,10 +17,10 @@ def month_start(now: datetime | None = None) -> str:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
 
-def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | None = None) -> dict:
-    since = month_start(now)
+def _usage_since(engine, records, since: str) -> tuple[float, int, int]:
+    """Provider-reported cost, model calls, and calls without a reported cost."""
     cost, calls, unknown = 0.0, 0, 0
-    for record in platform.list_runs(owner_id):
+    for record in records:
         try:
             run = engine.load(record.id)
         except Exception:
@@ -34,6 +34,24 @@ def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | 
                 unknown += 1
             else:
                 cost += reported
+    return cost, calls, unknown
+
+
+def server_usage(engine, platform, *, now: datetime | None = None) -> dict:
+    """This month's spend across every account, for the operator metrics.
+
+    Calls are counted by when they were made, not when their run was created,
+    so a long-lived run's calls this month count. Runs whose every job finished
+    before the month started cannot have made calls since, so they are not read.
+    """
+    since = month_start(now)
+    cost, calls, unknown = _usage_since(engine, platform.runs_with_work_since(since), since)
+    return {"spent_usd": round(cost, 6), "model_calls": calls, "calls_without_cost": unknown}
+
+
+def account_usage(engine, platform, settings, owner_id: str, *, now: datetime | None = None) -> dict:
+    since = month_start(now)
+    cost, calls, unknown = _usage_since(engine, platform.list_runs(owner_id), since)
     limit_usd = settings.account_monthly_budget_usd
     limit_calls = settings.account_monthly_max_calls
     return {

@@ -1,0 +1,84 @@
+# Alert rules for Caveman, built on GET /api/metrics. Thresholds are starting
+# points for a small beta; tune them once real traffic exists. Each alert's
+# runbook link points at the matching section of docs/RUNBOOK.md.
+#
+# There is deliberately no alert on caveman_sandbox_available: it is probed on
+# the API host, which is not where candidate code runs (Compose gives only the
+# workers Bubblewrap privileges; with E2B the API only checks the SDK and key).
+# A worker whose sandbox check fails refuses to start, so a broken sandbox on
+# the workers shows up as CavemanQueueBacklog / CavemanQueueStalled.
+groups:
+  - name: caveman
+    rules:
+      - alert: CavemanMetricsDown
+        expr: up{job="caveman"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: Prometheus cannot scrape the Caveman API.
+          description: The API is down, unreachable from Prometheus, or rejecting the metrics token.
+          runbook: docs/RUNBOOK.md#api-outage
+
+      - alert: CavemanQueueBacklog
+        expr: caveman_queue_oldest_seconds > 600
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: A build has waited over 10 minutes for a worker.
+          description: The oldest queued job is {{ $value | humanizeDuration }} old. Workers may be down, stuck, or too few.
+          runbook: docs/RUNBOOK.md#worker-outage
+
+      - alert: CavemanQueueStalled
+        expr: caveman_queue_oldest_seconds > 1800
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: A build has waited over 30 minutes for a worker.
+          description: No worker is taking jobs. Check that workers are running and that their sandbox check passes.
+          runbook: docs/RUNBOOK.md#worker-outage
+
+      - alert: CavemanExpiredLeases
+        expr: caveman_expired_leases > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: Running jobs have lost their worker for 15 minutes.
+          description: "{{ $value }} job(s) hold expired leases; a worker died and recovery has not picked them up."
+          runbook: docs/RUNBOOK.md#stuck-runs
+
+      - alert: CavemanJobFailures
+        # Job counts are gauges of the whole history, so the rise over an hour
+        # is the number of jobs that failed in that hour.
+        expr: sum(delta(caveman_jobs{status="failed"}[1h])) > 5
+        labels: { severity: warning }
+        annotations:
+          summary: More than 5 build jobs failed in the last hour.
+          description: Check `caveman ops list --attention` and recent worker logs for a common cause.
+          runbook: docs/RUNBOOK.md#stuck-runs
+
+      - alert: CavemanDeliveryFailures
+        # The API always exports the failed series (0 until the first failure),
+        # so the very first failure is a rise that delta() can see.
+        expr: sum(delta(caveman_deliveries{status="failed"}[1h])) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: A finished build failed to package its delivery.
+          description: Users see a completed build they cannot download. Check the API and disk space on the data volume.
+          runbook: docs/RUNBOOK.md#maintenance
+
+      - alert: CavemanSpendHigh
+        # Set to what you are willing to spend on models in a month.
+        expr: caveman_spend_month_usd > 100
+        labels: { severity: warning }
+        annotations:
+          summary: Model spend this month is over $100.
+          description: Provider-reported spend is ${{ $value | printf "%.2f" }} this month across all accounts.
+          runbook: docs/RUNBOOK.md#limits
+
+      - alert: CavemanUncostedModelCalls
+        expr: increase(caveman_model_calls_without_cost_month[1h]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: The model provider stopped reporting cost for some calls.
+          description: USD budgets cannot bound calls without a reported cost; only the call caps apply to them.
+          runbook: docs/RUNBOOK.md#limits

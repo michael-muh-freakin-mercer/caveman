@@ -103,7 +103,9 @@ workflow when the `E2B_API_KEY` secret is set.
 
 - `GET /api/metrics` (Prometheus text) is enabled by `CAVEMAN_METRICS_TOKEN` and
   requires it as a bearer token: jobs by status and outcome, age of the oldest
-  queued job, expired leases, runs, deliveries and sandbox availability.
+  queued job, expired leases, runs, deliveries, sandbox availability, and this
+  month's model spend and calls. `deploy/monitoring/` has alert rules, a
+  scrape config and a Grafana dashboard for it.
 - `CAVEMAN_LOG_FORMAT=json` writes one JSON object per log line.
 - `caveman ops list [--attention]`, `caveman ops requeue RUN_ID` and
   `caveman ops abandon RUN_ID --reason ...` act on durable state across all

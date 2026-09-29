@@ -58,7 +58,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 
 ### 8. Operations
 - [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)
-- [ ] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (metrics endpoint exists)
+- [x] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (`deploy/monitoring/`; needs a Prometheus and Grafana to run in, chosen with error reporting below)
 - [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting
 - [ ] 🤖 Integrate them
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
