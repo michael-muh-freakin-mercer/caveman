@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-30 — Worker containers keep Docker's seccomp filter
+
+- `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
+- `apparmor=unconfined` and `systempaths=unconfined` are unchanged; Bubblewrap cannot mount `/proc` without them.
+- `scripts/worker_seccomp.py` rebuilds the profile from Docker's default. `deploy/e2e.sh` fails if the worker container is not seccomp-filtered.
+- cavman.dev is not affected: its workers use E2B and `compose.prod.yaml` already drops all three options.
+
 ## 2026-10-01 — Log shipper starts under its locked-down settings
 
 - The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).

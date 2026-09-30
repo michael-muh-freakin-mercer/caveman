@@ -25,6 +25,10 @@ trap cleanup EXIT
 # NO_BUILD=1 uses images already built (cavman-e2e-api, -worker, -web).
 $compose up -d $([ -n "${NO_BUILD:-}" ] && echo --no-build || echo --build) --wait --wait-timeout 300
 
+# The worker must run under its seccomp profile (mode 2, a filter), not unconfined.
+$compose exec -T worker grep -Eq '^Seccomp:[[:space:]]+2$' /proc/1/status \
+  || { echo "worker container is not seccomp-filtered" >&2; exit 1; }
+
 # The web app answers once it can reach the API; auth tables are created on first use.
 tries=0
 until curl -fsS -o /dev/null http://localhost:3100/; do
