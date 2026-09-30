@@ -232,3 +232,15 @@ jobs:
         env:
           CAVEMAN_TEST_API_IMAGE: caveman-backup-api
         run: deploy/backup/ci-test.sh
+  logs:
+    name: log shipper in the production overlay
+    # The alloy service from compose.prod.yaml, run as production runs it,
+    # pushing to a stand-in for Loki: it stays up, ships marked containers with
+    # the right labels and credentials, and leaves other containers out.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Lint the script
+        run: shellcheck deploy/logs/*.sh
+      - name: Ship logs to a stand-in
+        run: deploy/logs/ci-test.sh

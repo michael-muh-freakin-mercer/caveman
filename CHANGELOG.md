@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-30 — Log shipper starts under its locked-down settings
+
+- The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).
+- New CI job "log shipper in the production overlay" (`deploy/logs/ci-test.sh`) starts the service from `compose.prod.yaml` next to a stand-in for Loki and checks that it stays up, that a marked container's lines arrive with the right labels and credentials, and that an unmarked container is left out.
+
 ## 2026-09-30 — Server logs can go to Grafana Cloud
 
 - `compose.prod.yaml` gains an optional `alloy` service (Grafana Alloy) that ships the API, worker, web and Caddy container logs to Grafana Cloud Logs or any Loki. It starts only when `.env` has `COMPOSE_PROFILES=logs` and the three `GRAFANA_LOKI_*` values; setup is in `docs/DEPLOY_DIGITALOCEAN.md`, "Logs".
