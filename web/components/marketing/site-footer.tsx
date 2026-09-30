@@ -13,6 +13,9 @@ export function SiteFooter() {
           <Link href="/how-it-works" className="hover:text-fg">How It Works</Link>
           <Link href="/pricing" className="hover:text-fg">Pricing</Link>
           <Link href="/docs" className="hover:text-fg">Docs</Link>
+          <Link href="/terms" className="hover:text-fg">Terms</Link>
+          <Link href="/privacy" className="hover:text-fg">Privacy</Link>
+          <Link href="/acceptable-use" className="hover:text-fg">Acceptable Use</Link>
           <a href="https://github.com/michael-muh-freakin-mercer/caveman" className="hover:text-fg" rel="noreferrer">GitHub</a>
           <span className="text-faint">MIT licensed</span>
         </nav>

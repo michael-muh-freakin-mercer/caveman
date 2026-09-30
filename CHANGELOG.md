@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-30 — Terms, Privacy and Acceptable Use pages
+
+- New public pages at `/terms`, `/privacy` and `/acceptable-use`, linked from the site footer and from a line under the sign-up button. The Acceptable Use Policy lists what Caveman refuses to build. The privacy policy names every third party that sees user data (OpenRouter and model providers, E2B, DigitalOcean, Cloudflare, Resend, GitHub).
+- Operator name, contact address, governing law and minimum age live in `web/lib/legal.ts`.
+- `deploy/compose.prod.yaml` rotates container logs by size (5 × 10 MB per service), so server logs no longer grow without limit.
+
 ## 2026-09-29 — Invite-only sign-up and HSTS
 
 - `CAVEMAN_SIGNUP_ALLOWLIST` (web) limits who can create an account to listed emails and `@domain` entries, for password and GitHub sign-up alike. Others see "Caveman is invite-only for now". Setting it also requires email verification (so someone cannot claim an allowlisted address they do not own), which needs `RESEND_API_KEY`. Unset keeps sign-up open; existing accounts are unaffected.

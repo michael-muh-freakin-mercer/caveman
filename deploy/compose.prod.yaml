@@ -14,14 +14,22 @@
 #   managed PostgreSQL (CAVEMAN_DATABASE_URL and AUTH_DATABASE_URL).
 #   deploy/postgres-ca.crt is the managed database's CA certificate; the
 #   connection strings verify the server against it (sslmode=verify-full).
+# Container logs are rotated by size (5 x 10 MB per service), so old entries
+# are deleted rather than kept indefinitely (see the privacy policy).
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
 services:
   api:
     restart: unless-stopped
+    logging: *logging
     volumes:
       - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
 
   worker:
     restart: unless-stopped
+    logging: *logging
     security_opt: !reset []
     volumes:
       - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
@@ -31,6 +39,7 @@ services:
 
   web:
     restart: unless-stopped
+    logging: *logging
     ports: !reset []
     expose: ["3000"]
     volumes:
@@ -39,6 +48,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     depends_on: [web]
     ports: ["80:80", "443:443", "443:443/udp"]
     environment:
