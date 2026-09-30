@@ -136,6 +136,9 @@ AUTH_DATABASE_URL=<same Postgres connection string, verify-full form>
 # After the CAPTCHA PR is merged, for signups and password resets:
 # TURNSTILE_SITE_KEY=<Cloudflare Turnstile site key>
 # TURNSTILE_SECRET_KEY=<Cloudflare Turnstile secret key>
+# Invite-only: only these emails (or "@domain" entries) can create accounts.
+# Also requires email verification, so set up Resend (RESEND_API_KEY) first.
+# CAVEMAN_SIGNUP_ALLOWLIST=<you@example.com,friend@example.com>
 ```
 
 `/opt/caveman/deploy/postgres-ca.crt`: the CA certificate you downloaded in

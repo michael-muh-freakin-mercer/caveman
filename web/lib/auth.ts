@@ -1,6 +1,6 @@
 import "server-only";
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { getMigrations } from "better-auth/db/migration";
 import { nextCookies } from "better-auth/next-js";
 import { captcha } from "better-auth/plugins";
@@ -11,6 +11,7 @@ import { Pool } from "pg";
 import { CAPTCHA_ENDPOINTS, captchaSecretKey } from "./captcha";
 import { CavemanApiError, cavemanFetch } from "./caveman";
 import { linkEmail, sendEmail } from "./email";
+import { SIGNUP_CLOSED_MESSAGE, parseSignupAllowlist, signupAllowed } from "./signups";
 
 /**
  * Authentication uses Better Auth, an established library: password hashing,
@@ -44,6 +45,11 @@ const github =
 
 export const githubEnabled = Boolean(github);
 
+const signupAllowlist = parseSignupAllowlist(process.env.CAVEMAN_SIGNUP_ALLOWLIST);
+// An allowlist is only as good as proof that the address belongs to the person
+// signing up, so turning it on also requires email verification.
+const requireEmailVerification = process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1" || signupAllowlist !== null;
+
 const options = {
   appName: "Caveman",
   database: database(),
@@ -55,8 +61,8 @@ const options = {
     maxPasswordLength: 128,
     autoSignIn: true,
     // Off by default so a fresh install works without an email provider;
-    // hosted deployments should set CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1.
-    requireEmailVerification: process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1",
+    // hosted deployments should set CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1 (implied by CAVEMAN_SIGNUP_ALLOWLIST).
+    requireEmailVerification,
     resetPasswordTokenExpiresIn: 60 * 60,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
@@ -65,7 +71,7 @@ const options = {
     },
   },
   emailVerification: {
-    sendOnSignUp: process.env.CAVEMAN_REQUIRE_EMAIL_VERIFICATION === "1",
+    sendOnSignUp: requireEmailVerification,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
       await sendEmail(linkEmail(user.email, "Verify your email for Caveman",
@@ -87,6 +93,26 @@ const options = {
           const message = error instanceof Error ? error.message : "Caveman could not delete your data.";
           throw new APIError(status === 409 ? "CONFLICT" : "SERVICE_UNAVAILABLE", { message });
         }
+      },
+    },
+  },
+  hooks: {
+    // Say "invite-only" up front: with verification on, Better Auth answers a refused
+    // password sign-up with a generic success (to hide which emails exist).
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") return;
+      const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+      if (!signupAllowed(email, signupAllowlist)) throw new APIError("FORBIDDEN", { message: SIGNUP_CLOSED_MESSAGE });
+    }),
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Runs for every new account, password or GitHub, so neither path skips the invite list.
+        before: async (user: { email: string }) => {
+          if (!signupAllowed(user.email, signupAllowlist)) throw new APIError("FORBIDDEN", { message: SIGNUP_CLOSED_MESSAGE });
+          return { data: user };
+        },
       },
     },
   },
