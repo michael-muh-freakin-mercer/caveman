@@ -189,7 +189,7 @@ service). To search them in Grafana Cloud:
    GRAFANA_LOKI_TOKEN=<the token>
    ```
 3. Run the update command below. Every service is recreated once, because
-   their log lines now carry the service name.
+   their log lines now carry the service name and a shipping marker.
 4. Check `docker compose ... logs alloy` shows no errors, then in Grafana's
    **Explore** run `{app="caveman"}`. Labels: `service` (api, worker, web,
    caddy, alloy) and `stream`.
