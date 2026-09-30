@@ -41,8 +41,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Written threat model in the docs (`docs/THREAT_MODEL.md`)
 
 ### 5. Email
-- [ ] 🧑 Resend account, sending domain verified (SPF and DKIM)
-- [ ] 🤖 Require email verification in hosted mode; test reset and verification against the real provider
+- [x] 🧑 Resend account, sending domain verified (SPF and DKIM): cavman.dev, sender no-reply@cavman.dev; inbound support@cavman.dev forwards via Cloudflare Email Routing (2026-09-30)
+- [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up verification email not yet tested)
 
 ### 6. Legal
 - [ ] 🧑👥 Terms of service, privacy policy, acceptable-use policy
