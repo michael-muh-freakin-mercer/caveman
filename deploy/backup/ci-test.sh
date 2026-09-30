@@ -72,7 +72,8 @@ echo recent > "$tmp/seed/20000102T000000Z/SHA256SUMS"; touch -d '3 days ago' "$t
 remote copy /work/seed spaces:ci-backups
 
 echo "== retention outside 1-30 is refused"
-if BACKUP_RETENTION_DAYS=0 "$here/backup.sh" 2>/dev/null; then fail "retention 0 accepted"; fi
+sed 's/^BACKUP_RETENTION_DAYS=.*/BACKUP_RETENTION_DAYS=0/' "$tmp/backup.env" > "$tmp/zero.env"
+if BACKUP_ENV_FILE=$tmp/zero.env "$here/backup.sh" 2>/dev/null; then fail "retention 0 accepted"; fi
 
 echo "== backup"
 "$here/backup.sh"
