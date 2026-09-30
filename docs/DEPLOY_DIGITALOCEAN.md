@@ -240,3 +240,4 @@ It ends with `== drill passed for <timestamp>`. A real restore follows
 | `E2B_API_KEY` | `.env` | GitHub secret (E2B sandbox workflow) |
 | `BETTER_AUTH_SECRET` | `web/.env.local` | — |
 | `TURNSTILE_*` | `web/.env.local` | — |
+| `SENTRY_DSN` | `.env` and `web/.env.local` | — |

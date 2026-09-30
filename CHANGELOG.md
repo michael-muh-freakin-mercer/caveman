@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-30 — Error reporting to Sentry
+
+- With `SENTRY_DSN` set, the API and workers (`pip install '.[sentry]'`, now in the API image) and the web server report errors to Sentry: unhandled exceptions, ERROR log records (so logged job failures), and failed Next.js requests. Unset, nothing changes.
+- Reports carry the error, stack and route only. The Python side sends no PII, request bodies or local variables; the web side strips bodies, cookies, query strings (including the copy in the Next.js context) and all but a few harmless headers, and drops the user. There is no browser SDK, so the CSP is unchanged.
+- The privacy policy lists Sentry as a processor.
+
 ## 2026-09-30 — Nightly off-server backups and a restore drill
 
 - `deploy/backup/backup.sh` stops the API and workers while it captures both stores, so the database and files match (they restart before the upload, and on any failure), dumps PostgreSQL (the auth database too when it is separate) and archives the data volume, encrypts both with age to a key the server never holds, uploads the set to a private DigitalOcean Spaces bucket under a UTC timestamp, and prunes sets older than `BACKUP_RETENTION_DAYS` (1 to 30, default 14). `caveman-backup.timer` runs it nightly; `BACKUP_PING_URL` can report each success to a cron monitor.
