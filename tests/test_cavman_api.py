@@ -92,6 +92,16 @@ def test_service_token_and_user_identity_are_required(client):
                                                 "X-Cavman-User": "bad user!"}).status_code == 401
 
 
+def test_a_web_server_from_before_the_rename_is_still_trusted(client):
+    created = build(client)
+    old_web = {"Authorization": f"Bearer {TOKEN}", "X-Caveman-User": "alice"}
+    assert client.get(f"/api/runs/{created['run_id']}", headers=old_web).status_code == 200
+    assert client.get(f"/api/runs/{created['run_id']}",
+                      headers={**old_web, "X-Caveman-User": "mallory"}).status_code == 404
+    assert client.get("/api/projects", headers={"Authorization": "Bearer wrong",
+                                                "X-Caveman-User": "alice"}).status_code == 401
+
+
 def test_runs_and_projects_are_private_to_their_owner(client):
     created = build(client)
     run_id, project_id = created["run_id"], created["project_id"]

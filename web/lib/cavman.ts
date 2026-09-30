@@ -22,7 +22,9 @@ export function apiBase(): string {
 export function serviceHeaders(userId: string): Record<string, string> {
   const token = setting("API_TOKEN");
   if (!token) throw new CavmanApiError("The web server is missing CAVMAN_API_TOKEN.", 500);
-  return { Authorization: `Bearer ${token}`, "X-Cavman-User": userId };
+  // X-Caveman-User keeps an API from before the Caveman -> Cavman rename working
+  // while the web server and API are upgraded one after the other.
+  return { Authorization: `Bearer ${token}`, "X-Cavman-User": userId, "X-Caveman-User": userId };
 }
 
 export async function cavmanFetch<T>(userId: string, path: string, init: RequestInit = {}): Promise<T> {

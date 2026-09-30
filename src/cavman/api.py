@@ -149,14 +149,17 @@ def _sandbox_status(backend: str = "bubblewrap") -> dict:
 
 
 def principal(request: Request, authorization: Annotated[str | None, Header()] = None,
-              x_cavman_user: Annotated[str | None, Header()] = None) -> str:
+              x_cavman_user: Annotated[str | None, Header()] = None,
+              x_caveman_user: Annotated[str | None, Header()] = None) -> str:
     """Authenticate the calling web server and return the user it vouches for."""
     expected = f"Bearer {request.app.state.settings.api_token}"
     if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
         raise HTTPException(401, "Missing or invalid service credentials.")
-    if not x_cavman_user or not USER_ID.fullmatch(x_cavman_user):
+    # A web server from before the Caveman -> Cavman rename still sends X-Caveman-User.
+    user = x_cavman_user or x_caveman_user
+    if not user or not USER_ID.fullmatch(user):
         raise HTTPException(401, "Missing user identity.")
-    return x_cavman_user
+    return user
 
 
 User = Annotated[str, Depends(principal)]

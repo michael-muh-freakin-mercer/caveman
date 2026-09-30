@@ -3,7 +3,7 @@
 ## 2026-09-30 — Caveman is now Cavman
 
 - The product, the Python package (`cavman`, CLI `cavman`), the web app's API routes, settings (`CAVMAN_*`), metrics (`cavman_*`), the E2B template (`cavman-sandbox`), Docker and systemd names and all docs use the new name, matching the domain cavman.dev.
-- Existing servers keep working without changes: `CAVEMAN_*` settings still apply (a `CAVMAN_*` setting of the same name wins), and an install still configured that way keeps its database schema (`caveman_*`), E2B template and SQLite file names. `scripts/migrate-to-cavman.sh` rewrites a server's `.env` files to the new names and pins those values; see "Upgrading a server set up before the rename to Cavman" in `docs/DEPLOY_DIGITALOCEAN.md`.
+- Existing servers keep working without changes: `CAVEMAN_*` settings still apply (a `CAVMAN_*` setting of the same name wins), and an install still configured that way keeps its database schema (`caveman_*`), E2B template and SQLite file names. `scripts/migrate-to-cavman.sh` rewrites a server's `.env` files to the new names and pins those values; see "Upgrading a server set up before the rename to Cavman" in `docs/DEPLOY_DIGITALOCEAN.md`. The web app sends the user identity under both the old and the new header name and the API accepts either, so the two can be upgraded one after the other.
 - Local development: the compose volume is now `cavman-data`, so a fresh `docker compose up` starts with empty local state; `.local/caveman` and `.local/caveman-auth.db` are still used when they are the only ones present.
 
 ## 2026-09-30 — Server logs can go to Grafana Cloud
