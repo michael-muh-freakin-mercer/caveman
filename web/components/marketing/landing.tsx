@@ -13,7 +13,7 @@ const FINDS = [
   { grid: "A2", title: "Plans", body: "Breaks your idea into small tasks and a checklist of what done means." },
   { grid: "B2", title: "Builds", body: "A crew of specialist agents writes the code inside a sealed box with no internet." },
   { grid: "C2", title: "Tests by fire", body: "Runs real tests, fixes what breaks, and runs them again until they pass." },
-  { grid: "D2", title: "Hands it over", body: "A second model reviews it first. You download it or publish it. Your call." },
+  { grid: "D2", title: "Hands it over", body: "A second model reviews it first. Then it is yours to download." },
 ];
 
 const TRUST = [
