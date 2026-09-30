@@ -48,8 +48,8 @@ const SECTIONS: LegalSection[] = [
     id: "retention",
     title: "How long we keep it",
     body: [
-      "Your account, projects, builds and deliveries are kept until you delete them or your account. Temporary build workspaces and dependency caches are cleaned up automatically after a build finishes. Server logs and backups are kept for a limited time (up to 30 days) and then overwritten.",
-      "Deleting your account in Settings erases your account, projects, runs and deliveries from the live system straight away; copies in backups expire on the backup schedule.",
+      "Your account, projects, builds and deliveries are kept until you delete them or your account. Temporary build workspaces and dependency caches are cleaned up automatically after a build finishes. Server logs are rotated automatically and capped in size, so older entries are deleted as new ones arrive. Backups are kept for up to 30 days.",
+      "Deleting your account in Settings erases your account, projects, runs and deliveries from the live system straight away. If a build is still running, Settings asks you to stop it first. Copies in backups expire on the backup schedule.",
     ],
   },
   {
