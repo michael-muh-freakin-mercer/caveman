@@ -65,8 +65,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Integrate them
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
-- [ ] 🧑 Backups for Postgres and the shared volume (nightly, encrypted, off-server to Spaces: `deploy/backup/`; needs the Spaces bucket, age key and timer set up on the Droplet)
-- [ ] 🤖 Tested restore drill (`deploy/backup/restore-drill.sh`, passing in CI against Postgres and an S3 stand-in; a drill on the production backup is still to run)
+- [x] 🧑 Backups for Postgres and the shared volume (nightly at ~07:30 UTC, encrypted, off-server to the `caveman-backups` Space: `deploy/backup/`; live since 2026-09-30)
+- [x] 🤖 Tested restore drill (`deploy/backup/restore-drill.sh`: runs in CI on every push; first production drill passed 2026-09-30, logged in RUNBOOK.md)
 
 ## P1: needed for a good launch
 
