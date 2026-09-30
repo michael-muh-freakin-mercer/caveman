@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-30 — The landing page promises only what builds have proven
+
+- The example prompts under the landing page's build box were a web app, a SaaS and a mobile app, which no live build has shown Cavman delivering. They are now the kinds of work the live campaign completed: a Python CLI, a Python library, an API core, a TypeScript rate limiter, a CSV parser and a tattoo studio's booking availability engine, each with tests. The placeholder follows.
+- The line under the headline says Cavman hands work over only once real tests and a second reviewer say it works, and names what it is best at today: Python and TypeScript libraries, CLIs and API cores.
+
 ## 2026-09-30 — A new look: the dig site
 
 - The web app has a new light design: concrete background with a survey grid, ink outlines, duck-yellow for the one main action per screen, and pink and sky-blue stickers for small jokes. Headings use Rubik Mono One, text uses Archivo and code uses JetBrains Mono.

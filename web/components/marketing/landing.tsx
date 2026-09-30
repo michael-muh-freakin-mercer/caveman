@@ -39,8 +39,8 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               We dug up a caveman who <span className="marker">builds software.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-fg-soft">
-              Type what you want. He plans it, builds it in a sealed box, tests it by fire, and hands it over when it
-              passes.
+              Type what you want. He plans it, builds it in a sealed box, and only hands it over once real tests and a
+              second reviewer say it works. Best today at Python and TypeScript libraries, CLIs and API cores.
             </p>
             <div className="mt-9 max-w-2xl">
               <BuildPrompt signedIn={signedIn} />
