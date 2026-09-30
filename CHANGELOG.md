@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-30 — Error reporting to Sentry
+
+- With `SENTRY_DSN` set, the API and workers (`pip install '.[sentry]'`, now in the API image) and the web server report errors to Sentry: unhandled exceptions, ERROR log records (so logged job failures), and failed Next.js requests. Unset, nothing changes.
+- Reports carry the error, stack and route only. The Python side sends no PII, request bodies or local variables; the web side strips bodies, cookies, query strings (including the copy in the Next.js context) and all but a few harmless headers, and drops the user. There is no browser SDK, so the CSP is unchanged.
+- The privacy policy lists Sentry as a processor.
+
 ## 2026-09-30 — Terms, Privacy and Acceptable Use pages
 
 - New public pages at `/terms`, `/privacy` and `/acceptable-use`, linked from the site footer and from a line under the sign-up button. The Acceptable Use Policy lists what Caveman refuses to build. The privacy policy names every third party that sees user data (OpenRouter and model providers, E2B, DigitalOcean, Cloudflare, Resend, GitHub).

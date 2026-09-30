@@ -61,8 +61,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 8. Operations
 - [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)
 - [x] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (`deploy/monitoring/`; needs a Prometheus and Grafana to run in, chosen with error reporting below)
-- [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting
-- [ ] 🤖 Integrate them
+- [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting (Sentry chosen for errors; create the project and set `SENTRY_DSN`; log hosting still open)
+- [x] 🤖 Integrate them (Sentry in the API, workers and web server, off until `SENTRY_DSN` is set; listed in the privacy policy)
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
 - [ ] 🧑 Backups for Postgres and the shared volume
