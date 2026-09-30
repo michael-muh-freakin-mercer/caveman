@@ -45,9 +45,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up verification email not yet tested)
 
 ### 6. Legal
-- [ ] 🧑👥 Terms of service, privacy policy, acceptable-use policy
-- [ ] 🧑👥 List of third parties processing user data (OpenRouter and model providers, email, hosting)
-- [ ] 🧑👥 Data retention policy, cookie notice, minimum age
+- [x] 🧑👥 Terms of service, privacy policy, acceptable-use policy: live at `/terms`, `/privacy` and `/acceptable-use` (signed off by the owner 2026-09-30; not reviewed by a lawyer)
+- [x] 🧑👥 List of third parties processing user data (OpenRouter and model providers, email, hosting): listed in the privacy policy (signed off by the owner 2026-09-30; not reviewed by a lawyer)
+- [x] 🧑👥 Data retention policy, cookie notice, minimum age: in the privacy policy and terms; minimum age 18 (signed off by the owner 2026-09-30; not reviewed by a lawyer)
 - [x] 🤖 Pages and links in the app (data export and account deletion already exist): live at `/terms`, `/privacy`, `/acceptable-use`; owner facts in `web/lib/legal.ts`
 
 ### 7. Abuse and tenancy limits
