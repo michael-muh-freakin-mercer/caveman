@@ -62,7 +62,7 @@ export function RunControls({
       </div>
       {error ? <p role="alert" className="max-w-sm text-sm text-bad">{error}</p> : null}
 
-      <dialog ref={continueDialog} aria-labelledby="continue-title" className="m-auto w-[min(520px,92vw)] rounded-2xl border border-line-strong bg-surface p-6 text-fg backdrop:bg-ink/80">
+      <dialog ref={continueDialog} aria-labelledby="continue-title" className="m-auto w-[min(520px,92vw)] rounded-xl border-2 border-ink bg-surface p-6 text-fg shadow-[6px_6px_0_0_var(--color-ink)] backdrop:bg-ink/50">
         <form
           method="dialog"
           onSubmit={async (event) => {
@@ -76,12 +76,12 @@ export function RunControls({
           <h2 id="continue-title" className="text-lg font-semibold">Continue this build</h2>
           {run.orchestration === "manager" ? (
             <>
-              <p className="mt-1 text-sm text-muted">Caveman picks up from the saved state. Add direction if you like.</p>
+              <p className="mt-1 text-sm text-muted">Cavman picks up from the saved state. Add direction if you like.</p>
               <label className="mt-4 block text-xs text-muted" htmlFor="continue-message">Instruction (optional)</label>
-              <textarea id="continue-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={4000} className="mt-1 w-full rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm focus:border-glacier focus:outline-none" />
+              <textarea id="continue-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={4000} className="mt-1 w-full rounded-md border-2 border-line-strong bg-surface px-3 py-2 text-sm focus:border-ink focus:outline-none" />
             </>
           ) : (
-            <p className="mt-1 text-sm text-muted">Caveman picks up exactly where it stopped, from the saved state.</p>
+            <p className="mt-1 text-sm text-muted">Cavman picks up exactly where it stopped, from the saved state.</p>
           )}
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => continueDialog.current?.close()}>Cancel</Button>
@@ -90,7 +90,7 @@ export function RunControls({
         </form>
       </dialog>
 
-      <dialog ref={closeDialog} aria-labelledby="close-title" className="m-auto w-[min(520px,92vw)] rounded-2xl border border-line-strong bg-surface p-6 text-fg backdrop:bg-ink/80">
+      <dialog ref={closeDialog} aria-labelledby="close-title" className="m-auto w-[min(520px,92vw)] rounded-xl border-2 border-ink bg-surface p-6 text-fg shadow-[6px_6px_0_0_var(--color-ink)] backdrop:bg-ink/50">
         <form
           method="dialog"
           onSubmit={async (event) => {
@@ -100,10 +100,10 @@ export function RunControls({
         >
           <h2 id="close-title" className="text-lg font-semibold">Close this run?</h2>
           <p className="mt-1 text-sm text-muted">
-            Closing stops the build for good. Everything recorded so far stays visible. Caveman refuses while a decision is still pending.
+            Closing stops the build for good. Everything recorded so far stays visible. Cavman refuses while a decision is still pending.
           </p>
           <label className="mt-4 block text-xs text-muted" htmlFor="close-reason">Reason</label>
-          <input id="close-reason" required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm focus:border-glacier focus:outline-none" />
+          <input id="close-reason" required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 h-10 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm focus:border-ink focus:outline-none" />
           {error ? <p role="alert" className="mt-2 text-sm text-bad">{error}</p> : null}
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => closeDialog.current?.close()}>Keep it</Button>

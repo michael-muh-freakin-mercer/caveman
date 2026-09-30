@@ -5,13 +5,16 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-[background-color,box-shadow,transform] duration-150 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-ember text-ink hover:bg-ember-hot shadow-[0_8px_24px_-10px_rgb(255_106_31/0.7)]",
-  secondary: "border border-line-strong bg-surface-2 text-fg hover:border-muted hover:bg-surface-3",
-  ghost: "text-fg-soft hover:bg-surface-2 hover:text-fg",
-  danger: "border border-bad/40 bg-bad/10 text-bad hover:bg-bad/20",
+  // Hard ink outline and offset shadow; pressing it pushes the button into its shadow.
+  primary:
+    "border-2 border-ink bg-ember text-ink shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-ember-hot active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]",
+  secondary:
+    "border-2 border-ink bg-surface text-fg hover:bg-surface-2 active:translate-x-[1px] active:translate-y-[1px]",
+  ghost: "text-fg-soft hover:bg-surface-3 hover:text-fg",
+  danger: "border-2 border-bad bg-surface text-bad hover:bg-bad/10",
 };
 
 const sizes: Record<Size, string> = {

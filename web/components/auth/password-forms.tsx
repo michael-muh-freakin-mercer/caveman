@@ -9,9 +9,9 @@ import { requestPasswordReset, resetPassword } from "@/lib/auth-client";
 import { useHydrated } from "@/lib/use-hydrated";
 
 const field =
-  "mt-1.5 block h-11 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
+  "mt-1.5 block h-11 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-fg placeholder:text-faint focus:border-ink focus:outline-none";
 const submit =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60";
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-2 border-ink bg-ember text-sm font-bold text-ink shadow-[3px_3px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] hover:bg-ember-hot disabled:opacity-60";
 
 // Error codes Better Auth's captcha plugin returns for a missing or rejected token.
 const CAPTCHA_REJECTED = new Set(["MISSING_RESPONSE", "VERIFICATION_FAILED"]);
@@ -67,7 +67,7 @@ export function ForgotPasswordForm({ captchaSiteKey = null }: { captchaSiteKey?:
         Send reset link
       </button>
       <p className="text-center text-sm text-muted">
-        <Link href="/sign-in" className="text-ember hover:underline">Back to sign in</Link>
+        <Link href="/sign-in" className="font-medium text-glacier underline-offset-2 hover:underline">Back to sign in</Link>
       </p>
     </form>
   );
@@ -83,7 +83,7 @@ export function ResetPasswordForm({ token, tokenError }: { token: string | null;
     return (
       <div role="alert" className="space-y-4 text-sm">
         <p className="text-bad">This reset link is invalid or has expired.</p>
-        <Link href="/forgot-password" className="text-ember hover:underline">Request a new link</Link>
+        <Link href="/forgot-password" className="font-medium text-glacier underline-offset-2 hover:underline">Request a new link</Link>
       </div>
     );
   }

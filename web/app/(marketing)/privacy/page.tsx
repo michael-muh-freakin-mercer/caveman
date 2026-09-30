@@ -11,8 +11,8 @@ const SECTIONS: LegalSection[] = [
     body: ["Only what the service needs to work:"],
     list: [
       "Account details: your email address, name if you give one, a hashed password, and your GitHub username and access token if you connect GitHub.",
-      "What you give Caveman: prompts, settings, uploaded or imported files and repositories, and your messages and approvals during a build.",
-      "What Caveman makes: plans, generated code and documents, check results, reviews, delivery archives, and a record of each model call (model, tokens and cost).",
+      "What you give Cavman: prompts, settings, uploaded or imported files and repositories, and your messages and approvals during a build.",
+      "What Cavman makes: plans, generated code and documents, check results, reviews, delivery archives, and a record of each model call (model, tokens and cost).",
       "Sign-in records: your active sessions with the IP address and browser they came from, so you can see and revoke them in Settings.",
       "Server logs: IP address, time, page requested and browser, kept for security and troubleshooting.",
     ],
@@ -27,7 +27,7 @@ const SECTIONS: LegalSection[] = [
   {
     id: "third-parties",
     title: "Who else processes it",
-    body: ["Caveman relies on these providers. Each receives only what its job needs:"],
+    body: ["Cavman relies on these providers. Each receives only what its job needs:"],
     list: [
       "OpenRouter and the model providers it routes to: your prompts, files and generated code, to produce the build. Their own policies govern what they retain.",
       "E2B: generated code and its dependencies, run in an isolated sandbox for checks.",
@@ -43,7 +43,7 @@ const SECTIONS: LegalSection[] = [
     id: "cookies",
     title: "Cookies",
     body: [
-      "Caveman uses one essential cookie to keep you signed in. Cloudflare Turnstile may set its own cookies on the sign-up and password-reset pages to tell people from bots. There are no analytics or advertising cookies, so there is no cookie banner.",
+      "Cavman uses one essential cookie to keep you signed in. Cloudflare Turnstile may set its own cookies on the sign-up and password-reset pages to tell people from bots. There are no analytics or advertising cookies, so there is no cookie banner.",
     ],
   },
   {
@@ -71,7 +71,7 @@ const SECTIONS: LegalSection[] = [
   {
     id: "children",
     title: "Age",
-    body: [`Caveman is not for anyone under ${MINIMUM_AGE}, and we do not knowingly collect their data.`],
+    body: [`Cavman is not for anyone under ${MINIMUM_AGE}, and we do not knowingly collect their data.`],
   },
   {
     id: "changes",
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
   return (
     <LegalDocument
       title="Privacy Policy"
-      intro="What Caveman collects, why, who else sees it, and how to take it back."
+      intro="What Cavman collects, why, who else sees it, and how to take it back."
       sections={SECTIONS}
     />
   );

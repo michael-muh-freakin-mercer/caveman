@@ -1,10 +1,11 @@
 "use client";
 
 import { Activity, FlaskConical, Info, Layers, ShieldAlert, TriangleAlert, Users, Wallet, WifiOff } from "lucide-react";
+import { Cavman } from "@/components/brand/cavman";
 import { Notice, Panel, EmptyState } from "@/components/ui/panel";
 import { StatusPill } from "@/components/ui/status";
 import { duration, formatUsd, relativeTime } from "@/lib/format";
-import { RUN_TONE, isExecuting } from "@/lib/run-state";
+import { RUN_MOOD, RUN_TONE, isExecuting } from "@/lib/run-state";
 import type { ApprovalView, RunDetail } from "@/lib/types";
 import { postJson, useRun } from "@/lib/use-run";
 import { ApprovalCard } from "./approval-card";
@@ -42,20 +43,25 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
   return (
     <div className="space-y-6 px-4 py-6 sm:px-8 sm:py-8">
       <header className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill tone={RUN_TONE[run.state]} pulse={executing}>
-              {run.label}
-            </StatusPill>
-            {run.executor === "scripted" ? (
-              <span className="rounded-full border border-review/40 bg-review/10 px-2.5 py-0.5 text-xs text-review" title="This run used scripted models for testing. All state changes and checks were still real.">
-                Scripted test executor
-              </span>
-            ) : null}
-            <ConnectionBadge connection={connection} />
+        <div className="flex min-w-0 items-start gap-4">
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg border-2 border-ink bg-surface shadow-[3px_3px_0_0_var(--color-ink)]">
+            <Cavman mood={RUN_MOOD[run.state]} className="h-12 w-12" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={RUN_TONE[run.state]} pulse={executing}>
+                {run.label}
+              </StatusPill>
+              {run.executor === "scripted" ? (
+                <span className="rounded-full border border-review/40 bg-review/10 px-2.5 py-0.5 text-xs text-review" title="This run used scripted models for testing. All state changes and checks were still real.">
+                  Scripted test executor
+                </span>
+              ) : null}
+              <ConnectionBadge connection={connection} />
+            </div>
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-fg sm:text-3xl">{run.project_name}</h1>
+            <p className="mt-2 line-clamp-2 max-w-3xl text-sm text-muted">“{run.prompt}”</p>
           </div>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-fg sm:text-3xl">{run.project_name}</h1>
-          <p className="mt-2 line-clamp-2 max-w-3xl text-sm text-muted">“{run.prompt}”</p>
         </div>
         <RunControls
           run={run}
@@ -76,7 +82,7 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
 
       <div className="panel grid gap-6 p-5 md:grid-cols-[1fr_auto] md:items-center">
         <StageTracker stage={run.stage} state={run.state} />
-        <dl className="grid grid-cols-3 gap-6 text-sm md:border-l md:border-line md:pl-6">
+        <dl className="grid grid-cols-3 gap-6 text-sm md:border-l-2 md:border-dashed md:border-line-strong md:pl-6">
           <div>
             <dt className="text-xs text-muted">Tasks accepted</dt>
             <dd className="mt-0.5 tabular-nums text-fg">
@@ -113,7 +119,7 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
           <p>{run.explanation}</p>
           {managerMessage ? (
             <p className="mt-2 border-l-2 border-line-strong pl-3 text-fg-soft">
-              <span className="text-xs text-muted">Caveman said: </span>
+              <span className="text-xs text-muted">Cavman said: </span>
               {managerMessage}
             </p>
           ) : null}
@@ -122,7 +128,7 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
       ) : null}
 
       {pending.length ? (
-        <Panel id="approvals" title={<span className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-ember" aria-hidden="true" /> Approval needed</span>} description="Caveman is paused until you decide.">
+        <Panel id="approvals" title={<span className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-ember-deep" aria-hidden="true" /> Approval needed</span>} description="Cavman is paused until you decide.">
           <div className="space-y-4">
             {pending.map((approval) => (
               <ApprovalCard key={approval.id} approval={approval} onDecide={(decision, reason) => decide(approval, decision, reason)} />
@@ -141,10 +147,10 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
                 ))}
               </div>
             ) : (
-              <EmptyState title={executing ? "Caveman is planning" : "No tasks yet"}>
+              <EmptyState title={executing ? "Cavman is planning" : "No tasks yet"}>
                 {executing
                   ? "Tasks appear here as soon as the plan is recorded."
-                  : "Caveman has not created a plan for this run."}
+                  : "Cavman has not created a plan for this run."}
               </EmptyState>
             )}
             {run.criteria.length ? (

@@ -5,7 +5,7 @@ let counter = 0;
 export async function signUp(page: Page, next?: string) {
   const email = `e2e-${Date.now()}-${counter++}@example.com`;
   await page.goto(next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up");
-  await page.getByLabel("Name").fill("Test Caveman");
+  await page.getByLabel("Name").fill("Test Cavman");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("a-long-enough-password");
   await page.getByRole("button", { name: "Create account" }).click();
@@ -22,7 +22,7 @@ export async function startBuild(page: Page, prompt: string): Promise<string> {
 }
 
 export async function runJson(page: Page, runId: string) {
-  const response = await page.request.get(`/api/caveman/runs/${runId}`);
+  const response = await page.request.get(`/api/cavman/runs/${runId}`);
   expect(response.status()).toBe(200);
   return response.json();
 }

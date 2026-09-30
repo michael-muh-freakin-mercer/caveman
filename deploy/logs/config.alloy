@@ -1,10 +1,10 @@
-// Ships Caveman's container logs to Grafana Cloud Logs (or any Loki).
+// Ships Cavman's container logs to Grafana Cloud Logs (or any Loki).
 //
 // Run by the `alloy` service in compose.prod.yaml, which starts only with
 // COMPOSE_PROFILES=logs. It reads Docker's json-file logs from a read-only
 // mount; it has no access to the Docker socket, so it cannot control the host.
 // Only containers labelled dev.cavman.logs=ship are shipped (compose.prod.yaml
-// labels every Caveman service and records the label on each log line), so
+// labels every Cavman service and records the label on each log line), so
 // anything else running on the host is left out.
 
 local.file_match "containers" {
@@ -65,5 +65,5 @@ loki.write "grafana" {
 			password = sys.env("GRAFANA_LOKI_TOKEN")
 		}
 	}
-	external_labels = {app = "caveman"}
+	external_labels = {app = "cavman"}
 }

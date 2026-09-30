@@ -1,5 +1,5 @@
 name: Something broke
-description: Caveman did something wrong, or didn't do something it should have.
+description: Cavman did something wrong, or didn't do something it should have.
 labels: [bug]
 body:
   - type: markdown
@@ -7,20 +7,20 @@ body:
       value: |
         Thanks for taking the time. Good bug reports are the best gift this project gets.
 
-        **Security holes go through [SECURITY.md](https://github.com/michael-muh-freakin-mercer/caveman/blob/main/SECURITY.md), not here.**
+        **Security holes go through [SECURITY.md](https://github.com/michael-muh-freakin-mercer/cavman/blob/main/SECURITY.md), not here.**
         Redact anything sensitive first: run snapshots include task text.
   - type: textarea
     id: what-happened
     attributes:
       label: What happened
-      description: What you did, what you expected, and what actually happened. Be specific; "it broke" makes the caveman sad.
+      description: What you did, what you expected, and what actually happened. Be specific; "it broke" makes the cavman sad.
     validations:
       required: true
   - type: textarea
     id: request
     attributes:
       label: Build request
-      description: The request you gave Caveman, if the bug concerns a run.
+      description: The request you gave Cavman, if the bug concerns a run.
       render: text
   - type: textarea
     id: run-record

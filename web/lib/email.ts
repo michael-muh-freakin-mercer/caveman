@@ -1,6 +1,7 @@
 import "server-only";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+import { setting } from "./env";
 
 /**
  * Transactional email. Resend when RESEND_API_KEY is set; otherwise, outside
@@ -11,7 +12,7 @@ import { dirname } from "node:path";
 export type Email = { to: string; subject: string; text: string; html: string };
 
 export function emailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY) || process.env.NODE_ENV !== "production" || process.env.CAVEMAN_E2E === "1";
+  return Boolean(process.env.RESEND_API_KEY) || process.env.NODE_ENV !== "production" || setting("E2E") === "1";
 }
 
 export async function sendEmail(message: Email): Promise<void> {
@@ -19,16 +20,16 @@ export async function sendEmail(message: Email): Promise<void> {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM ?? "Caveman <no-reply@caveman.local>", ...message }),
+      body: JSON.stringify({ from: process.env.EMAIL_FROM ?? "Cavman <no-reply@cavman.local>", ...message }),
     });
     if (!response.ok) throw new Error(`Email provider refused the message (${response.status})`);
     return;
   }
   if (!emailConfigured()) throw new Error("No email provider is configured (set RESEND_API_KEY).");
-  const outbox = process.env.CAVEMAN_DEV_OUTBOX ?? ".local/outbox.jsonl";
+  const outbox = setting("DEV_OUTBOX") ?? ".local/outbox.jsonl";
   await mkdir(dirname(outbox), { recursive: true });
   await appendFile(outbox, JSON.stringify({ ...message, sent_at: new Date().toISOString() }) + "\n");
-  console.info(`[caveman] email to ${message.to}: ${message.subject}`);
+  console.info(`[cavman] email to ${message.to}: ${message.subject}`);
 }
 
 function escape(value: string): string {

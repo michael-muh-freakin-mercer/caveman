@@ -34,7 +34,7 @@ describe("ApprovalCard", () => {
   });
 
   it("offers no actions for decided requests", () => {
-    render(<ApprovalCard approval={approval({ status: "approved", decision: { approved: true, reason: "ok", decided_by: "caveman-user:a" } })} onDecide={vi.fn()} />);
+    render(<ApprovalCard approval={approval({ status: "approved", decision: { approved: true, reason: "ok", decided_by: "cavman-user:a" } })} onDecide={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
     expect(screen.getByText(/Approved/, { selector: "p" })).toBeInTheDocument();
   });
@@ -82,10 +82,10 @@ describe("CompletionPanel", () => {
     expect(screen.getByText(/Assembling your download/)).toBeInTheDocument();
     rerender(
       <CompletionPanel
-        run={runDetail({ delivery: { status: "ready", created_at: "", error: null, files: ["booking.py"], documents: [], deleted: [], total_files: 4, commit: "c".repeat(40), report: "CAVEMAN_BUILD_REPORT.md", downloadable: true } })}
+        run={runDetail({ delivery: { status: "ready", created_at: "", error: null, files: ["booking.py"], documents: [], deleted: [], total_files: 4, commit: "c".repeat(40), report: "CAVMAN_BUILD_REPORT.md", downloadable: true } })}
       />,
     );
-    expect(screen.getByText("Download project").closest("a")).toHaveAttribute("href", `/api/caveman/runs/${"r".repeat(32)}/delivery/download`);
+    expect(screen.getByText("Download project").closest("a")).toHaveAttribute("href", `/api/cavman/runs/${"r".repeat(32)}/delivery/download`);
     expect(screen.getByText("1 of 1 passed")).toBeInTheDocument();
     expect(screen.getByText("ccccccc")).toBeInTheDocument();
   });
@@ -113,7 +113,7 @@ describe("BuildPrompt", () => {
     await userEvent.type(screen.getByLabelText("Describe the software you want"), "Build a CLI for photos");
     await userEvent.click(screen.getByRole("button", { name: /Build it/ }));
     expect(push).toHaveBeenCalledWith(`/sign-up?next=${encodeURIComponent("/app/new?prompt=Build%20a%20CLI%20for%20photos")}`);
-    expect(window.sessionStorage.getItem("caveman.pending-prompt")).toBe("Build a CLI for photos");
+    expect(window.sessionStorage.getItem("cavman.pending-prompt")).toBe("Build a CLI for photos");
   });
 
   it("creates a real run when signed in", async () => {

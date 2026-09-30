@@ -23,7 +23,7 @@ export function LegalDocument({ title, intro, sections }: { title: string; intro
         </ul>
       </nav>
       <article className="max-w-3xl">
-        <h1 className="text-4xl font-semibold tracking-tight text-fg">{title}</h1>
+        <h1 className="display text-balance text-2xl leading-tight text-fg sm:text-3xl">{title}</h1>
         <p className="mt-3 text-sm text-muted">Last updated {LEGAL_UPDATED}</p>
         <p className="mt-6 text-lg text-fg-soft">{intro}</p>
         {sections.map((section) => (

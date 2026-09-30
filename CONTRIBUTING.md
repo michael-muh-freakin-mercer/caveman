@@ -1,8 +1,8 @@
-# Contributing to Caveman
+# Contributing to Cavman
 
 Welcome to the cave. Grab a rock.
 
-Caveman is pre-1.0 and the architecture still shifts under your feet, so the
+Cavman is pre-1.0 and the architecture still shifts under your feet, so the
 most useful things you can bring right now are bug reports with reproductions
 and work against the *Now* section of the [roadmap](docs/ROADMAP.md). Big
 redesign ideas are welcome too, but open an issue first so nobody burns a
@@ -27,7 +27,7 @@ python -m pip install -e '.[test]'
 ```
 
 Provider config lives in a gitignored `.env`: copy `.env.example` and set
-`OPENROUTER_API_KEY`, or use `CAVEMAN_EXECUTOR=scripted` and spend nothing.
+`OPENROUTER_API_KEY`, or use `CAVMAN_EXECUTOR=scripted` and spend nothing.
 Never commit a real key. Config rejects the placeholder and CI scans for
 secrets, but neither can save you from a sufficiently enthusiastic `git add .`.
 
@@ -90,13 +90,13 @@ lying to you.
   *why* behavior changed, and `docs/IMPLEMENTATION_STATE.md` tracks what's
   verified versus what's a known gap. Keep both honest. A documented failure
   beats an undocumented success every time.
-- **Other people's projects stay in their own repos.** Work Caveman does on
+- **Other people's projects stay in their own repos.** Work Cavman does on
   another codebase doesn't belong in this one.
 
 ## Something broke?
 
-Use the [bug report form](https://github.com/michael-muh-freakin-mercer/caveman/issues/new?template=bug_report.yml).
-Include the request you gave Caveman, the run ID, and the output of
+Use the [bug report form](https://github.com/michael-muh-freakin-mercer/cavman/issues/new?template=bug_report.yml).
+Include the request you gave Cavman, the run ID, and the output of
 `walter run inspect <run_id>` and `walter run events <run_id>`. Those two
 commands are the durable record of what actually happened, and they beat a
 screenshot of a chat every single time. Redact anything sensitive from the

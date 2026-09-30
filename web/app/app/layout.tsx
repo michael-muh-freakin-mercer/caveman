@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/app/app-shell";
 import { requireUser } from "@/lib/session";
 
-export const metadata: Metadata = { title: { default: "Dashboard", template: "%s · Caveman" } };
+export const metadata: Metadata = { title: { default: "Dashboard", template: "%s · Cavman" } };
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

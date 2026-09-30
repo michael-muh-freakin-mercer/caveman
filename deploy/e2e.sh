@@ -5,14 +5,14 @@
 #
 # Usage: deploy/e2e.sh            (builds the images, runs, tears down)
 #        KEEP=1 deploy/e2e.sh     (leaves the stack running afterwards)
-#        NO_BUILD=1 deploy/e2e.sh (reuses caveman-e2e-{api,worker,web} images)
+#        NO_BUILD=1 deploy/e2e.sh (reuses cavman-e2e-{api,worker,web} images)
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(dirname "$here")
-export CAVEMAN_E2E_DIR="${CAVEMAN_E2E_DIR:-$(mktemp -d)}"
+export CAVMAN_E2E_DIR="${CAVMAN_E2E_DIR:-$(mktemp -d)}"
 # The web container runs as an unprivileged user and writes the email outbox here.
-chmod 0777 "$CAVEMAN_E2E_DIR"
-compose="docker compose -p caveman-e2e -f $here/compose.yaml -f $here/compose.e2e.yaml"
+chmod 0777 "$CAVMAN_E2E_DIR"
+compose="docker compose -p cavman-e2e -f $here/compose.yaml -f $here/compose.e2e.yaml"
 
 cleanup() {
   status=$?
@@ -22,7 +22,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# NO_BUILD=1 uses images already built (caveman-e2e-api, -worker, -web).
+# NO_BUILD=1 uses images already built (cavman-e2e-api, -worker, -web).
 $compose up -d $([ -n "${NO_BUILD:-}" ] && echo --no-build || echo --build) --wait --wait-timeout 300
 
 # The web app answers once it can reach the API; auth tables are created on first use.
@@ -34,4 +34,4 @@ until curl -fsS -o /dev/null http://localhost:3100/; do
 done
 
 cd "$repo/web"
-CAVEMAN_E2E_BASE_URL=http://localhost:3100 npx playwright test "$@"
+CAVMAN_E2E_BASE_URL=http://localhost:3100 npx playwright test "$@"

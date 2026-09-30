@@ -27,7 +27,7 @@ export function UsagePanel({ usage, onBudget, canEdit }: { usage: UsageView; onB
       </div>
       {!usage.cost_complete ? (
         <p className="text-xs text-muted">
-          {usage.calls_without_cost} of {usage.calls} calls reported no cost, so the true total may be higher. Caveman does not estimate.
+          {usage.calls_without_cost} of {usage.calls} calls reported no cost, so the true total may be higher. Cavman does not estimate.
         </p>
       ) : null}
       {budget ? (

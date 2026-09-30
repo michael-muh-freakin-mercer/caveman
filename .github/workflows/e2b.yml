@@ -3,7 +3,7 @@ name: E2B sandbox
 # Builds the E2B template and runs the live E2B tests (tests/test_sandbox_e2b_live.py)
 # against real microVMs. Spends E2B credit, so it runs only when the sandbox code
 # changes, or by hand. Pull requests and pushes build and test a separate
-# "caveman-sandbox-ci" template; the production template ("caveman-sandbox")
+# "cavman-sandbox-ci" template; the production template ("cavman-sandbox")
 # is only rebuilt by a manual run with "publish" ticked.
 
 on:
@@ -11,7 +11,7 @@ on:
     paths:
       - src/walter/sandbox.py
       - src/walter/sandbox_e2b.py
-      - src/caveman/sandbox_probe.py
+      - src/cavman/sandbox_probe.py
       - scripts/e2b_template.py
       - tests/test_sandbox_e2b_live.py
       - .github/workflows/e2b.yml
@@ -20,14 +20,14 @@ on:
     paths:
       - src/walter/sandbox.py
       - src/walter/sandbox_e2b.py
-      - src/caveman/sandbox_probe.py
+      - src/cavman/sandbox_probe.py
       - scripts/e2b_template.py
       - tests/test_sandbox_e2b_live.py
       - .github/workflows/e2b.yml
   workflow_dispatch:
     inputs:
       publish:
-        description: Also rebuild the production template (caveman-sandbox) after the tests pass
+        description: Also rebuild the production template (cavman-sandbox) after the tests pass
         type: boolean
         default: false
 
@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 30
     env:
       E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
-      CAVEMAN_E2B_TEMPLATE: caveman-sandbox-ci
+      CAVMAN_E2B_TEMPLATE: cavman-sandbox-ci
     steps:
       - name: Require the E2B_API_KEY secret
         run: |
@@ -60,17 +60,17 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - name: Install Caveman with the E2B SDK
+      - name: Install Cavman with the E2B SDK
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -e '.[test,e2b]'
       - name: Build the CI template
-        run: .venv/bin/python scripts/e2b_template.py --name "$CAVEMAN_E2B_TEMPLATE"
+        run: .venv/bin/python scripts/e2b_template.py --name "$CAVMAN_E2B_TEMPLATE"
       - name: Live E2B tests
         env:
-          CAVEMAN_E2B_LIVE: "1"
+          CAVMAN_E2B_LIVE: "1"
         run: .venv/bin/python -m pytest -q -m e2b -rs tests/test_sandbox_e2b_live.py
       - name: Publish the production template
         if: github.event_name == 'workflow_dispatch' && inputs.publish
-        run: .venv/bin/python scripts/e2b_template.py --name caveman-sandbox
+        run: .venv/bin/python scripts/e2b_template.py --name cavman-sandbox

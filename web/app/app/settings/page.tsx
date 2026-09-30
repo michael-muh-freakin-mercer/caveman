@@ -16,7 +16,7 @@ import type { AccountSpending, SystemView } from "@/lib/types";
 export const metadata: Metadata = { title: "Settings" };
 
 const MODES: Record<string, { name: string; body: string }> = {
-  automatic: { name: "Automatic", body: "Caveman uses the models configured on the server." },
+  automatic: { name: "Automatic", body: "Cavman uses the models configured on the server." },
   budget: { name: "Budget", body: "Economical models for planning and specialist work." },
   balanced: { name: "Balanced", body: "A middle ground between cost and quality." },
   quality: { name: "Maximum Quality", body: "The strongest configured models, regardless of cost." },
@@ -48,15 +48,15 @@ export default async function SettingsPage() {
             <div><dt className="text-xs text-muted">Email</dt><dd className="text-fg">{user.email}</dd></div>
           </dl>
         </Panel>
-        <Panel title="GitHub" description="Caveman never pushes or creates repositories without your explicit approval.">
+        <Panel title="GitHub" description="Cavman never pushes or creates repositories without your explicit approval.">
           <p className="text-sm text-fg-soft">
             {githubEnabled
-              ? "GitHub sign-in is available. It grants Caveman your public profile and email only."
+              ? "GitHub sign-in is available. It grants Cavman your public profile and email only."
               : "GitHub sign-in is not configured on this server."}
           </p>
           <p className="mt-3 text-sm text-muted">
             {githubEnabled
-              ? "From a completed run, you can publish the verified project to a new repository. Caveman asks for repository access only at that moment and pushes only after you confirm the exact name and visibility."
+              ? "From a completed run, you can publish the verified project to a new repository. Cavman asks for repository access only at that moment and pushes only after you confirm the exact name and visibility."
               : "Publishing to GitHub needs GitHub sign-in to be configured by an operator. Download the verified project from a completed run instead."}
           </p>
         </Panel>
@@ -111,7 +111,7 @@ export default async function SettingsPage() {
                 <div className="flex justify-between"><dt className="text-muted">Warning at</dt><dd className="tabular-nums text-fg">{Math.round(system.data.budget.warning_ratio * 100)}%</dd></div>
               </dl>
             </Panel>
-            <Panel title="Sandbox" description="Generated code runs isolated from Caveman and your secrets.">
+            <Panel title="Sandbox" description="Generated code runs isolated from Cavman and your secrets.">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-fg-soft">Isolation on the API server</span>
                 <StatusPill tone={system.data.sandbox.available ? "ok" : "bad"}>{system.data.sandbox.available ? "Available" : "Unavailable"}</StatusPill>

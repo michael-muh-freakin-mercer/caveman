@@ -22,12 +22,12 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: caveman
-          POSTGRES_PASSWORD: caveman
-          POSTGRES_DB: caveman
+          POSTGRES_USER: cavman
+          POSTGRES_PASSWORD: cavman
+          POSTGRES_DB: cavman
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U caveman" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U cavman" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v7
 
@@ -60,7 +60,7 @@ jobs:
           # The sandboxed Node toolchain needs Node 22+ (type stripping, in-process test isolation).
           node-version: 22
 
-      - name: Install Caveman (API, worker and orchestration core)
+      - name: Install Cavman (API, worker and orchestration core)
         # Deliberately the distribution interpreter, not a toolcache one. The
         # sandbox binds /usr into an environment-cleared namespace, so the
         # interpreter has to be self-contained under that tree; toolcache builds
@@ -76,13 +76,13 @@ jobs:
 
       - name: API, worker and stores on PostgreSQL
         env:
-          CAVEMAN_TEST_DATABASE_URL: postgresql://caveman:caveman@127.0.0.1:5432/caveman
-        run: .venv/bin/python -m pytest -q tests/test_caveman_api.py tests/test_postgres.py tests/test_migrate.py
+          CAVMAN_TEST_DATABASE_URL: postgresql://cavman:cavman@127.0.0.1:5432/cavman
+        run: .venv/bin/python -m pytest -q tests/test_cavman_api.py tests/test_postgres.py tests/test_migrate.py
 
       - name: Monitoring config and alert rules
         run: |
           docker run --rm -v "$PWD/deploy/monitoring:/etc/prometheus" --entrypoint sh prom/prometheus:v3.15.0 -c \
-            'echo token > /tmp/token && sed "s#/etc/prometheus/caveman-metrics-token#/tmp/token#" /etc/prometheus/prometheus.yml > /tmp/p.yml \
+            'echo token > /tmp/token && sed "s#/etc/prometheus/cavman-metrics-token#/tmp/token#" /etc/prometheus/prometheus.yml > /tmp/p.yml \
              && cp /etc/prometheus/alerts.yml /tmp/ && promtool check config /tmp/p.yml \
              && cd /etc/prometheus && promtool test rules alerts_test.yml'
 
@@ -126,7 +126,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: "1"
           BETTER_AUTH_SECRET: ci-build-only-secret-0123456789abcdef
-          CAVEMAN_AUTH_AUTO_MIGRATE: "0"
+          CAVMAN_AUTH_AUTO_MIGRATE: "0"
         run: npm run build
 
   e2e:
@@ -147,7 +147,7 @@ jobs:
           if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
-      - name: Install Caveman
+      - name: Install Cavman
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
@@ -213,12 +213,12 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: caveman
-          POSTGRES_PASSWORD: caveman
-          POSTGRES_DB: caveman
+          POSTGRES_USER: cavman
+          POSTGRES_PASSWORD: cavman
+          POSTGRES_DB: cavman
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U caveman" --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U cavman" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v5
       - name: Install age
@@ -226,9 +226,9 @@ jobs:
       - name: Lint the scripts
         run: shellcheck -x -P SCRIPTDIR deploy/backup/*.sh
       - name: Build the API image
-        # The drill runs `caveman ops list` from it against the restored copy.
-        run: docker build -f deploy/api.Dockerfile -t caveman-backup-api .
+        # The drill runs `cavman ops list` from it against the restored copy.
+        run: docker build -f deploy/api.Dockerfile -t cavman-backup-api .
       - name: Back up, prune and restore
         env:
-          CAVEMAN_TEST_API_IMAGE: caveman-backup-api
+          CAVMAN_TEST_API_IMAGE: cavman-backup-api
         run: deploy/backup/ci-test.sh

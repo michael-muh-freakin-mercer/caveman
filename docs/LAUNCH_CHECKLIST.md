@@ -1,6 +1,6 @@
-# Caveman launch checklist
+# Cavman launch checklist
 
-Everything between today and a consumer-ready hosted Caveman. Tick items as
+Everything between today and a consumer-ready hosted Cavman. Tick items as
 they land and note the commit or PR.
 
 Owner: 🧑 needs the project owner's decision, money or approval · 🤖 engineering
@@ -22,8 +22,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 
 ### 2. Stronger isolation for untrusted code
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
-- [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVEMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
-- [x] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers (template `caveman-sandbox`; isolation probe passed on caveman-1, 2026-09-29)
+- [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
+- [x] 🧑 Build the E2B template once and set `CAVMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers (template `cavman-sandbox`; isolation probe passed on cavman-1, 2026-09-29)
 - [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
 
 ### 3. Deployment
@@ -31,9 +31,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
 - [x] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end (`deploy/e2e.sh`, CI job `deploy`: all 15 journeys pass)
 - [x] 🤖 Verify Better Auth on Postgres (same run)
-- [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested
-- [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
-- [x] 🧑 Approve the first deploy (live at https://cavman.dev on Droplet caveman-1, 2026-09-29)
+- [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested
+- [x] 🤖 SQLite → Postgres data migration tool (`cavman ops migrate-to-postgres`, auth included)
+- [x] 🧑 Approve the first deploy (live at https://cavman.dev on Droplet cavman-1, 2026-09-29)
 
 ### 4. Security review
 - [ ] 👥 External review or pen test: sandbox, browser-to-API proxy and CSP, authentication, repository import, GitHub token handling, account deletion
@@ -42,7 +42,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 
 ### 5. Email
 - [x] 🧑 Resend account, sending domain verified (SPF and DKIM): cavman.dev, sender no-reply@cavman.dev; inbound support@cavman.dev forwards via Cloudflare Email Routing (2026-09-30)
-- [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVEMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up verification email not yet tested)
+- [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up verification email not yet tested)
 
 ### 6. Legal
 - [ ] 🧑👥 Terms of service, privacy policy, acceptable-use policy
@@ -66,7 +66,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🧑 Create the Grafana Cloud stack, set `GRAFANA_LOKI_*` and `COMPOSE_PROFILES=logs` on cavman.dev, and confirm logs arrive
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
-- [x] 🧑 Backups for Postgres and the shared volume (nightly at ~07:30 UTC, encrypted, off-server to the `caveman-backups` Space: `deploy/backup/`; live since 2026-09-30)
+- [x] 🧑 Backups for Postgres and the shared volume (nightly at ~07:30 UTC, encrypted, off-server to the `cavman-backups` Space: `deploy/backup/`; live since 2026-09-30)
 - [x] 🤖 Tested restore drill (`deploy/backup/restore-drill.sh`: runs in CI on every push; first production drill passed 2026-09-30, logged in RUNBOOK.md)
 
 ## P1: needed for a good launch
@@ -75,14 +75,14 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🧑 Pricing and plans; approve a Stripe account
 - [ ] 🤖 Checkout, metering tied to account caps, invoices, billing page in Settings
 
-### 10. Setting expectations about what Caveman can build
+### 10. Setting expectations about what Cavman can build
 - [x] 🤖 Say in the UI which stacks get real tests (Python, Node/TypeScript) and which are reviewed code only
 - [x] 🤖 Warn before mobile or unsupported-stack builds
 - [ ] 🤖 Run project build scripts (`npm run build`), not just tests
 - [x] 🤖 Cost estimate before a build starts (from what recent completed builds here actually cost, per model mode; plus the ceiling and the monthly allowance left)
 
 ### 11. Talking with a build
-- [ ] 🤖 Clarifying questions as first-class "Caveman needs your input" requests
+- [ ] 🤖 Clarifying questions as first-class "Cavman needs your input" requests
 - [ ] 🤖 Instructions mid-run (workflow mode rejects messages today)
 - [ ] 🤖 Email when a build finishes or needs an approval
 

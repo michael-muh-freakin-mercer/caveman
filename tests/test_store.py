@@ -558,7 +558,7 @@ def test_events_for_an_unknown_run_is_not_an_empty_history(tmp_path):
 
 
 def _open_both(directory, barrier):
-    from caveman.platform_store import PlatformStore
+    from cavman.platform_store import PlatformStore
     barrier.wait()
     SQLiteStore(directory + "/ops.db").close()
     PlatformStore(directory + "/platform.db").close()

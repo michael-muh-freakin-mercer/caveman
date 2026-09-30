@@ -5,7 +5,7 @@
 # Stops the API and workers for the few seconds it takes to capture both
 # stores, so the database and the files describe the same moment, then
 # restarts them before the upload (and always, even when the backup fails).
-# Dumps the PostgreSQL database behind CAVEMAN_DATABASE_URL (and
+# Dumps the PostgreSQL database behind CAVMAN_DATABASE_URL (and
 # AUTH_DATABASE_URL when it names a different one), archives the data volume
 # (project repositories and delivery archives), encrypts every file to
 # BACKUP_AGE_RECIPIENT, uploads the set to S3-compatible storage (DigitalOcean
@@ -13,7 +13,7 @@
 # BACKUP_RETENTION_DAYS. The age private key never lives on the server, so the
 # server cannot read its own backups.
 #
-# Usage (from /opt/caveman, normally via caveman-backup.timer):
+# Usage (from /opt/cavman, normally via cavman-backup.timer):
 #   deploy/backup/backup.sh
 #
 # Settings: deploy/backup/backup.env (see backup.env.example). The database
@@ -21,7 +21,11 @@
 # connection strings contain '&'.
 set -euo pipefail
 
-root=${CAVEMAN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+root=${CAVMAN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+setting() { # last value assigned to $1 in env file $2, surrounding quotes removed
+  [ -f "$2" ] || return 0
+  sed -n "s/^$1=//p" "$2" | tail -n1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
 set -a
 # shellcheck disable=SC1090 # plain KEY=value settings, see backup.env.example
 . "${BACKUP_ENV_FILE:-$root/deploy/backup/backup.env}"
@@ -33,7 +37,12 @@ set +a
 : "${SPACES_KEY:?set SPACES_KEY in backup.env}"
 : "${SPACES_SECRET:?set SPACES_SECRET in backup.env}"
 retention=${BACKUP_RETENTION_DAYS:-14}
-data_dir=${BACKUP_DATA_DIR:-/mnt/caveman-data}
+data_dir=${BACKUP_DATA_DIR:-$(setting CAVMAN_DATA_MOUNT "$root/.env")}
+# Servers set up before the Caveman -> Cavman rename mount the volume here.
+if [ -z "$data_dir" ] && [ -d /mnt/caveman-data/ ] && [ ! -d /mnt/cavman-data/ ]; then
+  data_dir=/mnt/caveman-data
+fi
+data_dir=${data_dir:-/mnt/cavman-data}
 pg_image=${BACKUP_PG_IMAGE:-postgres:16}
 ca=${BACKUP_PG_CA:-$root/deploy/postgres-ca.crt}
 
@@ -44,16 +53,13 @@ if ! [[ $retention =~ ^[0-9]+$ ]] || (( retention < 1 || retention > 30 )); then
 fi
 [ -d "$data_dir/" ] || { echo "data directory $data_dir not found" >&2; exit 2; }
 
-setting() { # last value assigned to $1 in env file $2, surrounding quotes removed
-  [ -f "$2" ] || return 0
-  sed -n "s/^$1=//p" "$2" | tail -n1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
-}
-core_url=${BACKUP_CORE_URL:-$(setting CAVEMAN_DATABASE_URL "$root/.env")}
+core_url=${BACKUP_CORE_URL:-$(setting CAVMAN_DATABASE_URL "$root/.env")}
+core_url=${core_url:-$(setting CAVEMAN_DATABASE_URL "$root/.env")}  # .env written before the rename
 auth_url=${BACKUP_AUTH_URL:-$(setting AUTH_DATABASE_URL "$root/web/.env.local")}
 for url in "$core_url" "$auth_url"; do
   case $url in
     postgres://*|postgresql://*) ;;
-    *) echo "CAVEMAN_DATABASE_URL and AUTH_DATABASE_URL must both be PostgreSQL URLs" >&2; exit 2 ;;
+    *) echo "CAVMAN_DATABASE_URL and AUTH_DATABASE_URL must both be PostgreSQL URLs" >&2; exit 2 ;;
   esac
 done
 
@@ -66,7 +72,7 @@ start_writers=${BACKUP_START_CMD-$compose start api worker}
 
 umask 077
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
-work=$(mktemp -d "${TMPDIR:-/var/tmp}/caveman-backup.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/var/tmp}/cavman-backup.XXXXXX")
 stopped=0
 finish() {
   if (( stopped )); then bash -c "$start_writers" || echo "error: could not restart the API and workers" >&2; fi
@@ -76,7 +82,7 @@ trap finish EXIT
 
 dump() { # $1 connection string, $2 output file
   local mounts=()
-  [ -f "$ca" ] && mounts=(-v "$ca:/etc/caveman/postgres-ca.crt:ro")
+  [ -f "$ca" ] && mounts=(-v "$ca:/etc/cavman/postgres-ca.crt:ro" -v "$ca:/etc/caveman/postgres-ca.crt:ro")
   # The URL travels in the environment, not argv, so it stays out of `ps`.
   # shellcheck disable=SC2016 # $PGURL expands inside the container
   PGURL=$1 docker run --rm --network host -e PGURL "${mounts[@]}" "$pg_image" \

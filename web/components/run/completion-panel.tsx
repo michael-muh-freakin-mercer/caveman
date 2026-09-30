@@ -12,19 +12,22 @@ export function CompletionPanel({ run, githubEnabled = false, onPublished }: { r
   const finishedAt = run.jobs.at(-1)?.finished_at ?? run.updated_at;
   const delivery = run.delivery;
   return (
-    <section aria-labelledby="complete-title" className="stone overflow-hidden rounded-2xl border border-ok/30 bg-gradient-to-br from-ok/[0.07] via-surface to-surface">
+    <section aria-labelledby="complete-title" className="stone relative overflow-hidden rounded-xl border-2 border-ink bg-surface shadow-ember">
       <div className="flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl">
           <p className="flex items-center gap-2 text-sm font-medium text-ok">
             <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> Verified by the completion gate
           </p>
-          <h2 id="complete-title" className="mt-3 text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
-            Build complete
-          </h2>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <h2 id="complete-title" className="display text-2xl text-fg sm:text-3xl">
+              Build complete
+            </h2>
+            <span aria-hidden="true" className="sticker rotate-6 bg-gum">SPECIMEN DELIVERED</span>
+          </div>
           {run.final_result ? <p className="mt-3 whitespace-pre-line text-fg-soft">{run.final_result}</p> : null}
           <div className="mt-6 flex flex-wrap gap-2">
             {delivery?.downloadable ? (
-              <a href={`/api/caveman/runs/${run.id}/delivery/download`} className={buttonClass("primary", "md")} download>
+              <a href={`/api/cavman/runs/${run.id}/delivery/download`} className={buttonClass("primary", "md")} download>
                 <Download className="h-4 w-4" aria-hidden="true" /> Download project
               </a>
             ) : null}
@@ -65,11 +68,11 @@ export function CompletionPanel({ run, githubEnabled = false, onPublished }: { r
                   <>Local project repository{delivery?.commit ? <> · commit <span className="font-mono">{delivery.commit.slice(0, 7)}</span></> : null} · not published</>
                 )}
               </dd></div>
-          <div className="col-span-2"><dt className="text-xs text-muted">Preview</dt><dd className="text-fg-soft">Not available — Caveman does not run generated apps on this site.</dd></div>
+          <div className="col-span-2"><dt className="text-xs text-muted">Preview</dt><dd className="text-fg-soft">Not available — Cavman does not run generated apps on this site.</dd></div>
         </dl>
       </div>
       {delivery?.status === "ready" ? (
-        <div id="build-report" className="scroll-mt-24 border-t border-line bg-ink/40 px-6 py-5 sm:px-8">
+        <div id="build-report" className="scroll-mt-24 border-t border-line bg-surface-2 px-6 py-5 sm:px-8">
           <p className="eyebrow text-[0.62rem] text-muted">Delivered · {delivery.total_files} files in total, including the project’s starting files</p>
           <ul className="mt-3 grid gap-x-6 gap-y-1 font-mono text-xs text-fg-soft sm:grid-cols-2 lg:grid-cols-3">
             {[...delivery.files, ...delivery.documents, delivery.report].filter(Boolean).map((file) => (

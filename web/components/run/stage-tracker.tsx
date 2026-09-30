@@ -13,7 +13,7 @@ export function StageTracker({ stage, state }: { stage: Stage; state: RunState }
         return (
           <li key={item.id} aria-current={active ? "step" : undefined} className="min-w-0">
             <div
-              className={`h-1.5 rounded-full ${complete ? "bg-ok/80" : active ? "bg-ember" : "bg-line-strong"}`}
+              className={`h-2 rounded-full border border-ink/80 ${complete ? "bg-ok" : active ? "bg-ember" : "bg-surface-3"}`}
               aria-hidden="true"
             />
             <p className={`mt-2 flex items-center gap-1 truncate text-[0.68rem] sm:text-xs ${active ? "text-fg" : complete ? "text-fg-soft" : "text-faint"}`}>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a batch of real build requests through Caveman and report what happened.
+"""Run a batch of real build requests through Cavman and report what happened.
 
 This spends provider credits when run with the default executor. Every run has
 its own ceiling (--run-budget-usd), and the campaign stops starting new runs
@@ -96,19 +96,19 @@ def main(argv=None) -> int:
 
     from fastapi.testclient import TestClient
 
-    from caveman.api import create_app
-    from caveman.config import Settings
-    from caveman.worker import Worker
+    from cavman.api import create_app
+    from cavman.config import Settings
+    from cavman.worker import Worker
 
     prompts = (args.prompts.read_text().splitlines() if args.prompts else DEFAULT_PROMPTS)
     prompts = [p.strip() for p in prompts if p.strip()][: args.limit]
-    data_dir = args.data_dir or Path(tempfile.mkdtemp(prefix="caveman-campaign-"))
+    data_dir = args.data_dir or Path(tempfile.mkdtemp(prefix="cavman-campaign-"))
     token = "campaign-" + "x" * 40
     settings = Settings(data_dir=data_dir, api_token=token, executor=args.executor,
                         orchestration=args.orchestration, default_budget_usd=args.run_budget_usd,
                         max_budget_usd=max(args.run_budget_usd, 0.01),
                         default_max_model_calls=args.max_calls, scripted_step_delay=0)
-    headers = {"Authorization": f"Bearer {token}", "X-Caveman-User": "campaign"}
+    headers = {"Authorization": f"Bearer {token}", "X-Cavman-User": "campaign"}
     rows, spent, halted = [], 0.0, ""
     started_at = datetime.now(timezone.utc)
     with TestClient(create_app(settings)) as client:

@@ -1,4 +1,4 @@
-# Deploying Caveman on DigitalOcean
+# Deploying Cavman on DigitalOcean
 
 One Droplet runs everything (web app, API, worker, and Caddy for HTTPS), backed
 by a managed PostgreSQL cluster and a block storage volume. Generated code never
@@ -26,7 +26,7 @@ nowhere else.
 On your own computer (skip if you already have `~/.ssh/id_ed25519.pub`):
 
 ```bash
-ssh-keygen -t ed25519 -C "caveman-deploy"
+ssh-keygen -t ed25519 -C "cavman-deploy"
 cat ~/.ssh/id_ed25519.pub
 ```
 
@@ -43,13 +43,13 @@ computer).
 - Size: **Basic → Regular, 8 GB / 4 vCPUs**.
 - Authentication: **SSH Key** (the one from step 1). No password.
 - Enable **Monitoring**.
-- Hostname: `caveman-1`.
+- Hostname: `cavman-1`.
 
 ## 3. Block storage volume
 
-**Create → Volumes**: 50 GB, same region, attach to `caveman-1`,
+**Create → Volumes**: 50 GB, same region, attach to `cavman-1`,
 **Automatically Format & Mount**, ext4. It mounts at
-`/mnt/<volume_name>`; step 7 links it to `/mnt/caveman-data`.
+`/mnt/<volume_name>`; step 7 links it to `/mnt/cavman-data`.
 
 ## 4. Managed PostgreSQL
 
@@ -57,19 +57,19 @@ computer).
 
 When it is ready:
 
-- **Settings → Trusted Sources**: add the `caveman-1` Droplet (and nothing else).
-- **Users & Databases**: create a database named `caveman`.
-- **Overview → Connection details**: choose the `caveman` database, copy the
+- **Settings → Trusted Sources**: add the `cavman-1` Droplet (and nothing else).
+- **Users & Databases**: create a database named `cavman`.
+- **Overview → Connection details**: choose the `cavman` database, copy the
   **Connection string**, and **Download CA certificate**. You'll put both on the
   server in step 8, and nowhere else.
 - Change the end of the connection string from `?sslmode=require` to
-  `?sslmode=verify-full&sslrootcert=/etc/caveman/postgres-ca.crt`, so the app
+  `?sslmode=verify-full&sslrootcert=/etc/cavman/postgres-ca.crt`, so the app
   checks it is talking to your real database. It then looks like
-  `postgresql://doadmin:…@…ondigitalocean.com:25060/caveman?sslmode=verify-full&sslrootcert=/etc/caveman/postgres-ca.crt`.
+  `postgresql://doadmin:…@…ondigitalocean.com:25060/cavman?sslmode=verify-full&sslrootcert=/etc/cavman/postgres-ca.crt`.
 
 ## 5. Cloud firewall
 
-**Networking → Firewalls → Create Firewall**, apply to `caveman-1`:
+**Networking → Firewalls → Create Firewall**, apply to `cavman-1`:
 
 | Inbound | Port | Sources |
 | --- | --- | --- |
@@ -92,10 +92,10 @@ ssh root@<droplet-ip>
 
 apt-get update && apt-get -y upgrade
 curl -fsSL https://get.docker.com | sh          # Docker Engine + Compose plugin
-ln -s /mnt/<volume_name> /mnt/caveman-data      # the volume from step 3
+ln -s /mnt/<volume_name> /mnt/cavman-data      # the volume from step 3
 chown 10001:10001 /mnt/<volume_name>            # the app's user inside the containers
-git clone https://github.com/michael-muh-freakin-mercer/caveman.git /opt/caveman
-cd /opt/caveman
+git clone https://github.com/michael-muh-freakin-mercer/cavman.git /opt/cavman
+cd /opt/cavman
 ```
 
 ## 8. Configuration and secrets (on the server only)
@@ -103,33 +103,33 @@ cd /opt/caveman
 Generate the two random secrets on the server:
 
 ```bash
-openssl rand -hex 32   # use for CAVEMAN_API_TOKEN
+openssl rand -hex 32   # use for CAVMAN_API_TOKEN
 openssl rand -hex 32   # use for BETTER_AUTH_SECRET
 ```
 
-`/opt/caveman/.env` (API and worker; `nano .env`):
+`/opt/cavman/.env` (API and worker; `nano .env`):
 
 ```bash
-CAVEMAN_ENV=production
-CAVEMAN_API_TOKEN=<first random value>
-CAVEMAN_DATABASE_URL=<Postgres connection string from step 4, verify-full form>
-CAVEMAN_EXECUTOR=provider
+CAVMAN_ENV=production
+CAVMAN_API_TOKEN=<first random value>
+CAVMAN_DATABASE_URL=<Postgres connection string from step 4, verify-full form>
+CAVMAN_EXECUTOR=provider
 OPENROUTER_API_KEY=<your OpenRouter key>
 WALTER_MODEL_PROVIDER=openrouter
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 WALTER_MODEL=<manager model>
 WALTER_WORKER_MODEL=<specialist model>
-CAVEMAN_SANDBOX_BACKEND=e2b
+CAVMAN_SANDBOX_BACKEND=e2b
 E2B_API_KEY=<your E2B key>
-CAVEMAN_ACCOUNT_MONTHLY_BUDGET_USD=3
-CAVEMAN_METRICS_TOKEN=<optional: a third random value>
-CAVEMAN_DOMAIN=<your domain, for Caddy's HTTPS certificate>
+CAVMAN_ACCOUNT_MONTHLY_BUDGET_USD=3
+CAVMAN_METRICS_TOKEN=<optional: a third random value>
+CAVMAN_DOMAIN=<your domain, for Caddy's HTTPS certificate>
 ```
 
-`/opt/caveman/web/.env.local` (web app):
+`/opt/cavman/web/.env.local` (web app):
 
 ```bash
-CAVEMAN_API_TOKEN=<same first random value>
+CAVMAN_API_TOKEN=<same first random value>
 BETTER_AUTH_SECRET=<second random value>
 BETTER_AUTH_URL=https://<your domain>
 AUTH_DATABASE_URL=<same Postgres connection string, verify-full form>
@@ -138,10 +138,10 @@ AUTH_DATABASE_URL=<same Postgres connection string, verify-full form>
 # TURNSTILE_SECRET_KEY=<Cloudflare Turnstile secret key>
 # Invite-only: only these emails (or "@domain" entries) can create accounts.
 # Also requires email verification, so set up Resend (RESEND_API_KEY) first.
-# CAVEMAN_SIGNUP_ALLOWLIST=<you@example.com,friend@example.com>
+# CAVMAN_SIGNUP_ALLOWLIST=<you@example.com,friend@example.com>
 ```
 
-`/opt/caveman/deploy/postgres-ca.crt`: the CA certificate you downloaded in
+`/opt/cavman/deploy/postgres-ca.crt`: the CA certificate you downloaded in
 step 4 (open it on your computer, copy the text, `nano deploy/postgres-ca.crt`,
 paste). It is public, not a secret, but the app refuses to connect without it.
 
@@ -151,7 +151,7 @@ leaves `web/.env.local` out (`web/.dockerignore`); the app reads it only at runt
 ## 9. Start it
 
 ```bash
-cd /opt/caveman
+cd /opt/cavman
 docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
 docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml ps
 docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml logs worker | tail
@@ -164,12 +164,36 @@ open `https://<your domain>`, create your account, and run a small build.
 ## Updating
 
 ```bash
-cd /opt/caveman && git pull
+cd /opt/cavman && git pull
 docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
 ```
 
 Runs survive restarts: jobs are leased, and an interrupted job is recovered by
 the next worker (see [RUNBOOK.md](RUNBOOK.md)).
+
+### Upgrading a server set up before the rename to Cavman
+
+A server set up when the product was called Caveman keeps working after
+`git pull`: its `CAVEMAN_*` settings still apply, and its database schemas, data
+volume, E2B template and nightly backups stay where they are. To finish the
+rename on the server (the checkout can stay at `/opt/caveman`):
+
+```bash
+cd /opt/caveman
+git remote set-url origin https://github.com/michael-muh-freakin-mercer/cavman.git
+git pull
+scripts/migrate-to-cavman.sh
+docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
+```
+
+The script renames the settings in `.env` and `web/.env.local` (keeping a
+`.pre-cavman` copy of each) and pins the old database schema, E2B template and
+volume mount point, so nothing moves. The installed `caveman-backup.timer`
+keeps running `deploy/backup/backup.sh` from this checkout. Metrics are now
+named `cavman_*`, so update any Grafana panels or alerts built on the old
+`caveman_*` names. To switch to the new E2B template name, run the "E2B
+sandbox" workflow with "Also rebuild the production template" ticked, then
+delete the `CAVMAN_E2B_TEMPLATE` line from `.env` and run the `up` command again.
 
 ## Logs
 
@@ -180,7 +204,7 @@ service). To search them in Grafana Cloud:
    Grafana Cloud portal, open the stack's Loki details page and note the
    **URL** and the **User** (a number). Create an access policy token with
    only the `logs:write` scope.
-2. Add to `/opt/caveman/.env`:
+2. Add to `/opt/cavman/.env`:
 
    ```
    COMPOSE_PROFILES=logs
@@ -191,12 +215,12 @@ service). To search them in Grafana Cloud:
 3. Run the update command below. Every service is recreated once, because
    their log lines now carry the service name and a shipping marker.
 4. Check `docker compose ... logs alloy` shows no errors, then in Grafana's
-   **Explore** run `{app="caveman"}`. Labels: `service` (api, worker, web,
+   **Explore** run `{app="cavman"}`. Labels: `service` (api, worker, web,
    caddy, alloy) and `stream`.
 
 The `alloy` service reads Docker's log files through a read-only mount and
-ships only Caveman's containers. It is not given the Docker socket. Keep log
-retention at 30 days or less: the privacy policy says so. `CAVEMAN_LOG_FORMAT=json`
+ships only Cavman's containers. It is not given the Docker socket. Keep log
+retention at 30 days or less: the privacy policy says so. `CAVMAN_LOG_FORMAT=json`
 in `.env` makes API and worker lines easier to filter.
 
 ## Backups
@@ -217,42 +241,42 @@ in `.env` makes API and worker lines easier to filter.
 ### Set up the nightly backup (once)
 
 1. **Spaces:** Create → Spaces Object Storage, region NYC3, name it
-   `caveman-backups`, and leave the file listing restricted. Then Spaces
+   `cavman-backups`, and leave the file listing restricted. Then Spaces
    Object Storage → **Access Keys** → Create, limited to that bucket with
    Read/Write/Delete. About $5 a month.
 2. **Encryption key, on your computer, not the server:** install age
    (`sudo apt install age`, `brew install age` or `pacman -S age`), run
-   `age-keygen -o caveman-backup.key`, and put the file in your password
+   `age-keygen -o cavman-backup.key`, and put the file in your password
    manager. Its `# public key: age1...` line is the recipient for step 3.
    Without this key the backups cannot be read by anyone, you included.
 3. **On the Droplet:**
 
    ```bash
    apt-get install -y age
-   cd /opt/caveman
+   cd /opt/cavman
    cp deploy/backup/backup.env.example deploy/backup/backup.env
    chmod 600 deploy/backup/backup.env
    nano deploy/backup/backup.env      # Spaces key and secret, age1... recipient
-   cp deploy/backup/caveman-backup.{service,timer} /etc/systemd/system/
+   cp deploy/backup/cavman-backup.{service,timer} /etc/systemd/system/
    systemctl daemon-reload
-   systemctl enable --now caveman-backup.timer
-   systemctl start caveman-backup.service   # first backup now
-   journalctl -u caveman-backup.service -n 20
+   systemctl enable --now cavman-backup.timer
+   systemctl start cavman-backup.service   # first backup now
+   journalctl -u cavman-backup.service -n 20
    ```
 
-   The last line should read `backup <timestamp> uploaded to caveman-backups`.
+   The last line should read `backup <timestamp> uploaded to cavman-backups`.
 4. **Run a restore drill** (below) and record it in the runbook.
 
 ### Restore drill
 
 The drill restores the newest set into a throwaway Postgres container and a
-scratch directory, runs `caveman ops list` against the restored copy, and
+scratch directory, runs `cavman ops list` against the restored copy, and
 removes everything afterwards. Production is not touched.
 
 ```bash
 # from your computer: copy the private key over for the drill only
-scp caveman-backup.key root@<droplet-ip>:/root/drill.key
-ssh root@<droplet-ip> 'cd /opt/caveman && deploy/backup/restore-drill.sh /root/drill.key; status=$?; shred -u /root/drill.key; exit $status'
+scp cavman-backup.key root@<droplet-ip>:/root/drill.key
+ssh root@<droplet-ip> 'cd /opt/cavman && deploy/backup/restore-drill.sh /root/drill.key; status=$?; shred -u /root/drill.key; exit $status'
 ```
 
 It ends with `== drill passed for <timestamp>`. A real restore follows
@@ -262,8 +286,8 @@ It ends with `== drill passed for <timestamp>`. A real restore follows
 
 | Secret | Server file | Also in |
 | --- | --- | --- |
-| `CAVEMAN_API_TOKEN` | `.env` and `web/.env.local` | — |
-| `CAVEMAN_DATABASE_URL` / `AUTH_DATABASE_URL` | `.env` / `web/.env.local` | — |
+| `CAVMAN_API_TOKEN` | `.env` and `web/.env.local` | — |
+| `CAVMAN_DATABASE_URL` / `AUTH_DATABASE_URL` | `.env` / `web/.env.local` | — |
 | `OPENROUTER_API_KEY` | `.env` | GitHub secret (live smoke workflow) |
 | `E2B_API_KEY` | `.env` | GitHub secret (E2B sandbox workflow) |
 | `BETTER_AUTH_SECRET` | `web/.env.local` | — |

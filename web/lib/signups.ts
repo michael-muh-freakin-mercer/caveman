@@ -1,5 +1,5 @@
 /**
- * Invite-only sign-up. CAVEMAN_SIGNUP_ALLOWLIST is a comma-separated list of
+ * Invite-only sign-up. CAVMAN_SIGNUP_ALLOWLIST is a comma-separated list of
  * email addresses and whole domains ("@example.com"). When it is set, only
  * matching addresses can create an account, by password or GitHub alike;
  * existing accounts keep signing in. Unset or empty means anyone can sign up.
@@ -31,4 +31,4 @@ export function signupAllowed(email: string, allowlist: SignupAllowlist): boolea
   return at > 0 && allowlist.domains.has(normalized.slice(at + 1));
 }
 
-export const SIGNUP_CLOSED_MESSAGE = "Caveman is invite-only for now. Ask for an invite and sign up with the address you were invited with.";
+export const SIGNUP_CLOSED_MESSAGE = "Cavman is invite-only for now. Ask for an invite and sign up with the address you were invited with.";

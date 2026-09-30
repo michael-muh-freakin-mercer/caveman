@@ -14,7 +14,7 @@ const NAV = [
   { href: "/docs", label: "Docs" },
 ];
 
-const GITHUB_URL = "https://github.com/michael-muh-freakin-mercer/caveman";
+const GITHUB_URL = "https://github.com/michael-muh-freakin-mercer/cavman";
 
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname();
@@ -23,7 +23,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   const open = openOn === pathname;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-ground/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b-2 border-ink bg-ground/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Logo />
         <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
@@ -32,19 +32,19 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
               key={item.href}
               href={item.href}
               aria-current={pathname === item.href ? "page" : undefined}
-              className="rounded-md px-3 py-2 text-sm text-fg-soft transition-colors hover:text-fg aria-[current=page]:text-fg"
+              className="rounded-md px-3 py-2 text-sm font-medium text-fg-soft transition-colors hover:bg-surface-3 hover:text-fg aria-[current=page]:text-fg aria-[current=page]:underline aria-[current=page]:decoration-ember aria-[current=page]:decoration-4 aria-[current=page]:underline-offset-8"
             >
               {item.label}
             </Link>
           ))}
-          <a href={GITHUB_URL} className="rounded-md px-3 py-2 text-sm text-fg-soft transition-colors hover:text-fg" rel="noreferrer">
+          <a href={GITHUB_URL} className="rounded-md px-3 py-2 text-sm font-medium text-fg-soft transition-colors hover:bg-surface-3 hover:text-fg" rel="noreferrer">
             GitHub
           </a>
         </nav>
         <div className="hidden items-center gap-2 md:flex">
           {signedIn ? (
             <Link href="/app" className={buttonClass("primary", "sm")}>
-              Open Caveman
+              Open Cavman
             </Link>
           ) : (
             <>
@@ -69,7 +69,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
         </button>
       </div>
       {open ? (
-        <nav id="mobile-nav" aria-label="Mobile" className="border-t border-line bg-ground px-4 pb-5 pt-2 md:hidden">
+        <nav id="mobile-nav" aria-label="Mobile" className="border-t-2 border-ink bg-ground px-4 pb-5 pt-2 md:hidden">
           {NAV.map((item) => (
             <Link key={item.href} href={item.href} className="block rounded-md px-2 py-3 text-base text-fg-soft hover:text-fg">
               {item.label}
@@ -81,7 +81,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
           <div className="mt-3 grid grid-cols-2 gap-2">
             {signedIn ? (
               <Link href="/app" className={buttonClass("primary", "md", "col-span-2")}>
-                Open Caveman
+                Open Cavman
               </Link>
             ) : (
               <>

@@ -14,13 +14,13 @@ def _start_cluster():
     if not found:
         return None, None
     bin_dir = os.path.dirname(found[-1])
-    root = tempfile.mkdtemp(prefix="caveman-pg-", dir="/tmp")
+    root = tempfile.mkdtemp(prefix="cavman-pg-", dir="/tmp")
     prefix = []
     if os.geteuid() == 0:  # initdb refuses to run as root
         shutil.chown(root, "postgres")
         prefix = ["runuser", "-u", "postgres", "--"]
     data = os.path.join(root, "data")
-    subprocess.run([*prefix, f"{bin_dir}/initdb", "-D", data, "-A", "trust", "-U", "caveman",
+    subprocess.run([*prefix, f"{bin_dir}/initdb", "-D", data, "-A", "trust", "-U", "cavman",
                     "-E", "UTF8", "--locale=C.UTF-8"], check=True, capture_output=True)
     subprocess.run([*prefix, f"{bin_dir}/pg_ctl", "-D", data, "-w", "-l", os.path.join(root, "log"),
                     "-o", f"-k {root} -p 55439 -c listen_addresses=''", "start"], check=True, capture_output=True)
@@ -28,14 +28,14 @@ def _start_cluster():
     def stop():
         subprocess.run([*prefix, f"{bin_dir}/pg_ctl", "-D", data, "-m", "immediate", "stop"], capture_output=True)
         shutil.rmtree(root, ignore_errors=True)
-    return f"postgresql://caveman@/postgres?host={root}&port=55439", stop
+    return f"postgresql://cavman@/postgres?host={root}&port=55439", stop
 
 
 @pytest.fixture(scope="session")
 def postgres_url():
-    """CAVEMAN_TEST_DATABASE_URL, or a local throwaway cluster; skips when neither exists."""
+    """CAVMAN_TEST_DATABASE_URL, or a local throwaway cluster; skips when neither exists."""
     pytest.importorskip("psycopg")
-    url = os.environ.get("CAVEMAN_TEST_DATABASE_URL")
+    url = os.environ.get("CAVMAN_TEST_DATABASE_URL")
     if url:
         yield url
         return
