@@ -136,8 +136,9 @@ def test_reviewer_rules_on_run_criteria_only_its_task_covers(driver, monkeypatch
     async def invoke(**kwargs):
         if kwargs["role"] == "planner":
             return plan([
+                # A repeated index still leaves "spec" the only task covering criterion 0.
                 {"packet": packet("spec"), "capability": "model_only", "checks": ["result_schema"],
-                 "covers": [0, 1]},
+                 "covers": [0, 0, 1]},
                 {"packet": packet("guide", ["spec"]), "capability": "model_only", "checks": ["result_schema"],
                  "covers": [1]}])
         if kwargs["role"] == "worker":

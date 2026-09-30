@@ -302,7 +302,7 @@ class WorkflowDriver:
         left out: no single candidate can be held to the whole of it.
         """
         coverage = (self._load_state() or {}).get("coverage", {})
-        return [criterion for criterion, tasks in coverage.items() if tasks == [task_id]]
+        return [criterion for criterion, tasks in coverage.items() if set(tasks) == {task_id}]
 
     # Recovery ----------------------------------------------------------------
 
