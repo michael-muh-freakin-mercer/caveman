@@ -120,7 +120,7 @@ validations fail with an isolation error.
 
 Restore drills are on the launch checklist; record each drill's date and result here.
 `deploy/backup/restore-drill.sh` runs one without touching production, and CI
-runs it on every push against Postgres and MinIO.
+runs it on every push against Postgres and an S3 stand-in.
 
 | Date | Backup set | Result | By |
 | --- | --- | --- | --- |

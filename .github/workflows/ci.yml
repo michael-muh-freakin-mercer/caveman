@@ -205,7 +205,7 @@ jobs:
           retention-days: 7
   backup:
     name: backup and restore drill
-    # deploy/backup/ against a real PostgreSQL and MinIO in place of Spaces:
+    # deploy/backup/ against a real PostgreSQL and `rclone serve s3` in place of Spaces:
     # encrypted upload, retention pruning, and a full restore that is checked
     # row by row and file by file.
     runs-on: ubuntu-24.04

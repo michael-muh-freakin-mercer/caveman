@@ -48,7 +48,8 @@ remote copy "spaces:$SPACES_BUCKET/$stamp" /work/set
 echo "checksums: ok"
 
 docker network create "$name" >/dev/null
-docker run -d --name "$name" --network "$name" -e POSTGRES_PASSWORD=drill "$pg_image" >/dev/null
+drill_password=drill-$$   # throwaway container, private network, removed on exit
+docker run -d --name "$name" --network "$name" -e POSTGRES_PASSWORD="$drill_password" "$pg_image" >/dev/null
 for _ in $(seq 60); do
   docker exec "$name" pg_isready -U postgres -q 2>/dev/null && break
   sleep 1
@@ -82,7 +83,7 @@ echo "project repositories passing git fsck: $repos"
 if [ -n "$app_image" ] && docker image inspect "$app_image" >/dev/null 2>&1; then
   chmod -R a+rwX "$work/data"
   docker run --rm --network "$name" -v "$work/data:/data" -e CAVEMAN_DATA_DIR=/data \
-    -e CAVEMAN_DATABASE_URL="postgresql://postgres:drill@$name:5432/core" \
+    -e CAVEMAN_DATABASE_URL="postgresql://postgres:$drill_password@$name:5432/core" \
     "$app_image" caveman ops list > "$work/ops-list.txt"
   echo "caveman ops list on the restored copy: $(grep -c '"run_id"' "$work/ops-list.txt" || true) runs readable"
 elif [ -n "$app_image" ]; then

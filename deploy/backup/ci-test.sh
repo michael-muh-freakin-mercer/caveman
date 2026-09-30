@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # CI exercise of backup.sh and restore-drill.sh: PostgreSQL from the job's
-# service container, MinIO standing in for Spaces. Seeds two databases and a
+# service container, `rclone serve s3` standing in for Spaces. Seeds two databases and a
 # data directory, backs up, checks that an expired set is pruned and a recent
 # one kept, that nothing leaves the server unencrypted, then restores and
 # checks the rows and files that came back.
@@ -8,7 +8,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
 tmp=$(mktemp -d)
-trap 'docker rm -f caveman-ci-minio >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
+trap 'docker rm -f caveman-ci-s3 >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 sql() { # $1 database, rest: psql arguments
   local db=$1; shift
@@ -38,24 +38,27 @@ git -C "$tmp/data/projects/p1/repo" -c user.name=ci -c user.email=ci@example.com
 git -C "$tmp/data/projects/p1/repo" -c user.name=ci -c user.email=ci@example.com commit -qm seed
 head -c 65536 /dev/urandom > "$tmp/data/deliveries/r1.tar.gz"
 
-docker run -d --name caveman-ci-minio -p 9000:9000 \
-  -e MINIO_ROOT_USER=ciuser -e MINIO_ROOT_PASSWORD=ci-password-123 minio/minio server /data >/dev/null
-for _ in $(seq 60); do curl -fs -o /dev/null http://127.0.0.1:9000/minio/health/live && break; sleep 1; done
+s3_key=ciuser s3_secret=ci-password-123
+mkdir "$tmp/s3"
+docker run -d --name caveman-ci-s3 -p 9000:9000 --user "$(id -u):$(id -g)" -v "$tmp/s3:/data" \
+  "${BACKUP_RCLONE_IMAGE:-rclone/rclone:1.68}" serve s3 /data --addr :9000 --auth-key "$s3_key,$s3_secret" >/dev/null
+for _ in $(seq 60); do curl -s -o /dev/null http://127.0.0.1:9000/ && break; sleep 1; done
 
 age-keygen -o "$tmp/key" 2>/dev/null
 cat > "$tmp/backup.env" <<ENV
 SPACES_BUCKET=ci-backups
 SPACES_ENDPOINT=http://127.0.0.1:9000
-SPACES_PROVIDER=Minio
-SPACES_KEY=ciuser
-SPACES_SECRET=ci-password-123
+SPACES_PROVIDER=Rclone
+SPACES_KEY=$s3_key
+SPACES_SECRET=$s3_secret
 BACKUP_AGE_RECIPIENT=$(age-keygen -y "$tmp/key")
 BACKUP_RETENTION_DAYS=14
 ENV
 export CAVEMAN_ROOT=$repo BACKUP_ENV_FILE=$tmp/backup.env TMPDIR=$tmp
 export BACKUP_DATA_DIR=$tmp/data
-export BACKUP_CORE_URL=postgresql://caveman:caveman@127.0.0.1:5432/caveman
-export BACKUP_AUTH_URL=postgresql://caveman:caveman@127.0.0.1:5432/auth
+pg_user=caveman pg_password=caveman   # the job's service container
+export BACKUP_CORE_URL=postgresql://$pg_user:$pg_password@127.0.0.1:5432/caveman
+export BACKUP_AUTH_URL=postgresql://$pg_user:$pg_password@127.0.0.1:5432/auth
 
 # shellcheck disable=SC1091
 { set -a; . "$tmp/backup.env"; set +a; }
