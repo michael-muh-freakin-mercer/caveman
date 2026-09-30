@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-30 — Live campaign survives more than one build
+
+- A three-build live smoke stopped at its second build with "Event loop is closed". The campaign started a new event loop for every job while the provider client, which is cached, kept a connection from the previous loop. It now runs every job on one loop, as a worker does. Production workers were never affected.
+
 ## 2026-10-01 — Log shipper starts under its locked-down settings
 
 - The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).

@@ -44,6 +44,29 @@ def _load_campaign():
     return module
 
 
+@pytest.mark.skipif(not Path("/usr/bin/bwrap").exists(), reason="Bubblewrap unavailable")
+def test_campaign_runs_every_build_on_one_event_loop(tmp_path, monkeypatch):
+    """The provider client is cached with live connections, which die with their loop."""
+    import asyncio
+
+    from caveman.worker import Worker
+
+    loops, run_once = set(), Worker.run_once
+
+    async def recording(self):
+        loops.add(asyncio.get_running_loop())
+        return await run_once(self)
+
+    monkeypatch.setattr(Worker, "run_once", recording)
+    prompts = tmp_path / "prompts.txt"
+    prompts.write_text("Build a booking core\nBuild a booking core #node\n")
+    assert _load_campaign().main(["--executor", "scripted", "--prompts", str(prompts),
+                                  "--out", str(tmp_path / "out"), "--data-dir", str(tmp_path / "data")]) == 0
+    summary = json.loads(next((tmp_path / "out").glob("*.json")).read_text())
+    assert summary["completed"] == 2
+    assert len(loops) == 1 and all(loop.is_closed() for loop in loops)
+
+
 def test_gate_compares_the_unrounded_completion_rate():
     campaign = _load_campaign()
     args = campaign.parse_args(["--executor", "scripted", "--min-completion", "1.0"])
