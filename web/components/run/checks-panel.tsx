@@ -37,7 +37,7 @@ export function ChecksPanel({ tasks, artifacts, executing }: { tasks: TaskView[]
                 const record = artifact?.validations.filter((v) => v.check === check.check).at(-1);
                 return (
                   <li key={check.check}>
-                    <details className="group rounded-lg border border-transparent open:border-line open:bg-ink/50">
+                    <details className="group rounded-lg border border-transparent open:border-line open:bg-surface-2">
                       <summary className={`flex list-none items-center gap-2 rounded-lg px-2 py-1 text-sm ${record ? "cursor-pointer hover:bg-surface-2" : ""}`}>
                         <Icon status={status} />
                         <span className="text-fg-soft">{check.label}</span>

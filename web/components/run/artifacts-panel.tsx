@@ -62,7 +62,7 @@ export function ArtifactsPanel({ runId, artifacts }: { runId: string; artifacts:
       <dialog
         ref={dialog}
         onClose={() => setOpen(null)}
-        className="m-auto max-h-[88dvh] w-[min(960px,94vw)] rounded-2xl border border-line-strong bg-surface p-0 text-fg backdrop:bg-ink/80"
+        className="m-auto max-h-[88dvh] w-[min(960px,94vw)] rounded-xl border-2 border-ink bg-surface p-0 text-fg shadow-[6px_6px_0_0_var(--color-ink)] backdrop:bg-ink/50"
         aria-labelledby="artifact-dialog-title"
       >
         {open ? (
@@ -106,11 +106,11 @@ export function ArtifactsPanel({ runId, artifacts }: { runId: string; artifacts:
                 {full ? (
                   <>
                     <p className="eyebrow text-[0.62rem] text-muted">Specialist output</p>
-                    <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-ink/60 p-3 font-mono text-xs text-fg-soft">{full.content}</pre>
+                    <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface-2 p-3 font-mono text-xs text-fg-soft">{full.content}</pre>
                     {full.diff ? (
                       <>
                         <p className="eyebrow mt-4 text-[0.62rem] text-muted">Code changes</p>
-                        <pre className="mt-1 max-h-[28rem] overflow-auto rounded-lg border border-line bg-ink/60 p-3 font-mono text-xs leading-relaxed">
+                        <pre className="mt-1 max-h-[28rem] overflow-auto rounded-lg border border-line bg-surface-2 p-3 font-mono text-xs leading-relaxed">
                           {full.diff.split("\n").map((line, index) => (
                             <span key={index} className={`block ${line.startsWith("+") ? "text-ok" : line.startsWith("-") ? "text-bad" : line.startsWith("diff --git") ? "text-glacier" : "text-fg-soft"}`}>
                               {line || " "}

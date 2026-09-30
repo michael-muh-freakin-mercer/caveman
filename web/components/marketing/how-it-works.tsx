@@ -1,6 +1,6 @@
 import { ArrowRight, BrainCircuit, CheckCircle2, MessageSquareText, Network, PackageCheck, Rocket, ScanSearch, Workflow } from "lucide-react";
 import Link from "next/link";
-import { Mark } from "@/components/brand/logo";
+import { Cavman } from "@/components/brand/cavman";
 import { buttonClass } from "@/components/ui/button";
 
 const STAGES = [
@@ -16,8 +16,8 @@ const SPECIALISTS = ["Product specialist", "Frontend specialist", "Backend speci
 function FlowNode({ icon: Icon, title, caption, accent = false }: { icon: React.ElementType; title: string; caption: string; accent?: boolean }) {
   return (
     <div className={`panel flex w-full max-w-sm items-center gap-4 px-5 py-4 ${accent ? "shadow-ember" : ""}`}>
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${accent ? "border-ember/40 bg-ember/10" : "border-line-strong bg-surface-2"}`}>
-        <Icon className={`h-5 w-5 ${accent ? "text-ember" : "text-glacier"}`} aria-hidden="true" />
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${accent ? "border-2 border-ink bg-ember" : "border-line-strong bg-surface-2"}`}>
+        <Icon className={`h-5 w-5 ${accent ? "text-ink" : "text-glacier"}`} aria-hidden="true" />
       </span>
       <div className="text-left">
         <p className="text-sm font-semibold text-fg">{title}</p>
@@ -31,7 +31,7 @@ function Down() {
   return (
     <div className="flex h-10 items-center justify-center" aria-hidden="true">
       <svg width="2" height="40" className="overflow-visible">
-        <line x1="1" y1="0" x2="1" y2="40" stroke="rgb(47 212 238 / 0.6)" strokeWidth="1.5" className="animate-flow" />
+        <line x1="1" y1="0" x2="1" y2="40" stroke="var(--color-ink)" strokeWidth="1.5" className="animate-flow" />
       </svg>
     </div>
   );
@@ -40,11 +40,10 @@ function Down() {
 export function HowItWorks({ signedIn }: { signedIn: boolean }) {
   return (
     <>
-      <section className="stone relative overflow-hidden border-b border-line">
-        <div aria-hidden="true" className="hairline-grid absolute inset-0 -z-10" />
+      <section className="stone dig-grid relative overflow-hidden border-b-2 border-ink">
         <div className="mx-auto max-w-4xl px-4 pb-16 pt-20 text-center sm:px-6 sm:pt-28">
-          <p className="eyebrow text-ember">How it works</p>
-          <h1 className="text-balance mt-6 text-5xl font-semibold tracking-[-0.035em] text-fg sm:text-6xl">From prompt to production.</h1>
+          <p className="eyebrow text-muted">Layer 1 · field notes · how it works</p>
+          <h1 className="display text-balance mt-6 text-3xl leading-[1.1] text-fg sm:text-5xl">From prompt to <span className="marker">production.</span></h1>
           <p className="text-balance mx-auto mt-6 max-w-2xl text-lg text-fg-soft">
             One Manager owns your goal. Specialists do the work. Nothing counts as done until trusted checks and an
             independent reviewer say so.
@@ -58,10 +57,10 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
           {STAGES.map((stage) => (
             <li key={stage.n} className="panel flex flex-col p-6">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-sm text-ember">{stage.n}</span>
+                <span className="font-mono text-xs font-medium text-muted">FIND {stage.n}</span>
                 <stage.icon className="h-5 w-5 text-glacier" aria-hidden="true" />
               </div>
-              <h3 className="mt-6 text-lg font-semibold text-fg">{stage.title}</h3>
+              <h3 className="display mt-6 text-sm text-fg">{stage.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-fg-soft">{stage.body}</p>
               <p className="mt-4 border-t border-line pt-4 text-xs leading-relaxed text-muted">{stage.detail}</p>
             </li>
@@ -69,11 +68,11 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
         </ol>
       </section>
 
-      <section aria-labelledby="flow-title" className="border-y border-line bg-ink/40">
+      <section aria-labelledby="flow-title" className="border-y-2 border-ink bg-surface-2">
         <div className="mx-auto grid max-w-7xl gap-14 px-4 py-24 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:px-8">
           <div className="lg:pt-8">
-            <p className="eyebrow text-glacier">The flow</p>
-            <h2 id="flow-title" className="mt-4 text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
+            <p className="eyebrow text-muted">The flow</p>
+            <h2 id="flow-title" className="display mt-4 text-2xl leading-tight text-fg sm:text-3xl">
               You talk to Cavman. Cavman runs the team.
             </h2>
             <p className="mt-5 max-w-lg text-fg-soft">
@@ -90,14 +89,14 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
             <FlowNode icon={MessageSquareText} title="User Prompt" caption="“Build me a booking app for a tattoo studio”" />
             <Down />
             <div className="panel flex w-full max-w-sm items-center gap-4 px-5 py-4 shadow-ember">
-              <Mark className="h-10 w-10" />
+              <Cavman mood="dig" className="h-10 w-10" />
               <div className="text-left">
                 <p className="text-sm font-semibold text-fg">Cavman</p>
                 <p className="text-xs text-muted">Plans, delegates, validates, reviews, accepts</p>
               </div>
             </div>
             <Down />
-            <div className="w-full max-w-md rounded-2xl border border-dashed border-line-strong p-4">
+            <div className="w-full max-w-md rounded-lg border-2 border-dashed border-ink/60 p-4">
               <p className="eyebrow mb-3 text-center text-[0.62rem] text-muted">Specialists · chosen per project</p>
               <ul className="grid gap-2 sm:grid-cols-2">
                 {SPECIALISTS.map((name, index) => (
@@ -119,7 +118,7 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
       </section>
 
       <section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-24 text-center sm:px-6">
-        <h2 className="text-balance text-3xl font-semibold tracking-tight text-fg sm:text-4xl">Ready when you are.</h2>
+        <h2 className="display text-balance text-2xl text-fg sm:text-3xl">Ready when you are.</h2>
         <p className="mt-4 text-fg-soft">Describe it once. Cavman does the rest.</p>
         <Link href={signedIn ? "/app/new" : "/sign-up"} className={buttonClass("primary", "lg", "mt-8")}>
           Build something <ArrowRight className="h-4 w-4" aria-hidden="true" />
