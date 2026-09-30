@@ -66,8 +66,8 @@ app_image=${CAVEMAN_TEST_API_IMAGE:-}
 app_token=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
 if [ -n "$app_image" ]; then
   echo "== the app creates its schemas"
-  chmod -R a+rwX "$tmp/data"
-  CAVEMAN_API_TOKEN=$app_token docker run --rm --network host -v "$tmp/data:/data" -e CAVEMAN_DATA_DIR=/data \
+  CAVEMAN_API_TOKEN=$app_token docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$tmp/data:/data" -e CAVEMAN_DATA_DIR=/data \
     -e CAVEMAN_API_TOKEN -e CAVEMAN_DATABASE_URL="$BACKUP_CORE_URL" "$app_image" caveman ops list
 fi
 

@@ -81,10 +81,12 @@ done
 echo "project repositories passing git fsck: $repos"
 
 if [ -n "$app_image" ] && docker image inspect "$app_image" >/dev/null 2>&1; then
-  chmod -R a+rwX "$work/data"
-  # Settings insist on a service token; this one exists only for the drill.
+  # The app must own its data directory (it tightens the mode), so it runs as
+  # whoever owns the scratch copy. Settings insist on a service token; this
+  # one exists only for the drill.
   CAVEMAN_API_TOKEN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n') \
-  docker run --rm --network "$name" -v "$work/data:/data" -e CAVEMAN_DATA_DIR=/data -e CAVEMAN_API_TOKEN \
+  docker run --rm --network "$name" --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$work/data:/data" -e CAVEMAN_DATA_DIR=/data -e CAVEMAN_API_TOKEN \
     -e CAVEMAN_DATABASE_URL="postgresql://postgres:$drill_password@$name:5432/core" \
     "$app_image" caveman ops list > "$work/ops-list.txt"
   echo "caveman ops list on the restored copy: $(grep -c '"run_id"' "$work/ops-list.txt" || true) runs readable"
