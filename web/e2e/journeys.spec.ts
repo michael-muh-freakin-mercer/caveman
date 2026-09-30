@@ -6,7 +6,7 @@ import { runJson, signUp, startBuild } from "./helpers";
 test("journey 1: a landing-page prompt survives sign-up", async ({ page }) => {
   const prompt = "Build me a booking app for a tattoo studio";
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Type what you want.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("We dug up a caveman who builds software.");
   await page.getByLabel("Describe the software you want").fill(prompt);
   await page.getByRole("button", { name: "Build it" }).click();
   await page.waitForURL(/\/sign-up\?next=/);

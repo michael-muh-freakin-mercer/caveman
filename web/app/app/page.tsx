@@ -44,7 +44,7 @@ function OverviewSections({ runs }: { runs: RunSummary[] }) {
       {needsYou.length ? (
         <section aria-labelledby="needs-you">
           <h2 id="needs-you" className="flex items-center gap-2 text-sm font-semibold text-fg">
-            <ShieldAlert className="h-4 w-4 text-ember" aria-hidden="true" /> Waiting for your decision
+            <ShieldAlert className="h-4 w-4 text-ember-deep" aria-hidden="true" /> Waiting for your decision
           </h2>
           <div className="mt-3"><RunList runs={needsYou} /></div>
         </section>

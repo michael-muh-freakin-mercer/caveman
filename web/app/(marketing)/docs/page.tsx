@@ -75,7 +75,7 @@ export default function DocsPage() {
         </ul>
       </nav>
       <article className="max-w-3xl">
-        <h1 className="text-4xl font-semibold tracking-tight text-fg">Cavman documentation</h1>
+        <h1 className="display text-balance text-2xl leading-tight text-fg sm:text-3xl">Cavman documentation</h1>
         <p className="mt-4 text-lg text-fg-soft">
           Everything you need to use Cavman. Operators should read the{" "}
           <a className="text-glacier underline-offset-4 hover:underline" href="https://github.com/michael-muh-freakin-mercer/cavman#readme" rel="noreferrer">
@@ -94,7 +94,7 @@ export default function DocsPage() {
           </section>
         ))}
         <p className="mt-14 text-sm text-muted">
-          Ready? <Link href="/app/new" className="text-ember hover:underline">Start a build</Link>.
+          Ready? <Link href="/app/new" className="font-medium text-glacier underline-offset-2 hover:underline">Start a build</Link>.
         </p>
       </article>
     </div>

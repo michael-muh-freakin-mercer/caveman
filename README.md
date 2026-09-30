@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/banner.png" alt="Cavman: Type what you want. Cavman builds it." width="100%">
+<img src="docs/assets/banner.png" alt="Cavman: we dug up a caveman who builds software. A pixel-art caveman stands in a museum display case labelled Specimen 001." width="100%">
 
 <br>
 

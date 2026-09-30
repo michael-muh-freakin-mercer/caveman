@@ -16,8 +16,8 @@ export default function PricingPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
       <div className="max-w-2xl">
-        <p className="eyebrow text-ember">Pricing</p>
-        <h1 className="mt-5 text-4xl font-semibold tracking-tight text-fg sm:text-5xl">Pay for the models. Nothing else.</h1>
+        <p className="eyebrow text-muted">The back of the cave · pricing</p>
+        <h1 className="display text-balance mt-5 text-2xl leading-tight text-fg sm:text-4xl">Pay for the models. <span className="marker">Nothing else.</span></h1>
         <p className="mt-5 text-lg text-fg-soft">
           Cavman is open source under the MIT license. Run it yourself and you pay only what your model provider
           charges — and every run shows exactly what it cost.

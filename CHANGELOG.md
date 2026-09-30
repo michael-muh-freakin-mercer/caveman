@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-30 — A new look: the dig site
+
+- The web app has a new light design: concrete background with a survey grid, ink outlines, duck-yellow for the one main action per screen, and pink and sky-blue stickers for small jokes. Headings use Rubik Mono One, text uses Archivo and code uses JetBrains Mono.
+- The landing page is now a dig site: "We dug up a caveman who builds software.", with the prompt as the largest element and Cavman in a museum display case. He blinks, and looks up when you type.
+- The pixel Cavman is the logo and shows how each run is going: digging while it works, hiding when it needs you, asleep when paused and cheering when it is done.
+- The favicon, share image, README banner and README screenshots are redrawn to match. Navigation and button labels are unchanged.
+
 ## 2026-09-30 — Caveman is now Cavman
 
 - The product, the Python package (`cavman`, CLI `cavman`), the web app's API routes, settings (`CAVMAN_*`), metrics (`cavman_*`), the E2B template (`cavman-sandbox`), Docker and systemd names and all docs use the new name, matching the domain cavman.dev.

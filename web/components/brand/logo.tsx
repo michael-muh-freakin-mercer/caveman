@@ -1,17 +1,19 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
+import { Cavman } from "./cavman";
 
-/** A knapped-flint mark: faceted, angular, deliberate. Also drawn into the generated icons. */
-export function Mark({ className = "h-7 w-7", ...props }: ComponentProps<"svg">) {
+/**
+ * The old knapped-flint mark, kept as a die-cut sticker: a white outline around
+ * the faceted stone. Decoration only; the logo is Cavman himself.
+ */
+export function FlintSticker({ className = "h-14 w-14", ...props }: ComponentProps<"svg">) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false" {...props}>
-      {/* Flat facets (no gradient ids), so any number of marks can share a page. */}
-      <path d="M16 2 27 11 22 29 9 26 4 12Z" fill="#f2621a" />
-      <path d="M16 2 27 11 17 15Z" fill="#ff9a5c" />
-      <path d="M16 2 4 12 17 15Z" fill="#ff7a33" />
-      <path d="M4 12 17 15 9 26Z" fill="#c94a0c" />
-      <path d="M17 15 22 29 9 26Z" fill="#9c3a08" />
-      <path d="M16 2 4 12" stroke="#2fd4ee" strokeWidth="1.2" strokeLinecap="round" opacity="0.9" />
+      <path d="M16 2 27 11 22 29 9 26 4 12Z" fill="#fff" stroke="#141414" strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M16 5 25 12 21 26 10 24 6 13Z" fill="#ff6a1f" />
+      <path d="M16 5 25 12 17 15Z" fill="#ff9a5c" />
+      <path d="M16 5 6 13 17 15Z" fill="#ff7a33" />
+      <path d="M17 15 21 26 10 24Z" fill="#c94a0c" />
     </svg>
   );
 }
@@ -19,8 +21,8 @@ export function Mark({ className = "h-7 w-7", ...props }: ComponentProps<"svg">)
 export function Logo({ href = "/", className = "" }: { href?: string; className?: string }) {
   return (
     <Link href={href} className={`group inline-flex items-center gap-2.5 ${className}`} aria-label="Cavman home">
-      <Mark />
-      <span className="text-[1.05rem] font-semibold tracking-[0.14em] text-fg">CAVMAN</span>
+      <Cavman className="h-8 w-8 transition-transform duration-200 group-hover:-rotate-6" />
+      <span className="display text-[0.95rem] text-fg">CAVMAN</span>
     </Link>
   );
 }

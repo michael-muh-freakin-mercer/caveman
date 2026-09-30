@@ -1,23 +1,25 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { Cavman } from "@/components/brand/cavman";
 import { StatusPill } from "@/components/ui/status";
 import { formatUsd, relativeTime } from "@/lib/format";
-import { RUN_TONE, isExecuting } from "@/lib/run-state";
+import { RUN_MOOD, RUN_TONE, isExecuting } from "@/lib/run-state";
 import type { RunSummary } from "@/lib/types";
 
 export function RunList({ runs, showProject = true }: { runs: RunSummary[]; showProject?: boolean }) {
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+    <ul className="divide-y divide-line overflow-hidden rounded-lg border-2 border-ink bg-surface shadow-[3px_3px_0_0_var(--color-ink)]">
       {runs.map((run) => (
         <li key={run.id}>
           <Link href={`/app/runs/${run.id}`} className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-surface-2 sm:px-5">
+            <Cavman mood={RUN_MOOD[run.state]} className="h-7 w-7 shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 {showProject ? <p className="truncate text-sm font-semibold text-fg">{run.project_name}</p> : null}
                 <StatusPill tone={RUN_TONE[run.state]} pulse={isExecuting(run.state)}>
                   {run.label}
                 </StatusPill>
-                {run.pending_approvals ? <span className="text-xs text-ember">{run.pending_approvals} approval{run.pending_approvals > 1 ? "s" : ""} waiting</span> : null}
+                {run.pending_approvals ? <span className="text-xs font-semibold text-ember-deep">{run.pending_approvals} approval{run.pending_approvals > 1 ? "s" : ""} waiting</span> : null}
               </div>
               <p className="mt-1 truncate text-sm text-muted">{run.prompt}</p>
             </div>

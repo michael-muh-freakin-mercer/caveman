@@ -34,12 +34,12 @@ export function ApprovalCard({
 
   return (
     <article
-      className={`rounded-xl border p-5 ${pending ? "border-ember/40 bg-ember/[0.04] shadow-ember" : "border-line bg-surface-2/60"}`}
+      className={`rounded-lg p-5 ${pending ? "border-2 border-ink bg-surface shadow-ember" : "border border-line bg-surface-2/60"}`}
       aria-labelledby={`approval-${approval.id}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${pending ? "text-ember" : "text-muted"}`} aria-hidden="true" />
+          <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${pending ? "text-ember-deep" : "text-muted"}`} aria-hidden="true" />
           <div>
             <h3 id={`approval-${approval.id}`} className="text-base font-semibold text-fg">
               {approval.title}
@@ -75,7 +75,7 @@ export function ApprovalCard({
         <div className="sm:col-span-2">
           <dt className="eyebrow text-[0.62rem] text-muted">Exact scope</dt>
           <dd className="mt-1">
-            <details className="rounded-lg border border-line bg-ink/60">
+            <details className="rounded-lg border border-line bg-surface-2">
               <summary className="cursor-pointer px-3 py-2 font-mono text-xs text-muted">
                 digest {approval.scope_digest.slice(0, 16)}… · target {approval.target}
               </summary>
@@ -97,7 +97,7 @@ export function ApprovalCard({
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             maxLength={2000}
-            className="mt-1 w-full resize-y rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-fg focus:border-glacier focus:outline-none"
+            className="mt-1 w-full resize-y rounded-md border-2 border-line-strong bg-surface px-3 py-2 text-sm text-fg focus:border-ink focus:outline-none"
           />
           {error ? (
             <p role="alert" className="mt-2 text-sm text-bad">

@@ -1,3 +1,4 @@
+import type { Mood } from "@/components/brand/cavman";
 import type { CheckStatus, RunState, Stage, TaskState } from "./types";
 
 export type Tone = "ember" | "glacier" | "ok" | "bad" | "warn" | "review" | "neutral";
@@ -17,6 +18,24 @@ export const RUN_TONE: Record<RunState, Tone> = {
   failed: "bad",
   cancelled: "neutral",
   complete: "ok",
+};
+
+/** What the pixel Cavman on a run is doing: digging while it builds, hiding when it needs you, asleep when paused. */
+export const RUN_MOOD: Record<RunState, Mood> = {
+  starting: "dig",
+  planning: "dig",
+  running: "dig",
+  revision_required: "dig",
+  recovering: "dig",
+  stopping: "idle",
+  approval_needed: "hide",
+  waiting: "hide",
+  blocked: "hide",
+  paused: "sleep",
+  budget_reached: "sleep",
+  failed: "hide",
+  cancelled: "sleep",
+  complete: "cheer",
 };
 
 /** States in which the backend is actively executing; the UI must not offer "continue". */
@@ -81,11 +100,11 @@ export function checkDisplayStatus(status: CheckStatus, taskState: TaskState, ex
 }
 
 export const TONE_CLASSES: Record<Tone, { text: string; bg: string; border: string; dot: string }> = {
-  ember: { text: "text-ember-hot", bg: "bg-ember/10", border: "border-ember/35", dot: "bg-ember" },
+  ember: { text: "text-fg", bg: "bg-ember/35", border: "border-ember-deep/50", dot: "bg-ember-deep" },
   glacier: { text: "text-glacier", bg: "bg-glacier/10", border: "border-glacier/30", dot: "bg-glacier" },
   ok: { text: "text-ok", bg: "bg-ok/10", border: "border-ok/30", dot: "bg-ok" },
   bad: { text: "text-bad", bg: "bg-bad/10", border: "border-bad/30", dot: "bg-bad" },
   warn: { text: "text-warn", bg: "bg-warn/10", border: "border-warn/30", dot: "bg-warn" },
   review: { text: "text-review", bg: "bg-review/10", border: "border-review/30", dot: "bg-review" },
-  neutral: { text: "text-fg-soft", bg: "bg-surface-3", border: "border-line-strong", dot: "bg-muted" },
+  neutral: { text: "text-fg-soft", bg: "bg-surface-2", border: "border-line-strong", dot: "bg-muted" },
 };

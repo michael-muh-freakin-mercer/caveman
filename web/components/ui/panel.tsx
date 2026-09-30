@@ -17,9 +17,9 @@ export function Panel({
   return (
     <section className={`panel ${className}`} aria-labelledby={title ? headingId : undefined} id={id}>
       {title ? (
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-3.5">
+        <header className="flex items-start justify-between gap-3 border-b-2 border-ink px-5 py-3.5">
           <div>
-            <h2 id={headingId} className="text-sm font-semibold tracking-wide text-fg">
+            <h2 id={headingId} className="text-sm font-bold text-fg">
               {title}
             </h2>
             {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
@@ -44,7 +44,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-ink/40 px-6 py-12 text-center">
       {icon ? <div className="mb-3 text-muted">{icon}</div> : null}
       <h3 className="text-base font-semibold text-fg">{title}</h3>
       {children ? <div className="mt-1.5 max-w-md text-sm text-muted">{children}</div> : null}

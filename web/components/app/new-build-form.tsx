@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { CostEstimate } from "@/components/app/cost-estimate";
+import { announceTyping } from "@/components/brand/live-cavman";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
 import { unverifiedStacks } from "@/lib/stack-support";
 import type { EstimateView } from "@/lib/types";
@@ -100,7 +101,7 @@ export function NewBuildForm({
   }
 
   const unverified = unverifiedStacks(prompt, stack);
-  const input = "mt-1.5 block w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
+  const input = "mt-1.5 block w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm text-fg placeholder:text-faint focus:border-ink focus:outline-none";
 
   return (
     <form method="post" onSubmit={submit} className="mx-auto max-w-3xl" aria-describedby={error ? ids.error : undefined}>
@@ -112,17 +113,20 @@ export function NewBuildForm({
       <label htmlFor={ids.prompt} className="sr-only">
         What do you want to build?
       </label>
-      <div className="rounded-2xl bg-gradient-to-b from-line-strong/80 to-line/40 p-px focus-within:shadow-ember">
+      <div className="rounded-lg border-2 border-ink bg-surface shadow-[5px_5px_0_0_var(--color-ink)] focus-within:shadow-[5px_5px_0_0_var(--color-ink),0_0_0_5px_rgb(255_212_0/0.6)]">
         <textarea
           id={ids.prompt}
           name="prompt"
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            announceTyping();
+          }}
           maxLength={MAX_PROMPT_LENGTH}
           rows={7}
           autoFocus
           placeholder="Build me a booking app for a tattoo studio. Clients pick an artist and a time slot; the studio gets an email for each booking."
-          className="block w-full resize-y rounded-[15px] bg-surface p-5 text-base leading-relaxed text-fg placeholder:text-faint focus:outline-none sm:text-lg"
+          className="block w-full resize-y rounded-md bg-surface p-5 text-base leading-relaxed text-fg placeholder:text-faint focus:outline-none focus-visible:shadow-none focus-visible:outline-none sm:text-lg"
         />
       </div>
       <div className="mt-2 flex items-start justify-between gap-4 text-xs">
@@ -195,7 +199,7 @@ export function NewBuildForm({
         <button
           type="submit"
           disabled={busy || !hydrated || Boolean(disabledReason)}
-          className="inline-flex h-12 items-center gap-2 rounded-xl bg-ember px-7 text-base font-semibold text-ink hover:bg-ember-hot disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-12 items-center gap-2 rounded-md border-2 border-ink bg-ember px-7 text-base font-bold text-ink shadow-[3px_3px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] hover:bg-ember-hot disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
           {busy ? (repository.trim() && !projectId ? "Importing…" : "Starting…") : "Build it"}

@@ -21,7 +21,7 @@ const TONE = {
 export function ExampleRun() {
   return (
     <figure className="panel relative overflow-hidden" aria-label="Illustrative example of a Cavman run">
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
+      <div className="flex items-center justify-between border-b-2 border-ink px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5" aria-hidden="true">
             <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
@@ -30,7 +30,7 @@ export function ExampleRun() {
           </div>
           <span className="font-mono text-xs text-muted">tattoo-studio-booking</span>
         </div>
-        <span className="eyebrow rounded border border-line-strong px-2 py-0.5 text-[0.62rem] text-muted">Example</span>
+        <span className="sticker rotate-3 bg-sky py-0.5 text-[0.62rem]">EXAMPLE</span>
       </div>
       <div className="grid gap-0 md:grid-cols-[1.35fr_1fr]">
         <ul className="divide-y divide-line">
@@ -53,8 +53,8 @@ export function ExampleRun() {
             </li>
           ))}
         </ul>
-        <div className="border-t border-line bg-surface-2/60 p-5 md:border-l md:border-t-0">
-          <p className="eyebrow text-glacier">Trusted checks</p>
+        <div className="border-t-2 border-ink bg-surface-2 p-5 md:border-l-2 md:border-t-0">
+          <p className="eyebrow text-muted">Trusted checks</p>
           <ul className="mt-3 space-y-2.5 text-sm">
             <li className="flex items-center justify-between"><span className="text-fg-soft">Compile</span><span className="text-ok">Passed</span></li>
             <li className="flex items-center justify-between"><span className="text-fg-soft">Candidate tests</span><span className="text-ok">Passed</span></li>

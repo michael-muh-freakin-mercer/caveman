@@ -27,7 +27,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
     <nav aria-label="App" className="flex flex-col gap-1">
       <Link
         href="/app/new"
-        className="mb-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot"
+        className="mb-4 inline-flex h-10 items-center justify-center gap-2 rounded-md border-2 border-ink bg-ember text-sm font-bold text-ink shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-ember-hot active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
       >
         <Plus className="h-4 w-4" aria-hidden="true" /> New build
       </Link>
@@ -36,7 +36,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
           key={item.href}
           href={item.href}
           aria-current={active(item.href, item.exact) ? "page" : undefined}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg aria-[current=page]:bg-surface-2 aria-[current=page]:text-fg"
+          className="flex items-center gap-3 rounded-md border-2 border-transparent px-3 py-2 text-sm text-fg-soft transition-colors hover:bg-surface-2 hover:text-fg aria-[current=page]:border-ink aria-[current=page]:bg-ember/35 aria-[current=page]:font-semibold aria-[current=page]:text-fg"
         >
           <item.icon className="h-4 w-4" aria-hidden="true" />
           {item.label}
@@ -46,7 +46,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
   );
 
   const account = (
-    <div className="border-t border-line pt-4">
+    <div className="border-t-2 border-dashed border-line-strong pt-4">
       <p className="truncate text-sm text-fg">{user.name}</p>
       <p className="truncate text-xs text-muted">{user.email}</p>
       <button
@@ -65,7 +65,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="hidden border-r border-line bg-ink/60 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:justify-between lg:px-4 lg:py-5">
+      <aside className="hidden border-r border-line bg-surface-2 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:justify-between lg:px-4 lg:py-5">
         <div>
           <div className="mb-8 px-2">
             <Logo href="/app" />
@@ -74,7 +74,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
         </div>
         {account}
       </aside>
-      <div className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-ground/90 px-4 backdrop-blur lg:hidden">
+      <div className="sticky top-0 z-30 flex h-14 items-center justify-between border-b-2 border-ink bg-ground/95 px-4 backdrop-blur lg:hidden">
         <Logo href="/app" />
         <button
           type="button"
@@ -88,7 +88,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
         </button>
       </div>
       {open ? (
-        <div id="app-mobile-nav" className="border-b border-line bg-ground px-4 py-4 lg:hidden">
+        <div id="app-mobile-nav" className="border-b-2 border-ink bg-ground px-4 py-4 lg:hidden">
           {nav}
           <div className="mt-4">{account}</div>
         </div>
