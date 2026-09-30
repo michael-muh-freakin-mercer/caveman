@@ -20,14 +20,16 @@ services:
     volumes: [caveman-data:/data]
     command: ["caveman", "worker"]
     # Bubblewrap needs to create user namespaces and mount /proc inside this
-    # container. Docker's default seccomp profile and masked /proc prevent that.
-    # These options were verified to work; they relax the *container's* outer
-    # filter, while Caveman's own sandbox still applies namespaces, a
-    # network-deny seccomp filter and resource limits to every candidate
-    # command. Prefer a seccomp profile derived from Docker's default that
-    # additionally permits unshare(CLONE_NEWUSER), or run workers on a VM.
+    # container. Docker's default seccomp profile, its AppArmor profile and the
+    # masked /proc prevent that. seccomp-worker.json is Docker's default plus
+    # the six system calls Bubblewrap needs for a user namespace (see
+    # scripts/worker_seccomp.py), so the rest of the default filter still
+    # applies. AppArmor and the masked paths have no narrower setting that
+    # works. Caveman's own sandbox still applies namespaces, a network-deny
+    # seccomp filter and resource limits to every candidate command. A VM or
+    # CAVEMAN_SANDBOX_BACKEND=e2b needs none of this.
     security_opt:
-      - seccomp=unconfined
+      - seccomp=seccomp-worker.json
       - apparmor=unconfined
       - systempaths=unconfined
 

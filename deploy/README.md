@@ -34,6 +34,8 @@ Browser ──TLS──▶ Caveman Web (Next.js)  ── private network ──�
   a full scripted build ran real sandboxed pytest (a failing first candidate,
   recovery, a passing revision), acceptance and delivery — **only** with
   `seccomp=unconfined`, `apparmor=unconfined` and `systempaths=unconfined`.
+  Since 2026-09-30 `compose.yaml` replaces the first with `seccomp-worker.json`;
+  the CI job `deploy` runs the journeys under it and checks the filter is loaded.
 - Under Docker's default profile Bubblewrap cannot create a namespace. Caveman
   failed closed: validation errored, acceptance was refused, nothing was marked
   done. The worker now refuses to start in that situation.
@@ -61,10 +63,14 @@ worker host must allow unprivileged user namespaces:
 
 - **VM (preferred):** Ubuntu 24.04 with `kernel.apparmor_restrict_unprivileged_userns=0`
   (as CI does), `apt install bubblewrap libseccomp2 util-linux git python3-venv`.
-- **Container:** see the `worker` service in `compose.yaml`. The options listed
-  there relax the container's outer seccomp filter; a tighter alternative is a
-  profile derived from Docker's default that additionally allows
-  `unshare`/`clone` with `CLONE_NEWUSER`.
+- **Container:** see the `worker` service in `compose.yaml`. It runs under
+  `seccomp-worker.json`: Docker's default profile (moby/profiles `6fe7deb`,
+  2026-09-17) plus `clone`, `unshare`, `mount`, `umount2`, `pivot_root` and
+  `sethostname`, which Bubblewrap needs to build a user namespace. Everything
+  else the default denies stays denied. `apparmor=unconfined` and
+  `systempaths=unconfined` remain, because Bubblewrap mounts a fresh `/proc`.
+  Rebuild the profile with `scripts/worker_seccomp.py` when Docker's default
+  changes. `compose.prod.yaml` drops all three options: its workers use E2B.
 
 Never set up a worker without isolation. There is no host-execution fallback.
 
