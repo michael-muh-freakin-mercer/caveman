@@ -1,0 +1,69 @@
+// Ships Caveman's container logs to Grafana Cloud Logs (or any Loki).
+//
+// Run by the `alloy` service in compose.prod.yaml, which starts only with
+// COMPOSE_PROFILES=logs. It reads Docker's json-file logs from a read-only
+// mount; it has no access to the Docker socket, so it cannot control the host.
+// Only containers labelled dev.cavman.logs=ship are shipped (compose.prod.yaml
+// labels every Caveman service and records the label on each log line), so
+// anything else running on the host is left out.
+
+local.file_match "containers" {
+	path_targets = [{__path__ = "/var/lib/docker/containers/*/*-json.log"}]
+}
+
+loki.source.file "containers" {
+	targets    = local.file_match.containers.targets
+	forward_to = [loki.process.containers.receiver]
+}
+
+loki.process "containers" {
+	// One Docker json-file line: {"log": "...", "stream": "stdout",
+	// "attrs": {"com.docker.compose.service": "api", "dev.cavman.logs": "ship"},
+	// "time": "..."}
+	stage.json {
+		expressions = {
+			service = "attrs.\"com.docker.compose.service\"",
+			ship    = "attrs.\"dev.cavman.logs\"",
+			stream  = "stream",
+			log     = "log",
+			time    = "time",
+		}
+	}
+
+	stage.labels {
+		values = {service = "", ship = "", stream = ""}
+	}
+
+	stage.match {
+		selector = "{ship!=\"ship\"}"
+		action   = "drop"
+	}
+
+	stage.timestamp {
+		source = "time"
+		format = "RFC3339Nano"
+	}
+
+	stage.output {
+		source = "log"
+	}
+
+	// The file path only repeats the container id; the marker has done its job.
+	stage.label_drop {
+		values = ["filename", "ship"]
+	}
+
+	forward_to = [loki.write.grafana.receiver]
+}
+
+loki.write "grafana" {
+	endpoint {
+		url = sys.env("GRAFANA_LOKI_URL")
+
+		basic_auth {
+			username = sys.env("GRAFANA_LOKI_USER")
+			password = sys.env("GRAFANA_LOKI_TOKEN")
+		}
+	}
+	external_labels = {app = "caveman"}
+}

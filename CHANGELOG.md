@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-30 — Server logs can go to Grafana Cloud
+
+- `compose.prod.yaml` gains an optional `alloy` service (Grafana Alloy) that ships the API, worker, web and Caddy container logs to Grafana Cloud Logs or any Loki. It starts only when `.env` has `COMPOSE_PROFILES=logs` and the three `GRAFANA_LOKI_*` values; setup is in `docs/DEPLOY_DIGITALOCEAN.md`, "Logs".
+- The shipper reads Docker's log files through a read-only mount and is not given the Docker socket. Production containers are labelled `dev.cavman.logs=ship` and their log lines record it; only those lines are shipped.
+- The privacy policy lists Grafana Labs as a processor and says its copy of the logs is deleted after at most 30 days.
+
 ## 2026-09-30 — Error reporting to Sentry
 
 - With `SENTRY_DSN` set, the API and workers (`pip install '.[sentry]'`, now in the API image) and the web server report errors to Sentry: unhandled exceptions, ERROR log records (so logged job failures), and failed Next.js requests. Unset, nothing changes.

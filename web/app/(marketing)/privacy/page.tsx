@@ -36,6 +36,7 @@ const SECTIONS: LegalSection[] = [
       "Resend: your email address and the content of account emails.",
       "GitHub: only if you connect it, for imports and publishing you ask for.",
       "Sentry: error reports from our servers (the error, where in our code it happened and which page or API route failed), so we can fix problems. We configure it not to receive your prompts, code, request contents, cookies or IP address.",
+      "Grafana Labs (Grafana Cloud): our server logs, so we can investigate problems. Logs record technical events and errors. They can include account and build identifiers and, in error messages, short fragments of a build's content.",
     ],
   },
   {
@@ -49,7 +50,7 @@ const SECTIONS: LegalSection[] = [
     id: "retention",
     title: "How long we keep it",
     body: [
-      "Your account, projects, builds and deliveries are kept until you delete them or your account. Temporary build workspaces and dependency caches are cleaned up automatically after a build finishes. Server logs are rotated automatically and capped in size, so older entries are deleted as new ones arrive. Backups are kept for up to 30 days.",
+      "Your account, projects, builds and deliveries are kept until you delete them or your account. Temporary build workspaces and dependency caches are cleaned up automatically after a build finishes. Server logs are rotated automatically and capped in size, so older entries are deleted as new ones arrive; the copy held by Grafana Cloud is deleted after at most 30 days. Backups are kept for up to 30 days.",
       "Deleting your account in Settings erases your account, projects, runs and deliveries from the live system straight away. If a build is still running, Settings asks you to stop it first. Copies in backups expire on the backup schedule.",
     ],
   },
