@@ -124,6 +124,7 @@ runs it on every push against Postgres and an S3 stand-in.
 
 | Date | Backup set | Result | By |
 | --- | --- | --- | --- |
+| 2026-09-30 | `20260930T044321Z` (first nightly set, 844 KB) | Passed on caveman-1; key copy and scratch data removed afterwards | Owner |
 
 ### Moving from SQLite to PostgreSQL
 
