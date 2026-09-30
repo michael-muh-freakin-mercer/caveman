@@ -1,6 +1,6 @@
 # Live-model campaigns
 
-Real OpenRouter models driving real Caveman builds (`scripts/live_campaign.py`).
+Real OpenRouter models driving real Cavman builds (`scripts/live_campaign.py`).
 A small, budget-capped version runs on demand in CI: Actions → **Live smoke
 (real models, spends credits)** → Run workflow.
 Each report lists every request with its final state, tasks, failure classes,
@@ -18,7 +18,7 @@ model calls, provider-reported cost and time.
 - Recoveries: two builds hit a `BAD_OUTPUT` failure once and completed after a
   kernel-routed revision.
 - **Cost reporting confirmed.** OpenRouter's own usage counter rose by the same
-  amount Caveman recorded, to within half a cent; every call reported its cost.
+  amount Cavman recorded, to within half a cent; every call reported its cost.
   USD budgets therefore enforce real spend.
 
 Every accepted change passed trusted sandbox checks (compile, pytest or node:test)

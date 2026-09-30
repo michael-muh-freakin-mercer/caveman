@@ -3,9 +3,9 @@ requires = ["setuptools>=84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "caveman"
+name = "cavman"
 version = "0.2.0"
-description = "Caveman: type what you want, Caveman builds it. Durable, verified multi-agent software delivery."
+description = "Cavman: type what you want, Cavman builds it. Durable, verified multi-agent software delivery."
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["agents", "llm", "orchestration", "code-generation", "sandbox", "multi-agent"]
@@ -23,26 +23,26 @@ dependencies = [
   "python-dotenv>=1.2.3",
   "fastapi>=0.141.1,<1",
   "uvicorn>=0.54.0,<1",
-  # PostgreSQL for multi-host deployments (CAVEMAN_DATABASE_URL); SQLite otherwise.
+  # PostgreSQL for multi-host deployments (CAVMAN_DATABASE_URL); SQLite otherwise.
   "psycopg[binary]>=3.3.6,<4",
   # Trusted validation runs pytest inside the sandbox from this environment.
   "pytest>=9.1.1",
 ]
 
 [project.urls]
-Homepage = "https://github.com/michael-muh-freakin-mercer/caveman"
-Documentation = "https://github.com/michael-muh-freakin-mercer/caveman/blob/main/docs/ENGINE.md"
-Changelog = "https://github.com/michael-muh-freakin-mercer/caveman/blob/main/CHANGELOG.md"
-Issues = "https://github.com/michael-muh-freakin-mercer/caveman/issues"
+Homepage = "https://github.com/michael-muh-freakin-mercer/cavman"
+Documentation = "https://github.com/michael-muh-freakin-mercer/cavman/blob/main/docs/ENGINE.md"
+Changelog = "https://github.com/michael-muh-freakin-mercer/cavman/blob/main/CHANGELOG.md"
+Issues = "https://github.com/michael-muh-freakin-mercer/cavman/issues"
 
 [project.scripts]
-caveman = "caveman.cli:main"
+cavman = "cavman.cli:main"
 # Compatibility entrypoint for the orchestration core's operator CLI.
 walter = "walter.cli:main"
 
 [project.optional-dependencies]
 test = ["httpx>=0.28.1"]
-# CAVEMAN_SANDBOX_BACKEND=e2b: run candidate code in E2B microVMs.
+# CAVMAN_SANDBOX_BACKEND=e2b: run candidate code in E2B microVMs.
 e2b = ["e2b>=2.51,<3"]
 # SENTRY_DSN: report API and worker errors to Sentry.
 sentry = ["sentry-sdk[fastapi]>=2.40,<3"]
@@ -53,5 +53,5 @@ where = ["src"]
 [tool.pytest.ini_options]
 markers = [
   "live: opt-in credit-bearing provider smoke test",
-  "e2b: opt-in tests against real E2B microVMs (CAVEMAN_E2B_LIVE=1 and E2B_API_KEY)",
+  "e2b: opt-in tests against real E2B microVMs (CAVMAN_E2B_LIVE=1 and E2B_API_KEY)",
 ]

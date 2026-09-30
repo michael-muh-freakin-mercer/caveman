@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NewBuildForm } from "@/components/app/new-build-form";
+import { LiveCavman } from "@/components/brand/live-cavman";
 import { load } from "@/lib/load";
 import { requireUser } from "@/lib/session";
 import type { EstimateView, ProjectView, SystemView } from "@/lib/types";
@@ -15,16 +16,17 @@ export default async function NewBuildPage({ searchParams }: { searchParams: Pro
     project && /^[0-9a-f]{32}$/.test(project) ? load<ProjectView>(user.id, `projects/${project}`) : Promise.resolve(null),
   ]);
   const disabledReason = !system.ok
-    ? "Caveman is temporarily unavailable, so new builds cannot start right now. Try again in a moment."
+    ? "Cavman is temporarily unavailable, so new builds cannot start right now. Try again in a moment."
     : !system.data.provider.configured
-      ? "Caveman's model provider is not configured on the server yet. An operator needs to add a provider key before builds can run."
+      ? "Cavman's model provider is not configured on the server yet. An operator needs to add a provider key before builds can run."
       : null;
   return (
-    <div className="stone min-h-[calc(100dvh-3.5rem)] px-4 py-10 sm:px-8 sm:py-16 lg:min-h-dvh">
+    <div className="stone dig-grid min-h-[calc(100dvh-3.5rem)] px-4 py-10 sm:px-8 sm:py-16 lg:min-h-dvh">
       <div className="mx-auto max-w-3xl text-center">
-        <p className="eyebrow text-ember">New build</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-fg sm:text-5xl">What do you want to build?</h1>
-        <p className="mt-4 text-fg-soft">Plain English is fine. Caveman infers sensible defaults and asks only when it genuinely needs you.</p>
+        <LiveCavman className="mx-auto mb-4 h-14 w-14" />
+        <p className="eyebrow text-muted">New build</p>
+        <h1 className="display text-balance mt-4 text-2xl leading-tight text-fg sm:text-4xl">What do you want to build?</h1>
+        <p className="mt-4 text-fg-soft">Plain English is fine. Cavman infers sensible defaults and asks only when it genuinely needs you.</p>
       </div>
       <div className="mt-10">
         <NewBuildForm

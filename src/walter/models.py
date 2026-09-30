@@ -193,7 +193,7 @@ class Artifact(Model):
     input_artifact_ids: list[str] = Field(default_factory=list)
     status: str = "candidate"
     # Integration commit holding exactly this accepted candidate's bytes, when
-    # the run integrates accepted code (Caveman-managed project repositories).
+    # the run integrates accepted code (Cavman-managed project repositories).
     integrated_commit: str | None = None
     validations: list[ArtifactValidation] = Field(default_factory=list)
     reviews: list[Review] = Field(default_factory=list)

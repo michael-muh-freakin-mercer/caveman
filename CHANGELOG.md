@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-30 — A new look: the dig site
+
+- The web app has a new light design: concrete background with a survey grid, ink outlines, duck-yellow for the one main action per screen, and pink and sky-blue stickers for small jokes. Headings use Rubik Mono One, text uses Archivo and code uses JetBrains Mono.
+- The landing page is now a dig site: "We dug up a caveman who builds software.", with the prompt as the largest element and Cavman in a museum display case. He blinks, and looks up when you type.
+- The pixel Cavman is the logo and shows how each run is going: digging while it works, hiding when it needs you, asleep when paused and cheering when it is done.
+- The favicon, share image, README banner and README screenshots are redrawn to match. Navigation and button labels are unchanged.
+
+## 2026-09-30 — Caveman is now Cavman
+
+- The product, the Python package (`cavman`, CLI `cavman`), the web app's API routes, settings (`CAVMAN_*`), metrics (`cavman_*`), the E2B template (`cavman-sandbox`), Docker and systemd names and all docs use the new name, matching the domain cavman.dev.
+- Existing servers keep working without changes: `CAVEMAN_*` settings still apply (a `CAVMAN_*` setting of the same name wins), and an install still configured that way keeps its database schema (`caveman_*`), E2B template and SQLite file names. `scripts/migrate-to-cavman.sh` rewrites a server's `.env` files to the new names and pins those values; see "Upgrading a server set up before the rename to Cavman" in `docs/DEPLOY_DIGITALOCEAN.md`. The web app sends the user identity under both the old and the new header name and the API accepts either, so the two can be upgraded one after the other.
+- Local development: the compose volume is now `cavman-data`, so a fresh `docker compose up` starts with empty local state; `.local/caveman` and `.local/caveman-auth.db` are still used when they are the only ones present.
+
+## 2026-09-30 — Server logs can go to Grafana Cloud
+
+- `compose.prod.yaml` gains an optional `alloy` service (Grafana Alloy) that ships the API, worker, web and Caddy container logs to Grafana Cloud Logs or any Loki. It starts only when `.env` has `COMPOSE_PROFILES=logs` and the three `GRAFANA_LOKI_*` values; setup is in `docs/DEPLOY_DIGITALOCEAN.md`, "Logs".
+- The shipper reads Docker's log files through a read-only mount and is not given the Docker socket. Production containers are labelled `dev.cavman.logs=ship` and their log lines record it; only those lines are shipped.
+- The privacy policy lists Grafana Labs as a processor and says its copy of the logs is deleted after at most 30 days.
+
 ## 2026-09-30 — Error reporting to Sentry
 
 - With `SENTRY_DSN` set, the API and workers (`pip install '.[sentry]'`, now in the API image) and the web server report errors to Sentry: unhandled exceptions, ERROR log records (so logged job failures), and failed Next.js requests. Unset, nothing changes.
@@ -8,20 +27,20 @@
 
 ## 2026-09-30 — Nightly off-server backups and a restore drill
 
-- `deploy/backup/backup.sh` stops the API and workers while it captures both stores, so the database and files match (they restart before the upload, and on any failure), dumps PostgreSQL (the auth database too when it is separate) and archives the data volume, encrypts both with age to a key the server never holds, uploads the set to a private DigitalOcean Spaces bucket under a UTC timestamp, and prunes sets older than `BACKUP_RETENTION_DAYS` (1 to 30, default 14). `caveman-backup.timer` runs it nightly; `BACKUP_PING_URL` can report each success to a cron monitor.
-- `deploy/backup/restore-drill.sh` restores a set into a throwaway Postgres container and a scratch directory, verifies checksums, row counts and `git fsck` on project repositories, and runs `caveman ops list` against the copy. Nothing in production is touched.
+- `deploy/backup/backup.sh` stops the API and workers while it captures both stores, so the database and files match (they restart before the upload, and on any failure), dumps PostgreSQL (the auth database too when it is separate) and archives the data volume, encrypts both with age to a key the server never holds, uploads the set to a private DigitalOcean Spaces bucket under a UTC timestamp, and prunes sets older than `BACKUP_RETENTION_DAYS` (1 to 30, default 14). `cavman-backup.timer` runs it nightly; `BACKUP_PING_URL` can report each success to a cron monitor.
+- `deploy/backup/restore-drill.sh` restores a set into a throwaway Postgres container and a scratch directory, verifies checksums, row counts and `git fsck` on project repositories, and runs `cavman ops list` against the copy. Nothing in production is touched.
 - CI job "backup and restore drill" runs both against Postgres and an S3 stand-in on every push, including pruning and a check that no plaintext reaches the bucket.
 - Setup steps: `docs/DEPLOY_DIGITALOCEAN.md`, "Backups".
 
 ## 2026-09-30 — Terms, Privacy and Acceptable Use pages
 
-- New public pages at `/terms`, `/privacy` and `/acceptable-use`, linked from the site footer and from a line under the sign-up button. The Acceptable Use Policy lists what Caveman refuses to build. The privacy policy names every third party that sees user data (OpenRouter and model providers, E2B, DigitalOcean, Cloudflare, Resend, GitHub).
+- New public pages at `/terms`, `/privacy` and `/acceptable-use`, linked from the site footer and from a line under the sign-up button. The Acceptable Use Policy lists what Cavman refuses to build. The privacy policy names every third party that sees user data (OpenRouter and model providers, E2B, DigitalOcean, Cloudflare, Resend, GitHub).
 - Operator name, contact address, governing law and minimum age live in `web/lib/legal.ts`.
 - `deploy/compose.prod.yaml` rotates container logs by size (5 × 10 MB per service), so server logs no longer grow without limit.
 
 ## 2026-09-29 — Invite-only sign-up and HSTS
 
-- `CAVEMAN_SIGNUP_ALLOWLIST` (web) limits who can create an account to listed emails and `@domain` entries, for password and GitHub sign-up alike. Others see "Caveman is invite-only for now". Setting it also requires email verification (so someone cannot claim an allowlisted address they do not own), which needs `RESEND_API_KEY`. Unset keeps sign-up open; existing accounts are unaffected.
+- `CAVMAN_SIGNUP_ALLOWLIST` (web) limits who can create an account to listed emails and `@domain` entries, for password and GitHub sign-up alike. Others see "Cavman is invite-only for now". Setting it also requires email verification (so someone cannot claim an allowlisted address they do not own), which needs `RESEND_API_KEY`. Unset keeps sign-up open; existing accounts are unaffected.
 - Caddy now sends `Strict-Transport-Security` (one year), so browsers stop trying plain HTTP.
 
 ## 2026-09-29 — DigitalOcean deployment guide
@@ -31,16 +50,16 @@
 - `web/.dockerignore` keeps `web/.env.local` and other local files out of the web image; secrets reach the app only through the runtime `env_file`.
 ## 2026-09-29 — E2B microVM sandbox
 
-- New isolation backend: with `CAVEMAN_SANDBOX_BACKEND=e2b`, every candidate check and npm install runs in a fresh E2B microVM that is killed afterwards, so generated code never runs on the worker host. Bubblewrap stays the default.
+- New isolation backend: with `CAVMAN_SANDBOX_BACKEND=e2b`, every candidate check and npm install runs in a fresh E2B microVM that is killed afterwards, so generated code never runs on the worker host. Bubblewrap stays the default.
 - The VM gets the same contract as Bubblewrap: a read-only candidate snapshot owned by root, a dedicated `sandbox` account entered with `setpriv --no-new-privs` (E2B's default `user` has passwordless sudo and is never used), a cleared environment, `prlimit` limits and a wall-time budget. Offline checks load Bubblewrap's network-deny seccomp filter inside the VM, because the first live run showed E2B's `allow_internet_access=False` alone did not stop outbound connections. Writable outputs come back through `tarfile`'s `data` filter. Any E2B failure is `SandboxUnavailable`; there is no host fallback.
-- `scripts/e2b_template.py` builds the `caveman-sandbox` template (Ubuntu 24.04, pytest at `/opt/walter-env`, Node 22 at `/opt/node`). Install the SDK with `pip install '.[e2b]'`; the API image now includes it.
+- `scripts/e2b_template.py` builds the `cavman-sandbox` template (Ubuntu 24.04, pytest at `/opt/walter-env`, Node 22 at `/opt/node`). Install the SDK with `pip install '.[e2b]'`; the API image now includes it.
 - A worker starting with E2B runs the isolation probe in a real VM and refuses to start if it fails. The health check reports the configured backend without starting a VM.
 - `src/walter/sandbox_e2b.py` joins `SAFETY_PATHS`.
 - The "E2B sandbox" workflow builds the template and runs the live tests (`-m e2b`) when the `E2B_API_KEY` secret is set.
 
 ## 2026-09-28 — GitHub account rename
 
-- The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/caveman`.
+- The owner's GitHub account is now `michael-muh-freakin-mercer`; `CODEOWNERS`, the package URLs, issue forms, docs and the web app's GitHub links point at `michael-muh-freakin-mercer/cavman`.
 
 ## 2026-09-28 — Sign-up CAPTCHA
 
@@ -49,7 +68,7 @@
 
 ## 2026-09-28 — SQLite to PostgreSQL migration
 
-- `caveman ops migrate-to-postgres` copies the operational and platform stores from SQLite into `CAVEMAN_DATABASE_URL`, and with `--auth-sqlite`/`--auth-url` the web app's Better Auth tables (booleans and timestamps converted). It refuses while a job holds a live lease, when only one of the two core SQLite stores exists, when the auth file lacks any Better Auth table, when any target table has rows, or when SQLite has a column PostgreSQL lacks. Every store is rehearsed in a rolled-back transaction before any is committed, and row counts are checked. `--dry-run` stops after the rehearsal. Steps are in `docs/RUNBOOK.md`.
+- `cavman ops migrate-to-postgres` copies the operational and platform stores from SQLite into `CAVMAN_DATABASE_URL`, and with `--auth-sqlite`/`--auth-url` the web app's Better Auth tables (booleans and timestamps converted). It refuses while a job holds a live lease, when only one of the two core SQLite stores exists, when the auth file lacks any Better Auth table, when any target table has rows, or when SQLite has a column PostgreSQL lacks. Every store is rehearsed in a rolled-back transaction before any is committed, and row counts are checked. `--dry-run` stops after the rehearsal. Steps are in `docs/RUNBOOK.md`.
 
 ## 2026-09-28 — Opt-in live smoke in CI
 
@@ -58,8 +77,8 @@
 
 ## 2026-09-28 — Dashboards and alerts
 
-- `GET /api/metrics` adds `caveman_spend_month_usd`, `caveman_model_calls_month` and `caveman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts, counted by when each call was made (runs whose jobs all finished before the month are skipped). `caveman_deliveries{status="failed"}` is now always exported, at 0 until the first failure.
-- `deploy/monitoring/`: Prometheus alert rules (scrape down, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls; none on `caveman_sandbox_available`, which is probed on the API host, not the workers) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
+- `GET /api/metrics` adds `cavman_spend_month_usd`, `cavman_model_calls_month` and `cavman_model_calls_without_cost_month`: provider-reported spend and calls this calendar month across all accounts, counted by when each call was made (runs whose jobs all finished before the month are skipped). `cavman_deliveries{status="failed"}` is now always exported, at 0 until the first failure.
+- `deploy/monitoring/`: Prometheus alert rules (scrape down, queue backlog and stall, expired leases, job failures, delivery failures, monthly spend, uncosted calls; none on `cavman_sandbox_available`, which is probed on the API host, not the workers) with `promtool` unit tests run in CI, an example scrape config, and a Grafana dashboard.
 
 ## 2026-09-28 — Cost estimate before a build
 
@@ -69,21 +88,21 @@
 ## 2026-09-28 — Compose deployment verified on PostgreSQL
 
 - `deploy/e2e.sh` builds the API and web images, starts `compose.yaml` with `deploy/compose.e2e.yaml` (Postgres for Better Auth and operational state, two workers sharing the job queue, scripted executor) and runs the 15 web journeys against it. A new CI job, `deploy`, runs it on every push.
-- The Playwright config takes `AUTH_DATABASE_URL` from the environment, so the journeys can run against Better Auth on Postgres locally, and `CAVEMAN_E2E_BASE_URL` to drive an already running stack.
+- The Playwright config takes `AUTH_DATABASE_URL` from the environment, so the journeys can run against Better Auth on Postgres locally, and `CAVMAN_E2E_BASE_URL` to drive an already running stack.
 
 ## 2026-09-28 — Repository restructure and project presentation
 
 - The specifications moved from the repository root into `doctrine/` (with the former `prompts/`, `protocols/` and `templates/` under it); `runbooks/` moved to `docs/runbooks/` and `ROADMAP.md` to `docs/ROADMAP.md`. Content is unchanged and history follows the moves.
 - The Manager's instructions now load from `doctrine/SYSTEM_PROMPT.md`, and the API image copies `doctrine/`.
 - `SAFETY_PATHS` protects the same doctrine files at their new `doctrine/` paths; the set is otherwise unchanged. Protection is an exact path match, so a new test fails if any protected path names a file that does not exist, which would otherwise leave a moved file silently unprotected.
-- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `michael-muh-freakin-mercer/caveman`.
-- The tagline "So easy a caveman could do it" was retired as too close to an existing slogan; it is now "You describe. Caveman delivers." The web app gained a favicon, Apple touch icon and link-preview image drawn from the flint mark.
+- The README was rebuilt around real product screenshots, the first live-campaign results and a repository map; `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms, a pull request template, `CODEOWNERS`, Dependabot and `.editorconfig` were added. Links point at the repository's new name, `michael-muh-freakin-mercer/cavman`.
+- The tagline "So easy a cavman could do it" was retired as too close to an existing slogan; it is now "You describe. Cavman delivers." The web app gained a favicon, Apple touch icon and link-preview image drawn from the flint mark.
 
 ## 2026-09-28 — Step budget and salvage (first live completion)
 
 - With specialists able to run their checks, the fourth live smoke build completed: the specialist reached all-green checks at its 24th and final step, ran out before reporting, and its revision was accepted after trusted validation and independent review ($0.27, 33 model calls, 11 minutes).
-- Caveman gives specialists 40 steps per attempt (`CAVEMAN_SPECIALIST_MAX_TURNS`).
-- `DurableController(salvage_exhausted=True)` (Caveman only): when a developer specialist runs out of steps after changing its workspace, the platform submits the workspace as a candidate instead of discarding the attempt. The submission says in its deliverable that the platform submitted it and the specialist did not self-report; it must still pass every trusted check and independent review. Without changes, or with salvage off (operator CLI), exhaustion fails as before.
+- Cavman gives specialists 40 steps per attempt (`CAVMAN_SPECIALIST_MAX_TURNS`).
+- `DurableController(salvage_exhausted=True)` (Cavman only): when a developer specialist runs out of steps after changing its workspace, the platform submits the workspace as a candidate instead of discarding the attempt. The submission says in its deliverable that the platform submitted it and the specialist did not self-report; it must still pass every trusted check and independent review. Without changes, or with salvage off (operator CLI), exhaustion fails as before.
 
 ## 2026-09-28 — Planner robustness (from live probes)
 
@@ -107,7 +126,7 @@
 
 ## 2026-09-28 — Stack expectations
 
-- The New build form states that Python and Node/TypeScript code is tested in the sandbox and other stacks are delivered as reviewed source, and warns (without blocking) when the request or preferred stack names something Caveman cannot run: iOS/Swift, Android/Kotlin, Flutter, React Native, native mobile apps, Go, Rust, Java, .NET, PHP, Ruby, C++, game engines.
+- The New build form states that Python and Node/TypeScript code is tested in the sandbox and other stacks are delivered as reviewed source, and warns (without blocking) when the request or preferred stack names something Cavman cannot run: iOS/Swift, Android/Kotlin, Flutter, React Native, native mobile apps, Go, Rust, Java, .NET, PHP, Ruby, C++, game engines.
 
 ## 2026-09-28 — Secret scanning
 
@@ -121,12 +140,12 @@
 
 - Fix: a project's sandbox state (candidate grants in `.local/sandboxes/grants.json`) is loaded once per `WorkspaceManager` and rewritten whole on save, and every job builds its own manager. Two runs of one project executing at once (allowed since users may have two builds running) could drop each other's grants or corrupt the file. The queue now never claims a job whose project already has a running job, across all workers and hosts.
 - Project leases (`project_leases`) let work outside a job hold a project: the job queue skips a leased project, and a lease is refused while a job of the project runs. The manual delivery retry endpoint takes one.
-- Maintenance: once per `CAVEMAN_MAINTENANCE_INTERVAL_SECONDS` (default 3600, one worker across the fleet) the worker retires candidate worktrees, branches and grants of finished runs (completed with a ready delivery, or closed otherwise) through the sandbox's `retire_run`, prunes cached npm installs unused for `CAVEMAN_NODE_DEPS_MAX_AGE_DAYS` (default 7), and prunes rate-limit records older than a day. Each project is leased while it is cleaned. Deliveries and the integration branch are untouched; a follow-up build after cleanup is tested.
+- Maintenance: once per `CAVMAN_MAINTENANCE_INTERVAL_SECONDS` (default 3600, one worker across the fleet) the worker retires candidate worktrees, branches and grants of finished runs (completed with a ready delivery, or closed otherwise) through the sandbox's `retire_run`, prunes cached npm installs unused for `CAVMAN_NODE_DEPS_MAX_AGE_DAYS` (default 7), and prunes rate-limit records older than a day. Each project is leased while it is cleaned. Deliveries and the integration branch are untouched; a follow-up build after cleanup is tested.
 
 ## 2026-09-28 — Abuse and tenancy limits
 
-- Per-user rate limits kept in the platform database (so they hold across API hosts): new builds and continuations per hour, repository imports per hour, and other mutating actions per minute; over a limit the API answers 429 with `Retry-After`. Per-account caps on concurrent builds, projects and disk (project repositories plus archives). All configurable (`CAVEMAN_BUILDS_PER_HOUR`, `CAVEMAN_IMPORTS_PER_HOUR`, `CAVEMAN_ACTIONS_PER_MINUTE`, `CAVEMAN_MAX_CONCURRENT_BUILDS`, `CAVEMAN_MAX_PROJECTS`, `CAVEMAN_ACCOUNT_DISK_MB`). Rate records are erased with the account.
-- `CAVEMAN_GITHUB_IMPORT_TOKEN`: optional operator token for import metadata and clones (raises GitHub's anonymous rate limit); it reaches git only through environment config for the download and is never written to the project repository.
+- Per-user rate limits kept in the platform database (so they hold across API hosts): new builds and continuations per hour, repository imports per hour, and other mutating actions per minute; over a limit the API answers 429 with `Retry-After`. Per-account caps on concurrent builds, projects and disk (project repositories plus archives). All configurable (`CAVMAN_BUILDS_PER_HOUR`, `CAVMAN_IMPORTS_PER_HOUR`, `CAVMAN_ACTIONS_PER_MINUTE`, `CAVMAN_MAX_CONCURRENT_BUILDS`, `CAVMAN_MAX_PROJECTS`, `CAVMAN_ACCOUNT_DISK_MB`). Rate records are erased with the account.
+- `CAVMAN_GITHUB_IMPORT_TOKEN`: optional operator token for import metadata and clones (raises GitHub's anonymous rate limit); it reaches git only through environment config for the download and is never written to the project repository.
 - Fix: `PRAGMA journal_mode=WAL` fails immediately with "database is locked" while another process holds a new database file (SQLite applies no busy timeout to it), another way a concurrent first start could crash. `walter.store.enable_wal` skips the change when WAL is already on and retries briefly otherwise.
 
 ## 2026-09-28 — Concurrent first start
@@ -135,7 +154,7 @@
 
 ## 2026-09-28 — PostgreSQL for operational state
 
-- `CAVEMAN_DATABASE_URL` puts the kernel's run store and the platform store in PostgreSQL (schemas `<CAVEMAN_DATABASE_SCHEMA>_ops` / `_platform`). `walter.pg` presents a psycopg connection with the SQLite calls the stores make: `BEGIN IMMEDIATE` becomes a transaction holding a per-schema advisory lock (single-writer semantics preserved, so the optimistic version check and the job queue behave identically across hosts), `?` placeholders and `rowid` are translated, and rows read by index or name. `PostgresStore` subclasses `SQLiteStore`; `walter.store.open_store` and `Settings.open_operations_store/open_platform_store` select the backend.
+- `CAVMAN_DATABASE_URL` puts the kernel's run store and the platform store in PostgreSQL (schemas `<CAVMAN_DATABASE_SCHEMA>_ops` / `_platform`). `walter.pg` presents a psycopg connection with the SQLite calls the stores make: `BEGIN IMMEDIATE` becomes a transaction holding a per-schema advisory lock (single-writer semantics preserved, so the optimistic version check and the job queue behave identically across hosts), `?` placeholders and `rowid` are translated, and rows read by index or name. `PostgresStore` subclasses `SQLiteStore`; `walter.store.open_store` and `Settings.open_operations_store/open_platform_store` select the backend.
 - Fix (both backends): loading a run read its row and its events in separate statements, so a concurrent commit from another process could make a reader see a snapshot that did not match its events. Reads now happen inside one read transaction (repeatable read on PostgreSQL). `Engine.version` uses the store instead of opening the SQLite file.
 - The platform store's upserts use portable `ON CONFLICT ... DO UPDATE`.
 - CI runs the API suite and new store/queue concurrency tests against a PostgreSQL 16 service; locally the tests start a throwaway cluster when PostgreSQL is installed.
@@ -152,12 +171,12 @@
 
 - Decision: honouring a user's deletion request is the one case where durable run history is removed. `SQLiteStore.delete_run` erases a run's snapshot, events and migration backups; ordinary operation still never removes history.
 - `GET /api/account/export` returns the account's projects and runs (full event history and artifact contents); the web route `/api/account/export` adds the account record and sign-in methods (never tokens) and serves it as a download.
-- `DELETE /api/account` removes platform records in one transaction (refused with 409 while a job is running; queued jobs go with their runs), then kernel runs, agent sessions, project repositories and delivery archives. It is called only from Better Auth's `beforeDelete` hook, after the password (or session freshness) check, so the sign-in is deleted only after the data; the browser proxy does not expose it. `caveman ops purge-orphans` removes data left by an interrupted erasure (items younger than an hour are kept).
+- `DELETE /api/account` removes platform records in one transaction (refused with 409 while a job is running; queued jobs go with their runs), then kernel runs, agent sessions, project repositories and delivery archives. It is called only from Better Auth's `beforeDelete` hook, after the password (or session freshness) check, so the sign-in is deleted only after the data; the browser proxy does not expose it. `cavman ops purge-orphans` removes data left by an interrupted erasure (items younger than an hour are kept).
 - Settings has a "Your data" panel with the download and a typed-confirmation delete dialog.
 
 ## 2026-09-28 — Existing code
 
-- New projects can start from a public GitHub repository (`repository_url` on `POST /api/builds` and `POST /api/projects`; "Start from a public GitHub repository" in the New build form). `src/caveman/importer.py` accepts only `https://github.com/<owner>/<repo>`, checks public visibility and size through GitHub's API before downloading, clones shallow over HTTPS only (`GIT_ALLOW_PROTOCOL=https`) with no hooks, templates, tags, submodules or credentials, inspects the tree before checkout, refuses symlinks, submodules and other special entries, drops paths the sandbox treats as state or secrets, and commits the kept files as the project's single first commit, discarding upstream history, refs and remote. Caveman's `.local/` is excluded through `.git/info/exclude`, leaving the project's own `.gitignore` untouched. The source (URL, upstream commit, branch, counts) is recorded in the project settings and shown on the project page.
+- New projects can start from a public GitHub repository (`repository_url` on `POST /api/builds` and `POST /api/projects`; "Start from a public GitHub repository" in the New build form). `src/cavman/importer.py` accepts only `https://github.com/<owner>/<repo>`, checks public visibility and size through GitHub's API before downloading, clones shallow over HTTPS only (`GIT_ALLOW_PROTOCOL=https`) with no hooks, templates, tags, submodules or credentials, inspects the tree before checkout, refuses symlinks, submodules and other special entries, drops paths the sandbox treats as state or secrets, and commits the kept files as the project's single first commit, discarding upstream history, refs and remote. Cavman's `.local/` is excluded through `.git/info/exclude`, leaving the project's own `.gitignore` untouched. The source (URL, upstream commit, branch, counts) is recorded in the project settings and shown on the project page.
 - The workflow planner now receives a listing of the project's current files (integration head, else `HEAD`; policy-visible paths only, capped at 200), so follow-up runs and imported projects are planned against existing code. `WorkspaceManager.tracked_files()` provides it.
 
 ## 2026-09-28 — Publish to GitHub
@@ -173,20 +192,20 @@
 
 ## 2026-09-28 — Workflow driver
 
-- Decision: Caveman runs default to a deterministic workflow driver (`src/caveman/workflow.py`) instead of the Manager model's tool loop. Code drives plan → delegate → validate → review → accept/integrate → recover; a planner model produces criteria and a task graph that is validated (uniqueness, dependency order, criterion coverage, kernel task rules) before anything is recorded, with one corrected retry. Failures are classified by trusted code and routed by the kernel's recovery table; replan-blocked work is reopened only when the kernel judges the reopen non-material; capability requests become exact human approvals. The default scripted build dropped from 19 model calls to 8. `CAVEMAN_ORCHESTRATION=manager` keeps the original mode.
+- Decision: Cavman runs default to a deterministic workflow driver (`src/cavman/workflow.py`) instead of the Manager model's tool loop. Code drives plan → delegate → validate → review → accept/integrate → recover; a planner model produces criteria and a task graph that is validated (uniqueness, dependency order, criterion coverage, kernel task rules) before anything is recorded, with one corrected retry. Failures are classified by trusted code and routed by the kernel's recovery table; replan-blocked work is reopened only when the kernel judges the reopen non-material; capability requests become exact human approvals. The default scripted build dropped from 19 model calls to 8. `CAVMAN_ORCHESTRATION=manager` keeps the original mode.
 - Adapter: worker errors are classified (budget interruption → TIMEOUT, malformed structured output or exhausted turns → BAD_OUTPUT, provider transport errors → PROVIDER_FAILURE); anything unrecognised stays TOOL_FAILURE. `_invoke` can call the manager model (used by the planner).
 
 ## 2026-09-28 — Acceptance integration
 
-- Decision: for Caveman project repositories, accepting a developer candidate fast-forwards an internal `walter-integration` staging ref to exactly its validated bytes (fingerprint re-verified). New candidates start from that ref, so dependent tasks build on accepted upstream code. Integration is fast-forward only; a candidate on a stale base fails as the new `STALE_BASE` class (routed to RETRY) and the retry replays the previous attempt onto the new head. finish_run requires all accepted code to be integrated. Merging into user branches, pushing and deploying remain human-approved promotion. Off for the operator CLI.
+- Decision: for Cavman project repositories, accepting a developer candidate fast-forwards an internal `walter-integration` staging ref to exactly its validated bytes (fingerprint re-verified). New candidates start from that ref, so dependent tasks build on accepted upstream code. Integration is fast-forward only; a candidate on a stale base fails as the new `STALE_BASE` class (routed to RETRY) and the retry replays the previous attempt onto the new head. finish_run requires all accepted code to be integrated. Merging into user branches, pushing and deploying remain human-approved promotion. Off for the operator CLI.
 - Kernel: `Artifact.integrated_commit`, `Orchestrator.record_integration`, `FailureClass.STALE_BASE`.
 - Sandbox: `integration_head`, `integrate` (compare-and-swap ref update), `carry_over`, `create_candidate(base_revision=...)`.
 - Delivery archives the integration head after verifying it against the kernel's recorded commits.
 
-## 2026-09-27 — Caveman product layer
+## 2026-09-27 — Cavman product layer
 
-- Product identity is now Caveman; `walter` remains the internal core package and a compatibility CLI.
-- Added `src/caveman/`: private FastAPI control plane, owner-scoped platform store, leased durable job queue, worker with interruption recovery, exact-scope approval decisions (bound to the displayed scope digest), SSE streaming, honest projections, verified delivery archives, and a scripted test executor refused in production.
+- Product identity is now Cavman; `walter` remains the internal core package and a compatibility CLI.
+- Added `src/cavman/`: private FastAPI control plane, owner-scoped platform store, leased durable job queue, worker with interruption recovery, exact-scope approval decisions (bound to the displayed scope digest), SSE streaming, honest projections, verified delivery archives, and a scripted test executor refused in production.
 - Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
 - Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
 - Workers refuse to start when Bubblewrap isolation is unusable.

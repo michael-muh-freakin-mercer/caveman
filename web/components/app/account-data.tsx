@@ -25,7 +25,7 @@ export function AccountData({ hasPassword }: { hasPassword: boolean }) {
       setBusy(false);
       setError(result.error.status === 400 && !hasPassword
         ? "For your security, sign out and sign in again, then delete your account."
-        : result.error.message ?? "Caveman could not delete your account.");
+        : result.error.message ?? "Cavman could not delete your account.");
       return;
     }
     router.replace("/");
@@ -50,7 +50,7 @@ export function AccountData({ hasPassword }: { hasPassword: boolean }) {
           <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete account
         </Button>
       </div>
-      <dialog ref={dialog} aria-labelledby="delete-title" className="m-auto w-[min(520px,92vw)] rounded-2xl border border-line-strong bg-surface p-6 text-fg backdrop:bg-ink/80">
+      <dialog ref={dialog} aria-labelledby="delete-title" className="m-auto w-[min(520px,92vw)] rounded-xl border-2 border-ink bg-surface p-6 text-fg shadow-[6px_6px_0_0_var(--color-ink)] backdrop:bg-ink/50">
         <h2 id="delete-title" className="text-lg font-semibold">Delete your account?</h2>
         <p className="mt-2 text-sm text-muted">
           This cannot be undone. Running builds must be stopped first.
@@ -59,12 +59,12 @@ export function AccountData({ hasPassword }: { hasPassword: boolean }) {
           Type <span className="font-mono text-fg-soft">{CONFIRMATION}</span> to confirm
         </label>
         <input id={ids.typed} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off"
-          className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm focus:border-glacier focus:outline-none" />
+          className="mt-1 h-10 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm focus:border-ink focus:outline-none" />
         {hasPassword ? (
           <>
             <label htmlFor={ids.password} className="mt-4 block text-xs text-muted">Password</label>
             <input id={ids.password} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password"
-              className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm focus:border-glacier focus:outline-none" />
+              className="mt-1 h-10 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm focus:border-ink focus:outline-none" />
           </>
         ) : null}
         {error ? <p role="alert" className="mt-4 text-sm text-bad">{error}</p> : null}

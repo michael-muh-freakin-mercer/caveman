@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth, ensureAuthSchema, githubEnabled } from "@/lib/auth";
-import { apiBase, serviceHeaders } from "@/lib/caveman";
+import { apiBase, serviceHeaders } from "@/lib/cavman";
 
 /**
  * Publish a completed run to a new GitHub repository, on the user's explicit request.
@@ -60,7 +60,7 @@ export async function POST(request: Request, context: { params: Promise<{ runId:
       cache: "no-store",
     });
   } catch {
-    return NextResponse.json({ detail: "The Caveman API is unavailable." }, { status: 503 });
+    return NextResponse.json({ detail: "The Cavman API is unavailable." }, { status: 503 });
   }
   return new Response(upstream.body, { status: upstream.status, headers: { "content-type": "application/json" } });
 }

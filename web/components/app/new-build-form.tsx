@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { CostEstimate } from "@/components/app/cost-estimate";
+import { announceTyping } from "@/components/brand/live-cavman";
 import { MAX_PROMPT_LENGTH, takePendingPrompt } from "@/lib/prompt-storage";
 import { unverifiedStacks } from "@/lib/stack-support";
 import type { EstimateView } from "@/lib/types";
@@ -71,7 +72,7 @@ export function NewBuildForm({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/caveman/builds", {
+      const response = await fetch("/api/cavman/builds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -90,48 +91,51 @@ export function NewBuildForm({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         const detail = Array.isArray(body.detail) ? "Check the advanced settings." : body.detail;
-        throw new Error(typeof detail === "string" ? detail : "Caveman could not start this build.");
+        throw new Error(typeof detail === "string" ? detail : "Cavman could not start this build.");
       }
       router.push(`/app/runs/${body.run_id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Caveman could not start this build.");
+      setError(reason instanceof Error ? reason.message : "Cavman could not start this build.");
       setBusy(false);
     }
   }
 
   const unverified = unverifiedStacks(prompt, stack);
-  const input = "mt-1.5 block w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
+  const input = "mt-1.5 block w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm text-fg placeholder:text-faint focus:border-ink focus:outline-none";
 
   return (
     <form method="post" onSubmit={submit} className="mx-auto max-w-3xl" aria-describedby={error ? ids.error : undefined}>
       {projectName ? (
         <p className="mb-3 text-sm text-muted">
-          New run in <span className="text-fg">{projectName}</span>. Caveman starts from this project&rsquo;s current code and builds on it.
+          New run in <span className="text-fg">{projectName}</span>. Cavman starts from this project&rsquo;s current code and builds on it.
         </p>
       ) : null}
       <label htmlFor={ids.prompt} className="sr-only">
         What do you want to build?
       </label>
-      <div className="rounded-2xl bg-gradient-to-b from-line-strong/80 to-line/40 p-px focus-within:shadow-ember">
+      <div className="rounded-lg border-2 border-ink bg-surface shadow-[5px_5px_0_0_var(--color-ink)] focus-within:shadow-[5px_5px_0_0_var(--color-ink),0_0_0_5px_rgb(255_212_0/0.6)]">
         <textarea
           id={ids.prompt}
           name="prompt"
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            announceTyping();
+          }}
           maxLength={MAX_PROMPT_LENGTH}
           rows={7}
           autoFocus
           placeholder="Build me a booking app for a tattoo studio. Clients pick an artist and a time slot; the studio gets an email for each booking."
-          className="block w-full resize-y rounded-[15px] bg-surface p-5 text-base leading-relaxed text-fg placeholder:text-faint focus:outline-none sm:text-lg"
+          className="block w-full resize-y rounded-md bg-surface p-5 text-base leading-relaxed text-fg placeholder:text-faint focus:outline-none focus-visible:shadow-none focus-visible:outline-none sm:text-lg"
         />
       </div>
       <div className="mt-2 flex items-start justify-between gap-4 text-xs">
-        <p className="text-muted">Caveman runs real tests for Python and Node/TypeScript code. Other stacks are delivered as reviewed source.</p>
+        <p className="text-muted">Cavman runs real tests for Python and Node/TypeScript code. Other stacks are delivered as reviewed source.</p>
         <p className="shrink-0 text-faint">{prompt.length}/{MAX_PROMPT_LENGTH}</p>
       </div>
       {unverified.length ? (
         <p role="status" className="mt-3 rounded-lg border border-warn/30 bg-warn/5 px-4 py-3 text-sm text-warn">
-          Caveman can&rsquo;t run or test {unverified.join(", ")} code yet. It will still plan, write and review it, but
+          Cavman can&rsquo;t run or test {unverified.join(", ")} code yet. It will still plan, write and review it, but
           nothing will prove it builds or works. For tested results, ask for Python or Node/TypeScript.
         </p>
       ) : null}
@@ -152,7 +156,7 @@ export function NewBuildForm({
           </div>
           <div className="sm:col-span-2">
             <label htmlFor={ids.constraints} className="text-xs text-muted">Constraints</label>
-            <textarea id={ids.constraints} value={constraints} onChange={(e) => setConstraints(e.target.value)} maxLength={2000} rows={2} placeholder="Anything Caveman must or must not do" className={`${input} py-2`} />
+            <textarea id={ids.constraints} value={constraints} onChange={(e) => setConstraints(e.target.value)} maxLength={2000} rows={2} placeholder="Anything Cavman must or must not do" className={`${input} py-2`} />
           </div>
           <div>
             <label htmlFor={ids.budget} className="text-xs text-muted">Budget ceiling (USD, max {maxBudget})</label>
@@ -171,7 +175,7 @@ export function NewBuildForm({
               <label htmlFor={ids.repository} className="text-xs text-muted">Start from a public GitHub repository</label>
               <input id={ids.repository} type="url" inputMode="url" value={repository} onChange={(e) => setRepository(e.target.value)} maxLength={300} placeholder="https://github.com/owner/repo" className={`${input} h-10`} />
               <p className="mt-1.5 text-xs text-faint">
-                Caveman copies the default branch&rsquo;s files (not its history) into a new project. Symlinks and submodules are refused; secret-looking files are left out.
+                Cavman copies the default branch&rsquo;s files (not its history) into a new project. Symlinks and submodules are refused; secret-looking files are left out.
               </p>
             </div>
           )}
@@ -195,7 +199,7 @@ export function NewBuildForm({
         <button
           type="submit"
           disabled={busy || !hydrated || Boolean(disabledReason)}
-          className="inline-flex h-12 items-center gap-2 rounded-xl bg-ember px-7 text-base font-semibold text-ink hover:bg-ember-hot disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-12 items-center gap-2 rounded-md border-2 border-ink bg-ember px-7 text-base font-bold text-ink shadow-[3px_3px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] hover:bg-ember-hot disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : null}
           {busy ? (repository.trim() && !projectId ? "Importing…" : "Starting…") : "Build it"}

@@ -14,7 +14,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   const { next } = await searchParams;
   if (await currentUser().catch(() => null)) redirect(safeNext(next));
   return (
-    <AuthShell title="Start building" subtitle="Create an account. Caveman handles the rest." pendingPrompt={promptFromNext(next)}>
+    <AuthShell title="Start building" subtitle="Create an account. Cavman handles the rest." pendingPrompt={promptFromNext(next)}>
       <AuthForm mode="sign-up" next={next ?? null} githubEnabled={githubEnabled} captchaSiteKey={captchaSiteKey} />
     </AuthShell>
   );

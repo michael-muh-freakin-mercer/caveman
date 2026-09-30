@@ -24,7 +24,7 @@ export default async function RunsPage() {
           <RunList runs={result.data.runs} />
         ) : (
           <EmptyState icon={<ListChecks className="h-6 w-6" />} title="No runs yet" action={<ButtonLink href="/app/new">Start a build <ArrowRight className="h-4 w-4" aria-hidden="true" /></ButtonLink>}>
-            Runs appear here as soon as you ask Caveman to build something.
+            Runs appear here as soon as you ask Cavman to build something.
           </EmptyState>
         )}
       </div>

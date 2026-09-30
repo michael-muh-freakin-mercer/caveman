@@ -100,7 +100,7 @@ export function TurnstileWidget({
           The human check could not load. Check your connection or content blocker, then{" "}
           <button
             type="button"
-            className="text-ember hover:underline"
+            className="font-medium text-glacier underline-offset-2 hover:underline"
             onClick={() => {
               setFailed(false);
               setAttempt((n) => n + 1);

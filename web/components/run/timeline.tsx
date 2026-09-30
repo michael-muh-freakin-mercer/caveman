@@ -26,7 +26,7 @@ export function Timeline({ runId, events }: { runId: string; events: TimelineEve
     }
     setLoading(true);
     try {
-      const response = await fetch(`/api/caveman/runs/${runId}/events?debug=true`, { cache: "no-store" });
+      const response = await fetch(`/api/cavman/runs/${runId}/events?debug=true`, { cache: "no-store" });
       if (response.ok) setDebug((await response.json()).events);
     } finally {
       setLoading(false);

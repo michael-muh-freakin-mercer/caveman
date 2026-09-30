@@ -23,7 +23,7 @@ export function CostEstimate({ estimate, mode, modeLabel, budget }: {
         {estimate.window_days} days). Bigger requests cost more.
       </>
     ) : (
-      <>No cost history for {modeLabel} builds yet, so Caveman can&rsquo;t say what this one will cost.</>
+      <>No cost history for {modeLabel} builds yet, so Cavman can&rsquo;t say what this one will cost.</>
     );
   return (
     <div data-testid="cost-estimate" className="mt-4 rounded-lg border border-line bg-surface/60 px-4 py-3 text-xs leading-relaxed text-muted">

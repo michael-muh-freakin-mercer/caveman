@@ -100,12 +100,12 @@ export function SecurityPanel({ sessions, hasPassword }: { sessions: SessionSumm
             <div>
               <label htmlFor={ids.current} className="text-xs text-muted">Current password</label>
               <input id={ids.current} name="current" type="password" required autoComplete="current-password"
-                className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm focus:border-glacier focus:outline-none" />
+                className="mt-1 h-10 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm focus:border-ink focus:outline-none" />
             </div>
             <div>
               <label htmlFor={ids.next} className="text-xs text-muted">New password</label>
               <input id={ids.next} name="next" type="password" required minLength={10} autoComplete="new-password"
-                className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm focus:border-glacier focus:outline-none" />
+                className="mt-1 h-10 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-sm focus:border-ink focus:outline-none" />
             </div>
           </div>
           <Button type="submit" size="sm" disabled={busy !== null}>

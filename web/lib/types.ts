@@ -1,4 +1,4 @@
-// Response shapes of the Caveman API (src/caveman/views.py and api.py).
+// Response shapes of the Cavman API (src/cavman/views.py and api.py).
 
 export type RunState =
   | "starting"

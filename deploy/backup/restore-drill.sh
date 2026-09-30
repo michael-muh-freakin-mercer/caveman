@@ -4,19 +4,19 @@
 # a scratch directory, and report what came back. It touches nothing in
 # production: no live database, volume, container or service.
 #
-# Usage (from /opt/caveman, or any machine with Docker, age and backup.env):
+# Usage (from /opt/cavman, or any machine with Docker, age and backup.env):
 #   deploy/backup/restore-drill.sh IDENTITY_FILE [STAMP]
 #
 # IDENTITY_FILE is the age private key (kept off the server; copy it over for
 # the drill and shred it afterwards). STAMP defaults to the newest set.
 # With DRILL_APP_IMAGE (default deploy-api, the image compose builds), it also
-# runs `caveman ops list` against the restored copy, so the drill proves the
+# runs `cavman ops list` against the restored copy, so the drill proves the
 # application can read it, not just PostgreSQL.
 set -euo pipefail
 
 identity=${1:?usage: restore-drill.sh IDENTITY_FILE [STAMP]}
 [ -r "$identity" ] || { echo "cannot read $identity" >&2; exit 2; }
-root=${CAVEMAN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+root=${CAVMAN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
 set -a
 # shellcheck disable=SC1090 # plain KEY=value settings, see backup.env.example
 . "${BACKUP_ENV_FILE:-$root/deploy/backup/backup.env}"
@@ -29,8 +29,8 @@ app_image=${DRILL_APP_IMAGE-deploy-api}
 source "$root/deploy/backup/remote.sh"
 
 umask 077
-work=$(mktemp -d "${TMPDIR:-/var/tmp}/caveman-drill.XXXXXX")
-name=caveman-drill-$$
+work=$(mktemp -d "${TMPDIR:-/var/tmp}/cavman-drill.XXXXXX")
+name=cavman-drill-$$
 cleanup() {
   docker rm -f "$name" >/dev/null 2>&1 || true
   docker network rm "$name" >/dev/null 2>&1 || true
@@ -84,12 +84,21 @@ if [ -n "$app_image" ] && docker image inspect "$app_image" >/dev/null 2>&1; the
   # The app must own its data directory (it tightens the mode), so it runs as
   # whoever owns the scratch copy. Settings insist on a service token; this
   # one exists only for the drill.
-  CAVEMAN_API_TOKEN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n') \
+  # Drill the schemas the backup actually holds: servers set up before the
+  # Caveman -> Cavman rename keep caveman_ops and caveman_platform. If both
+  # prefixes exist, the one holding more data is the one in use.
+  schema=$(docker exec "$name" psql -U postgres -d core -At -c \
+    "select left(n.nspname, length(n.nspname) - 4) from pg_namespace n
+     left join pg_class c on c.relnamespace = n.oid
+     where n.nspname in ('cavman_ops', 'caveman_ops')
+     group by n.nspname order by coalesce(sum(pg_total_relation_size(c.oid)), 0) desc limit 1" 2>/dev/null || true)
+  CAVMAN_API_TOKEN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n') \
+  CAVMAN_DATABASE_SCHEMA=${schema:-cavman} \
   docker run --rm --network "$name" --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    -v "$work/data:/data" -e CAVEMAN_DATA_DIR=/data -e CAVEMAN_API_TOKEN \
-    -e CAVEMAN_DATABASE_URL="postgresql://postgres:$drill_password@$name:5432/core" \
-    "$app_image" caveman ops list > "$work/ops-list.txt"
-  echo "caveman ops list on the restored copy: $(grep -c '"run_id"' "$work/ops-list.txt" || true) runs readable"
+    -v "$work/data:/data" -e CAVMAN_DATA_DIR=/data -e CAVMAN_API_TOKEN -e CAVMAN_DATABASE_SCHEMA \
+    -e CAVMAN_DATABASE_URL="postgresql://postgres:$drill_password@$name:5432/core" \
+    "$app_image" cavman ops list > "$work/ops-list.txt"
+  echo "cavman ops list on the restored copy: $(grep -c '"run_id"' "$work/ops-list.txt" || true) runs readable"
 elif [ -n "$app_image" ]; then
   echo "app check skipped: image $app_image not found (set DRILL_APP_IMAGE, or empty to silence)"
 fi

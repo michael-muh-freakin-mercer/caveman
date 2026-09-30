@@ -3,64 +3,103 @@
 #   docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yaml up -d --build
 #
 # (run from the repository root; --env-file makes the root .env, which holds
-# CAVEMAN_DOMAIN, the interpolation source regardless of Compose version)
+# CAVMAN_DOMAIN, the interpolation source regardless of Compose version)
 #
-# - Caddy terminates TLS for CAVEMAN_DOMAIN and is the only thing listening on
+# - Caddy terminates TLS for CAVMAN_DOMAIN and is the only thing listening on
 #   the internet; the web app and API stay on the private compose network.
-# - Workers run candidate code in E2B microVMs (CAVEMAN_SANDBOX_BACKEND=e2b in
+# - Workers run candidate code in E2B microVMs (CAVMAN_SANDBOX_BACKEND=e2b in
 #   .env), so they need no relaxed container security options.
 # - Project repositories and delivery archives live on the attached block
-#   storage volume mounted at /mnt/caveman-data; run and account state lives in
-#   managed PostgreSQL (CAVEMAN_DATABASE_URL and AUTH_DATABASE_URL).
+#   storage volume mounted at /mnt/cavman-data; run and account state lives in
+#   managed PostgreSQL (CAVMAN_DATABASE_URL and AUTH_DATABASE_URL).
 #   deploy/postgres-ca.crt is the managed database's CA certificate; the
 #   connection strings verify the server against it (sslmode=verify-full).
 # Container logs are rotated by size (5 x 10 MB per service), so old entries
-# are deleted rather than kept indefinitely (see the privacy policy).
+# are deleted rather than kept indefinitely (see the privacy policy). Each line
+# records its compose service name and the dev.cavman.logs label, which is how
+# the optional log shipper (the alloy service below) tells Cavman's containers
+# from anything else on the host.
 x-logging: &logging
   driver: json-file
-  options: { max-size: "10m", max-file: "5" }
+  options: { max-size: "10m", max-file: "5", labels: "com.docker.compose.service,dev.cavman.logs" }
+x-ship-logs: &ship-logs { dev.cavman.logs: ship }
 
 services:
   api:
     restart: unless-stopped
     logging: *logging
+    labels: *ship-logs
     volumes:
-      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
+      - ./postgres-ca.crt:/etc/cavman/postgres-ca.crt:ro
+      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro  # connection strings written before the rename
 
   worker:
     restart: unless-stopped
     logging: *logging
+    labels: *ship-logs
     security_opt: !reset []
     volumes:
-      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
+      - ./postgres-ca.crt:/etc/cavman/postgres-ca.crt:ro
+      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro  # connection strings written before the rename
     environment:
-      CAVEMAN_DATA_DIR: /data
-      CAVEMAN_SANDBOX_BACKEND: e2b
+      CAVMAN_DATA_DIR: /data
+      CAVMAN_SANDBOX_BACKEND: e2b
 
   web:
     restart: unless-stopped
     logging: *logging
+    labels: *ship-logs
     ports: !reset []
     expose: ["3000"]
     volumes:
-      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro
+      - ./postgres-ca.crt:/etc/cavman/postgres-ca.crt:ro
+      - ./postgres-ca.crt:/etc/caveman/postgres-ca.crt:ro  # connection strings written before the rename
 
   caddy:
     image: caddy:2
     restart: unless-stopped
     logging: *logging
+    labels: *ship-logs
     depends_on: [web]
     ports: ["80:80", "443:443", "443:443/udp"]
     environment:
-      CAVEMAN_DOMAIN: ${CAVEMAN_DOMAIN:?set CAVEMAN_DOMAIN in .env}
+      # CAVEMAN_DOMAIN is the name .env files used before the Caveman -> Cavman rename.
+      CAVMAN_DOMAIN: ${CAVMAN_DOMAIN:-${CAVEMAN_DOMAIN:?set CAVMAN_DOMAIN in .env}}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
 
+  # Optional: ships the container logs above to Grafana Cloud Logs (or any
+  # Loki). Off unless .env has COMPOSE_PROFILES=logs and the three GRAFANA_LOKI_*
+  # values (docs/DEPLOY_DIGITALOCEAN.md, "Logs"). It reads Docker's log files
+  # through a read-only mount and is not given the Docker socket.
+  alloy:
+    profiles: [logs]
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    logging: *logging
+    labels: *ship-logs
+    user: root  # Docker's log files are readable by root only
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["run", "--storage.path=/var/lib/alloy/data", "--disable-reporting", "/etc/alloy/config.alloy"]
+    environment:
+      GRAFANA_LOKI_URL: ${GRAFANA_LOKI_URL:-}
+      GRAFANA_LOKI_USER: ${GRAFANA_LOKI_USER:-}
+      GRAFANA_LOKI_TOKEN: ${GRAFANA_LOKI_TOKEN:-}
+    volumes:
+      - ./logs/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - alloy-data:/var/lib/alloy/data
+
 volumes:
-  caveman-data:
+  cavman-data:
     driver: local
-    driver_opts: { type: none, o: bind, device: /mnt/caveman-data }
+    # The block storage volume's mount point. Servers set up before the Caveman
+    # -> Cavman rename mount it at /mnt/caveman-data and set CAVMAN_DATA_MOUNT
+    # (scripts/migrate-to-cavman.sh does this).
+    driver_opts: { type: none, o: bind, device: "${CAVMAN_DATA_MOUNT:-/mnt/cavman-data}" }
   caddy-data:
   caddy-config:
+  alloy-data:

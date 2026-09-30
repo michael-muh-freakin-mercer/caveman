@@ -1,8 +1,8 @@
 """The E2B backend against the real service (opt-in: spends E2B credit).
 
-    CAVEMAN_E2B_LIVE=1 E2B_API_KEY=... python -m pytest -q -m e2b
+    CAVMAN_E2B_LIVE=1 E2B_API_KEY=... python -m pytest -q -m e2b
 
-Needs the template built by scripts/e2b_template.py (CAVEMAN_E2B_TEMPLATE
+Needs the template built by scripts/e2b_template.py (CAVMAN_E2B_TEMPLATE
 overrides its name). CI runs this in the "E2B sandbox" workflow.
 """
 import os
@@ -15,11 +15,11 @@ from walter.sandbox import ExecutionSpec, SandboxViolation, WorkspaceManager, _d
 
 pytestmark = [
     pytest.mark.e2b,
-    pytest.mark.skipif(os.environ.get("CAVEMAN_E2B_LIVE") != "1" or not os.environ.get("E2B_API_KEY"),
-                       reason="set CAVEMAN_E2B_LIVE=1 and E2B_API_KEY to run against E2B"),
+    pytest.mark.skipif(os.environ.get("CAVMAN_E2B_LIVE") != "1" or not os.environ.get("E2B_API_KEY"),
+                       reason="set CAVMAN_E2B_LIVE=1 and E2B_API_KEY to run against E2B"),
 ]
 
-TEMPLATE = os.environ.get("CAVEMAN_E2B_TEMPLATE", "caveman-sandbox")
+TEMPLATE = os.environ.get("CAVMAN_E2B_TEMPLATE", "cavman-sandbox")
 
 CONNECT = """import socket
 try:
@@ -62,7 +62,7 @@ def python_spec(tmp_path, code, *, network=False, timeout=60.0):
 
 
 def test_isolation_probe_passes_in_a_real_vm(backend):
-    from caveman.sandbox_probe import probe_execution
+    from cavman.sandbox_probe import probe_execution
     usable, detail = probe_execution(backend)
     assert usable, detail
 

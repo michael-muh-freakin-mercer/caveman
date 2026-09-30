@@ -66,7 +66,7 @@ class FakeSandbox:
         self.killed = True
 
     def uploaded_names(self):
-        with tarfile.open(fileobj=io.BytesIO(self.uploads["/var/caveman/in.tgz"]), mode="r:gz") as bundle:
+        with tarfile.open(fileobj=io.BytesIO(self.uploads["/var/cavman/in.tgz"]), mode="r:gz") as bundle:
             return set(bundle.getnames())
 
 
@@ -118,7 +118,7 @@ def test_execution_uploads_candidate_bytes_and_runs_unprivileged_in_a_denied_net
 
     assert result.returncode == 0 and result.stdout == "1 passed\n"
     assert created[0]["allow_internet_access"] is False
-    assert created[0]["template"] == "caveman-sandbox"
+    assert created[0]["template"] == "cavman-sandbox"
     names = sandbox.uploaded_names()
     assert "workspace/hello.py" in names and "tmp" in names
     # Runtimes come from the template; host network files never enter the VM.
@@ -127,15 +127,15 @@ def test_execution_uploads_candidate_bytes_and_runs_unprivileged_in_a_denied_net
     assert "test -e /opt/walter-env" in setup
     assert "chown -R root:root /workspace && chmod -R a+rX,a-w /workspace" in setup
     assert "chown -R sandbox:sandbox /tmp" in setup
-    assert "chmod 444 /var/caveman/netdeny.py" in setup
+    assert "chmod 444 /var/cavman/netdeny.py" in setup
     assert f"mount -t tmpfs -o size={MAX_SCRATCH_BYTES},mode=1777,nosuid,nodev tmpfs /tmp" in setup
     assert setup.index("mount -t tmpfs") < setup.index("tar -xzf")
     assert "chmod o-w /usr/local /code" in setup
-    assert "seccomp_load" in sandbox.uploads["/var/caveman/netdeny.py"]
+    assert "seccomp_load" in sandbox.uploads["/var/cavman/netdeny.py"]
     command, user = sandbox.commands_run[1]
     assert user == "root"
     assert (command.index("/usr/bin/setpriv --reuid=sandbox --regid=sandbox --clear-groups --no-new-privs")
-            < command.index("/usr/bin/python3 -I /var/caveman/netdeny.py /usr/bin/env -i"))
+            < command.index("/usr/bin/python3 -I /var/cavman/netdeny.py /usr/bin/env -i"))
     assert "/usr/bin/env -i" in command and "HOME=/tmp" in command
     assert "HTTPS_PROXY" not in command
     assert "/usr/bin/timeout --kill-after=2 30" in command
@@ -149,7 +149,7 @@ def test_network_spec_creates_an_internet_enabled_vm(tmp_path):
     backend_for(sandbox, created).run(spec_for(tmp_path, network=True))
     assert created[0]["allow_internet_access"] is True
     assert "netdeny" not in sandbox.commands_run[1][0]
-    assert "/var/caveman/netdeny.py" not in sandbox.uploads
+    assert "/var/cavman/netdeny.py" not in sandbox.uploads
 
 
 def test_nonzero_exit_is_returned_not_raised(tmp_path):
@@ -215,9 +215,9 @@ def test_writable_mounts_are_copied_back_through_the_data_filter(tmp_path):
     (work / "package.json").write_text("{}")
     link = tarfile.TarInfo("./node_modules/.bin/tool")
     link.type, link.linkname = tarfile.SYMTYPE, "../tool/cli.js"
-    outputs = {"/var/caveman/out-0.tgz": tar_bytes([file_member("./node_modules/tool/cli.js", b"ok"),
+    outputs = {"/var/cavman/out-0.tgz": tar_bytes([file_member("./node_modules/tool/cli.js", b"ok"),
                                                      (link, None)]),
-               "/var/caveman/out-1.tgz": tar_bytes([file_member("./_cacache/index", b"i")])}
+               "/var/cavman/out-1.tgz": tar_bytes([file_member("./_cacache/index", b"i")])}
     sandbox = FakeSandbox(respond=lambda command, user: "100" if command.startswith("du ") else "",
                           outputs=outputs)
     result = backend_for(sandbox).run(install_spec(tmp_path, work, cache))
@@ -239,7 +239,7 @@ def test_writable_mounts_are_copied_back_through_the_data_filter(tmp_path):
 def test_hostile_copy_back_is_refused(tmp_path, hostile):
     work, cache = tmp_path / "work", tmp_path / "cache"
     work.mkdir(); cache.mkdir()
-    outputs = {"/var/caveman/out-0.tgz": tar_bytes([hostile])}
+    outputs = {"/var/cavman/out-0.tgz": tar_bytes([hostile])}
     sandbox = FakeSandbox(respond=lambda command, user: "1" if command.startswith("du ") else "",
                           outputs=outputs)
     with pytest.raises(SandboxViolation, match="unsafe"):
@@ -252,8 +252,8 @@ def test_hostile_copy_back_is_refused(tmp_path, hostile):
 def test_absolute_copy_back_paths_stay_inside_the_mount(tmp_path):
     work, cache = tmp_path / "work", tmp_path / "cache"
     work.mkdir(); cache.mkdir()
-    outputs = {"/var/caveman/out-0.tgz": tar_bytes([file_member("/etc/escape.txt")]),
-               "/var/caveman/out-1.tgz": tar_bytes([])}
+    outputs = {"/var/cavman/out-0.tgz": tar_bytes([file_member("/etc/escape.txt")]),
+               "/var/cavman/out-1.tgz": tar_bytes([])}
     sandbox = FakeSandbox(respond=lambda command, user: "1" if command.startswith("du ") else "",
                           outputs=outputs)
     backend_for(sandbox).run(install_spec(tmp_path, work, cache))
@@ -302,7 +302,7 @@ def test_a_network_filter_that_cannot_load_fails_closed(tmp_path):
         if "setpriv" in command:
             raise CommandExit(91)
         return "0"
-    sandbox = FakeSandbox(respond=respond, stderr=b"caveman-netdeny: libseccomp unavailable\n")
+    sandbox = FakeSandbox(respond=respond, stderr=b"cavman-netdeny: libseccomp unavailable\n")
     with pytest.raises(SandboxUnavailable, match="network filter could not be installed"):
         backend_for(sandbox).run(spec_for(tmp_path))
     assert sandbox.killed
@@ -359,23 +359,23 @@ TOKEN = "t" * 40
 
 
 def test_settings_select_the_backend_and_refuse_unknown_values(tmp_path, monkeypatch):
-    from caveman.config import Settings, SettingsError
-    base = {"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_DATA_DIR": str(tmp_path)}
+    from cavman.config import Settings, SettingsError
+    base = {"CAVMAN_API_TOKEN": TOKEN, "CAVMAN_DATA_DIR": str(tmp_path)}
     assert Settings.from_env(base).sandbox_backend == "bubblewrap"
     assert Settings.from_env(base).execution_backend() is None
-    chosen = Settings.from_env({**base, "CAVEMAN_SANDBOX_BACKEND": "E2B", "CAVEMAN_E2B_TEMPLATE": "caveman-sandbox:v2"})
-    assert (chosen.sandbox_backend, chosen.e2b_template) == ("e2b", "caveman-sandbox:v2")
+    chosen = Settings.from_env({**base, "CAVMAN_SANDBOX_BACKEND": "E2B", "CAVMAN_E2B_TEMPLATE": "cavman-sandbox:v2"})
+    assert (chosen.sandbox_backend, chosen.e2b_template) == ("e2b", "cavman-sandbox:v2")
     monkeypatch.setenv("E2B_API_KEY", PLACEHOLDER)
     backend = chosen.execution_backend()
-    assert isinstance(backend, E2BBackend) and backend.template == "caveman-sandbox:v2"
-    with pytest.raises(SettingsError, match="CAVEMAN_SANDBOX_BACKEND"):
-        Settings.from_env({**base, "CAVEMAN_SANDBOX_BACKEND": "docker"})
-    with pytest.raises(SettingsError, match="CAVEMAN_E2B_TEMPLATE"):
-        Settings.from_env({**base, "CAVEMAN_SANDBOX_BACKEND": "e2b", "CAVEMAN_E2B_TEMPLATE": "bad name;rm"})
+    assert isinstance(backend, E2BBackend) and backend.template == "cavman-sandbox:v2"
+    with pytest.raises(SettingsError, match="CAVMAN_SANDBOX_BACKEND"):
+        Settings.from_env({**base, "CAVMAN_SANDBOX_BACKEND": "docker"})
+    with pytest.raises(SettingsError, match="CAVMAN_E2B_TEMPLATE"):
+        Settings.from_env({**base, "CAVMAN_SANDBOX_BACKEND": "e2b", "CAVMAN_E2B_TEMPLATE": "bad name;rm"})
 
 
 def test_health_probe_checks_e2b_configuration_without_starting_a_vm(monkeypatch):
-    import caveman.sandbox_probe as sandbox_probe
+    import cavman.sandbox_probe as sandbox_probe
     monkeypatch.setattr(sandbox_probe.importlib.util, "find_spec", lambda name: object())
     monkeypatch.delenv("E2B_API_KEY", raising=False)
     assert sandbox_probe.probe(max_age=0, backend="e2b") == (False, "E2B is selected but E2B_API_KEY is not set.")
@@ -388,10 +388,10 @@ def test_health_probe_checks_e2b_configuration_without_starting_a_vm(monkeypatch
 
 
 def test_worker_start_runs_the_isolation_probe_in_a_real_backend(tmp_path, monkeypatch):
-    from caveman import worker as worker_module
-    from caveman.config import Settings
-    from caveman.sandbox_probe import probe_execution
-    import caveman.sandbox_probe as sandbox_probe
+    from cavman import worker as worker_module
+    from cavman.config import Settings
+    from cavman.sandbox_probe import probe_execution
+    import cavman.sandbox_probe as sandbox_probe
 
     sandbox = FakeSandbox(respond=lambda command, user: "0" if command.startswith("du ") else "",
                           stdout=b"isolated\n")

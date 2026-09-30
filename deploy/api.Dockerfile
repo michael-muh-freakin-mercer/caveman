@@ -1,9 +1,9 @@
-# Caveman API + worker image (one image, two commands).
+# Cavman API + worker image (one image, two commands).
 #
 # Isolation note: the worker executes candidate checks under Bubblewrap, which
 # needs unprivileged user namespaces *inside* the container. Docker's default
 # seccomp profile blocks them, so the worker container must run with a seccomp
-# profile that permits user-namespace creation (see deploy/README.md). Caveman
+# profile that permits user-namespace creation (see deploy/README.md). Cavman
 # fails closed if the sandbox is unusable; it never falls back to host execution.
 #
 # The distribution interpreter is used deliberately: the sandbox binds /usr into
@@ -19,12 +19,12 @@ RUN apt-get update \
 # old). Only the runtime and npm are copied; the sandbox binds them read-only.
 COPY --from=node:22-slim /usr/local/bin/node /opt/node/bin/node
 COPY --from=node:22-slim /usr/local/lib/node_modules/npm /opt/node/lib/node_modules/npm
-ENV CAVEMAN_NODE_ROOT=/opt/node
+ENV CAVMAN_NODE_ROOT=/opt/node
 
 # The sandbox binds /usr/bin/bwrap and /usr/bin/prlimit by absolute path.
 RUN test -x /usr/bin/bwrap && test -x /usr/bin/prlimit
 
-RUN useradd --create-home --uid 10001 caveman
+RUN useradd --create-home --uid 10001 cavman
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
@@ -38,14 +38,14 @@ RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir -e '.[e2b,sentry]'
 
 ENV PATH=/opt/venv/bin:$PATH \
-    CAVEMAN_DATA_DIR=/data \
-    CAVEMAN_ENV=production \
+    CAVMAN_DATA_DIR=/data \
+    CAVMAN_ENV=production \
     PYTHONUNBUFFERED=1
 
-RUN mkdir -p /data && chown caveman:caveman /data
-USER caveman
+RUN mkdir -p /data && chown cavman:cavman /data
+USER cavman
 VOLUME ["/data"]
 EXPOSE 8000
 
-# `caveman api --host 0.0.0.0` for the API container; `caveman worker` for workers.
-CMD ["caveman", "api", "--host", "0.0.0.0", "--port", "8000"]
+# `cavman api --host 0.0.0.0` for the API container; `cavman worker` for workers.
+CMD ["cavman", "api", "--host", "0.0.0.0", "--port", "8000"]

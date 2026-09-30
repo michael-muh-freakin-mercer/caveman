@@ -1,4 +1,4 @@
-# Caveman threat model
+# Cavman threat model
 
 The starting point for the external security review (launch checklist item 4).
 It describes the system as built and names the risks that remain.
@@ -8,7 +8,7 @@ It describes the system as built and names the risks that remain.
 | Asset | Where it lives |
 | --- | --- |
 | Model provider key (`OPENROUTER_API_KEY`) | Worker environment only |
-| Service token (`CAVEMAN_API_TOKEN`) | Web server and API |
+| Service token (`CAVMAN_API_TOKEN`) | Web server and API |
 | Auth secret, user sessions, password hashes | Web server and auth database |
 | Users' GitHub OAuth tokens (for publishing) | Auth database, encrypted at rest (`encryptOAuthTokens`) |
 | Users' projects: prompts, generated code, deliveries | Operational database and data volume |
@@ -75,11 +75,11 @@ Browser ──(session cookie, same-origin JSON)──▶ Web server ──(serv
 
 ## For the reviewer
 
-- Endpoint inventory: `src/caveman/api.py` and the proxy allowlist in
-  `web/app/api/caveman/[...path]/route.ts`.
+- Endpoint inventory: `src/cavman/api.py` and the proxy allowlist in
+  `web/app/api/cavman/[...path]/route.ts`.
 - The sandbox: `src/walter/sandbox.py` (`BubblewrapBackend`, command templates,
   `_excluded`, `node_dependencies`) and `tests/test_sandbox.py`.
-- Import: `src/caveman/importer.py`. Publish: `src/caveman/publish.py` and
+- Import: `src/cavman/importer.py`. Publish: `src/cavman/publish.py` and
   `web/app/api/publish/[runId]/route.ts`.
 - Auth configuration: `web/lib/auth.ts`. CSP: `web/proxy.ts`.
-- Erasure: `src/caveman/erasure.py`.
+- Erasure: `src/cavman/erasure.py`.

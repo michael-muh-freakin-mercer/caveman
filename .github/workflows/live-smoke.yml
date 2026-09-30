@@ -76,7 +76,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Caveman
+      - name: Install Cavman
         # The distribution interpreter, as in the main CI (see ci.yml).
         run: |
           python3 -m venv .venv

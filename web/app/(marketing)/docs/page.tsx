@@ -8,7 +8,7 @@ const SECTIONS = [
     id: "start",
     title: "Start a build",
     body: [
-      "Sign in, describe what you want on the New build screen, and press Build it. Caveman creates a project, a durable run, and queues it for a worker. You can close the browser at any time; the run continues.",
+      "Sign in, describe what you want on the New build screen, and press Build it. Cavman creates a project, a durable run, and queues it for a worker. You can close the browser at any time; the run continues.",
       "Optional settings let you name a preferred stack, add constraints, record a deployment target, and set the run's budget ceiling. Everything else is inferred.",
     ],
   },
@@ -32,29 +32,29 @@ const SECTIONS = [
     id: "approvals",
     title: "Approvals",
     body: [
-      "Caveman asks only for consequential decisions: material plan changes, capability escalations, and actions such as publishing code. Each request states what, why, the risk and the exact scope. Approving binds to the scope digest you were shown; if the request changes, you are asked again.",
+      "Cavman asks only for consequential decisions: material plan changes, capability escalations, and actions such as publishing code. Each request states what, why, the risk and the exact scope. Approving binds to the scope digest you were shown; if the request changes, you are asked again.",
     ],
   },
   {
     id: "budget",
     title: "Budgets and cost",
     body: [
-      "Every run has a spending ceiling and a model-call ceiling. Caveman records provider, model, tokens, cache usage and provider-reported cost for each call. When a limit is reached the run pauses safely; raise the budget and continue if you choose.",
-      "Some providers do not report cost for every call. Caveman shows that honestly rather than estimating.",
+      "Every run has a spending ceiling and a model-call ceiling. Cavman records provider, model, tokens, cache usage and provider-reported cost for each call. When a limit is reached the run pauses safely; raise the budget and continue if you choose.",
+      "Some providers do not report cost for every call. Cavman shows that honestly rather than estimating.",
     ],
   },
   {
     id: "delivery",
     title: "Delivery",
     body: [
-      "When a run completes, Caveman assembles an archive from exactly the accepted, fingerprint-verified files plus a build report. Nothing is pushed or deployed on your behalf.",
+      "When a run completes, Cavman assembles an archive from exactly the accepted, fingerprint-verified files plus a build report. Nothing is pushed or deployed on your behalf.",
     ],
   },
   {
     id: "limits",
     title: "Current limitations",
     body: [
-      "Live previews of generated apps are not available yet; Caveman will not render untrusted code on its own origin. Publishing to GitHub is not wired yet. Sandboxed execution supports Python and Node/TypeScript; builds and dev servers are not run. OpenRouter is the only configured model provider.",
+      "Live previews of generated apps are not available yet; Cavman will not render untrusted code on its own origin. Publishing to GitHub is not wired yet. Sandboxed execution supports Python and Node/TypeScript; builds and dev servers are not run. OpenRouter is the only configured model provider.",
     ],
   },
 ];
@@ -75,10 +75,10 @@ export default function DocsPage() {
         </ul>
       </nav>
       <article className="max-w-3xl">
-        <h1 className="text-4xl font-semibold tracking-tight text-fg">Caveman documentation</h1>
+        <h1 className="display text-balance text-2xl leading-tight text-fg sm:text-3xl">Cavman documentation</h1>
         <p className="mt-4 text-lg text-fg-soft">
-          Everything you need to use Caveman. Operators should read the{" "}
-          <a className="text-glacier underline-offset-4 hover:underline" href="https://github.com/michael-muh-freakin-mercer/caveman#readme" rel="noreferrer">
+          Everything you need to use Cavman. Operators should read the{" "}
+          <a className="text-glacier underline-offset-4 hover:underline" href="https://github.com/michael-muh-freakin-mercer/cavman#readme" rel="noreferrer">
             setup guide in the repository
           </a>
           .
@@ -94,7 +94,7 @@ export default function DocsPage() {
           </section>
         ))}
         <p className="mt-14 text-sm text-muted">
-          Ready? <Link href="/app/new" className="text-ember hover:underline">Start a build</Link>.
+          Ready? <Link href="/app/new" className="font-medium text-glacier underline-offset-2 hover:underline">Start a build</Link>.
         </p>
       </article>
     </div>

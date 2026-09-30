@@ -16,7 +16,7 @@ export function FailuresPanel({ run }: { run: RunDetail }) {
             <p className="mt-1 text-sm text-bad">{failure.explanation}</p>
             <details className="mt-2">
               <summary className="cursor-pointer text-xs text-muted hover:text-fg">Evidence ({failure.classification.replaceAll("_", " ").toLowerCase()})</summary>
-              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-ink/60 p-2 font-mono text-[0.7rem] text-fg-soft">{failure.evidence}</pre>
+              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-line bg-surface-2 p-2 font-mono text-[0.7rem] text-fg-soft">{failure.evidence}</pre>
             </details>
             {failure.recovery ? (
               <p className="mt-3 flex items-start gap-2 text-sm text-fg-soft">

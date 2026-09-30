@@ -1,6 +1,6 @@
 {
-  "title": "Caveman",
-  "uid": "caveman-overview",
+  "title": "Cavman",
+  "uid": "cavman-overview",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
@@ -10,7 +10,7 @@
   },
   "refresh": "1m",
   "tags": [
-    "caveman"
+    "cavman"
   ],
   "templating": {
     "list": [
@@ -40,7 +40,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_sandbox_available",
+          "expr": "cavman_sandbox_available",
           "legendFormat": ""
         }
       ],
@@ -81,7 +81,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_queue_oldest_seconds",
+          "expr": "cavman_queue_oldest_seconds",
           "legendFormat": ""
         }
       ],
@@ -127,7 +127,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_expired_leases",
+          "expr": "cavman_expired_leases",
           "legendFormat": ""
         }
       ],
@@ -168,7 +168,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_spend_month_usd",
+          "expr": "cavman_spend_month_usd",
           "legendFormat": ""
         }
       ],
@@ -197,7 +197,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_model_calls_without_cost_month",
+          "expr": "cavman_model_calls_without_cost_month",
           "legendFormat": ""
         }
       ],
@@ -238,7 +238,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (caveman_jobs)",
+          "expr": "sum by (status) (cavman_jobs)",
           "legendFormat": "{{status}}"
         }
       ],
@@ -265,7 +265,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (outcome) (delta(caveman_jobs{status=\"failed\"}[1h]))",
+          "expr": "sum by (outcome) (delta(cavman_jobs{status=\"failed\"}[1h]))",
           "legendFormat": "{{outcome}}"
         }
       ],
@@ -292,7 +292,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_queue_oldest_seconds",
+          "expr": "cavman_queue_oldest_seconds",
           "legendFormat": "oldest queued"
         }
       ],
@@ -321,12 +321,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_spend_month_usd",
+          "expr": "cavman_spend_month_usd",
           "legendFormat": "spend (USD)"
         },
         {
           "refId": "B",
-          "expr": "caveman_model_calls_month",
+          "expr": "cavman_model_calls_month",
           "legendFormat": "model calls"
         }
       ],
@@ -353,12 +353,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "caveman_runs",
+          "expr": "cavman_runs",
           "legendFormat": "runs"
         },
         {
           "refId": "B",
-          "expr": "sum by (status) (caveman_deliveries)",
+          "expr": "sum by (status) (cavman_deliveries)",
           "legendFormat": "deliveries {{status}}"
         }
       ],

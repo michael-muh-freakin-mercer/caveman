@@ -26,7 +26,7 @@ export default async function Overview() {
             title="No builds yet"
             action={<ButtonLink href="/app/new" size="lg">What do you want to build? <ArrowRight className="h-4 w-4" aria-hidden="true" /></ButtonLink>}
           >
-            Describe any piece of software in plain English. Caveman plans it, builds it, tests it and hands it back.
+            Describe any piece of software in plain English. Cavman plans it, builds it, tests it and hands it back.
           </EmptyState>
         ) : (
           <OverviewSections runs={result.data.runs} />
@@ -44,7 +44,7 @@ function OverviewSections({ runs }: { runs: RunSummary[] }) {
       {needsYou.length ? (
         <section aria-labelledby="needs-you">
           <h2 id="needs-you" className="flex items-center gap-2 text-sm font-semibold text-fg">
-            <ShieldAlert className="h-4 w-4 text-ember" aria-hidden="true" /> Waiting for your decision
+            <ShieldAlert className="h-4 w-4 text-ember-deep" aria-hidden="true" /> Waiting for your decision
           </h2>
           <div className="mt-3"><RunList runs={needsYou} /></div>
         </section>

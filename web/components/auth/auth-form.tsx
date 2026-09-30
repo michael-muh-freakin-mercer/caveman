@@ -73,7 +73,7 @@ export function AuthForm({
   }
 
   const other = mode === "sign-in" ? "/sign-up" : "/sign-in";
-  const field = "mt-1.5 block h-11 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-fg placeholder:text-faint focus:border-glacier focus:outline-none";
+  const field = "mt-1.5 block h-11 w-full rounded-md border-2 border-line-strong bg-surface px-3 text-fg placeholder:text-faint focus:border-ink focus:outline-none";
 
   return (
     <div>
@@ -137,7 +137,7 @@ export function AuthForm({
         <button
           type="submit"
           disabled={busy || !hydrated || (needsCaptcha && !captchaToken)}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-ember text-sm font-semibold text-ink hover:bg-ember-hot disabled:opacity-60"
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border-2 border-ink bg-ember text-sm font-bold text-ink shadow-[3px_3px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] hover:bg-ember-hot disabled:opacity-60"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {mode === "sign-up" ? "Create account" : "Sign in"}
@@ -152,8 +152,8 @@ export function AuthForm({
         ) : null}
       </form>
       <p className="mt-6 text-center text-sm text-muted">
-        {mode === "sign-in" ? "New to Caveman? " : "Already have an account? "}
-        <Link href={`${other}${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="text-ember hover:underline">
+        {mode === "sign-in" ? "New to Cavman? " : "Already have an account? "}
+        <Link href={`${other}${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-medium text-glacier underline-offset-2 hover:underline">
           {mode === "sign-in" ? "Create an account" : "Sign in"}
         </Link>
       </p>

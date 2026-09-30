@@ -7,8 +7,8 @@ export const metadata: Metadata = { title: "Acceptable Use Policy" };
 const SECTIONS: LegalSection[] = [
   {
     id: "refuses",
-    title: "What Caveman will not build",
-    body: ["Caveman refuses requests, and we may stop builds and close accounts, for software whose purpose is:"],
+    title: "What Cavman will not build",
+    body: ["Cavman refuses requests, and we may stop builds and close accounts, for software whose purpose is:"],
     list: [
       "Malware: ransomware, viruses, worms, keyloggers, info-stealers, botnets, cryptominers that run without consent, or code that hides from or disables security tools.",
       "Unauthorized access: exploits or scanners aimed at systems you do not own or have written permission to test, credential stuffing, brute forcing, or getting around authentication, paywalls or DRM.",
@@ -32,8 +32,8 @@ const SECTIONS: LegalSection[] = [
     title: "Using the service fairly",
     body: ["Do not:"],
     list: [
-      "Try to break out of the build sandbox, reach other users' data, or attack Caveman's infrastructure. Report weaknesses to us instead.",
-      "Use Caveman as a general-purpose compute host, proxy, or cryptocurrency miner.",
+      "Try to break out of the build sandbox, reach other users' data, or attack Cavman's infrastructure. Report weaknesses to us instead.",
+      "Use Cavman as a general-purpose compute host, proxy, or cryptocurrency miner.",
       "Create multiple accounts to get around spending limits or bans, or share one account between many people.",
       "Scrape the service or overload it with automated requests.",
     ],
@@ -56,7 +56,7 @@ export default function AcceptableUsePage() {
   return (
     <LegalDocument
       title="Acceptable Use Policy"
-      intro="What Caveman won't build, and how to use the service without spoiling it for everyone else."
+      intro="What Cavman won't build, and how to use the service without spoiling it for everyone else."
       sections={SECTIONS}
     />
   );

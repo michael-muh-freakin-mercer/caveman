@@ -1,5 +1,5 @@
 name: I have an idea
-description: Something Caveman should do, but doesn't (yet).
+description: Something Cavman should do, but doesn't (yet).
 labels: [enhancement]
 body:
   - type: textarea
@@ -23,5 +23,5 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I checked the [roadmap](https://github.com/michael-muh-freakin-mercer/caveman/blob/main/docs/ROADMAP.md) and existing issues.
+        - label: I checked the [roadmap](https://github.com/michael-muh-freakin-mercer/cavman/blob/main/docs/ROADMAP.md) and existing issues.
           required: true

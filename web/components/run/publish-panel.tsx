@@ -8,7 +8,7 @@ import { linkSocial } from "@/lib/auth-client";
 import type { RunDetail } from "@/lib/types";
 
 export function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "caveman-project";
+  return name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "cavman-project";
 }
 
 export function PublishPanel({ run, onPublished }: { run: RunDetail; onPublished: () => Promise<void> }) {
@@ -55,16 +55,16 @@ export function PublishPanel({ run, onPublished }: { run: RunDetail; onPublished
       <Button variant="secondary" onClick={() => dialog.current?.showModal()}>
         <GithubIcon /> Publish to GitHub
       </Button>
-      <dialog ref={dialog} aria-labelledby="publish-title" className="m-auto w-[min(560px,92vw)] rounded-2xl border border-line-strong bg-surface p-6 text-fg backdrop:bg-ink/80">
+      <dialog ref={dialog} aria-labelledby="publish-title" className="m-auto w-[min(560px,92vw)] rounded-xl border-2 border-ink bg-surface p-6 text-fg shadow-[6px_6px_0_0_var(--color-ink)] backdrop:bg-ink/50">
         <h2 id="publish-title" className="text-lg font-semibold">Publish to GitHub</h2>
         <p className="mt-2 text-sm text-muted">
-          Caveman will create a new repository in your GitHub account and push the verified project (commit{" "}
+          Cavman will create a new repository in your GitHub account and push the verified project (commit{" "}
           <span className="font-mono text-fg-soft">{commit.slice(0, 7)}</span>) to its <span className="font-mono">main</span> branch.
           Nothing else is created, changed or overwritten.
         </p>
         <label htmlFor={ids.name} className="mt-5 block text-xs text-muted">Repository name</label>
         <input id={ids.name} value={name} onChange={(e) => setName(e.target.value)} maxLength={100}
-          className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 font-mono text-sm focus:border-glacier focus:outline-none" />
+          className="mt-1 h-10 w-full rounded-md border-2 border-line-strong bg-surface px-3 font-mono text-sm focus:border-ink focus:outline-none" />
         <fieldset className="mt-4">
           <legend className="text-xs text-muted">Visibility</legend>
           <div className="mt-1 flex gap-4 text-sm">

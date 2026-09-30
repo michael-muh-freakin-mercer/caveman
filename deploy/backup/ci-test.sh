@@ -4,22 +4,22 @@
 # data directory, backs up, checks that writers are paused and always resumed,
 # that an expired set is pruned and a recent one kept, that nothing leaves the
 # server unencrypted, then restores and checks the rows and files that came
-# back. With CAVEMAN_TEST_API_IMAGE (the deploy/api.Dockerfile image) the app's
-# own schemas are created first and the drill runs `caveman ops list` on the copy.
+# back. With CAVMAN_TEST_API_IMAGE (the deploy/api.Dockerfile image) the app's
+# own schemas are created first and the drill runs `cavman ops list` on the copy.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
 tmp=$(mktemp -d)
-trap 'docker rm -f caveman-ci-s3 >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
+trap 'docker rm -f cavman-ci-s3 >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 sql() { # $1 database, rest: psql arguments
   local db=$1; shift
-  docker run --rm -i --network host -e PGPASSWORD=caveman postgres:16 \
-    psql -h 127.0.0.1 -U caveman -d "$db" -v ON_ERROR_STOP=1 -q "$@"
+  docker run --rm -i --network host -e PGPASSWORD=cavman postgres:16 \
+    psql -h 127.0.0.1 -U cavman -d "$db" -v ON_ERROR_STOP=1 -q "$@"
 }
 
 marker=plaintext-marker-$RANDOM$RANDOM
-sql caveman <<SQL
+sql cavman <<SQL
 create schema ci_seed_ops;
 create table ci_seed_ops.runs (id text primary key, document jsonb);
 insert into ci_seed_ops.runs values ('r1', '{"note":"$marker"}'), ('r2', '{}'), ('r3', '{}');
@@ -42,7 +42,7 @@ head -c 65536 /dev/urandom > "$tmp/data/deliveries/r1.tar.gz"
 
 s3_key=ciuser s3_secret=ci-password-123
 mkdir "$tmp/s3"
-docker run -d --name caveman-ci-s3 -p 9000:9000 --user "$(id -u):$(id -g)" -v "$tmp/s3:/data" \
+docker run -d --name cavman-ci-s3 -p 9000:9000 --user "$(id -u):$(id -g)" -v "$tmp/s3:/data" \
   "${BACKUP_RCLONE_IMAGE:-rclone/rclone:1.68}" serve s3 /data --addr :9000 --auth-key "$s3_key,$s3_secret" >/dev/null
 for _ in $(seq 60); do curl -s -o /dev/null http://127.0.0.1:9000/ && break; sleep 1; done
 
@@ -56,19 +56,19 @@ SPACES_SECRET=$s3_secret
 BACKUP_AGE_RECIPIENT=$(age-keygen -y "$tmp/key")
 BACKUP_RETENTION_DAYS=14
 ENV
-export CAVEMAN_ROOT=$repo BACKUP_ENV_FILE=$tmp/backup.env TMPDIR=$tmp
+export CAVMAN_ROOT=$repo BACKUP_ENV_FILE=$tmp/backup.env TMPDIR=$tmp
 export BACKUP_DATA_DIR=$tmp/data
-pg_user=caveman pg_password=caveman   # the job's service container
-export BACKUP_CORE_URL=postgresql://$pg_user:$pg_password@127.0.0.1:5432/caveman
+pg_user=cavman pg_password=cavman   # the job's service container
+export BACKUP_CORE_URL=postgresql://$pg_user:$pg_password@127.0.0.1:5432/cavman
 export BACKUP_AUTH_URL=postgresql://$pg_user:$pg_password@127.0.0.1:5432/auth
 export BACKUP_STOP_CMD="echo stop >> $tmp/writers.log" BACKUP_START_CMD="echo start >> $tmp/writers.log"
-app_image=${CAVEMAN_TEST_API_IMAGE:-}
+app_image=${CAVMAN_TEST_API_IMAGE:-}
 app_token=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
 if [ -n "$app_image" ]; then
   echo "== the app creates its schemas"
-  CAVEMAN_API_TOKEN=$app_token docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp \
-    -v "$tmp/data:/data" -e CAVEMAN_DATA_DIR=/data \
-    -e CAVEMAN_API_TOKEN -e CAVEMAN_DATABASE_URL="$BACKUP_CORE_URL" "$app_image" caveman ops list
+  CAVMAN_API_TOKEN=$app_token docker run --rm --network host --user "$(id -u):$(id -g)" -e HOME=/tmp \
+    -v "$tmp/data:/data" -e CAVMAN_DATA_DIR=/data \
+    -e CAVMAN_API_TOKEN -e CAVMAN_DATABASE_URL="$BACKUP_CORE_URL" "$app_image" cavman ops list
 fi
 
 # shellcheck disable=SC1091
@@ -117,6 +117,6 @@ for expected in "== drill on backup set $new" "checksums: ok" "ci_seed_ops.runs 
   grep -qF -- "$expected" "$tmp/drill.log" || fail "drill output lacks: $expected"
 done
 if [ -n "$app_image" ]; then
-  grep -qF "caveman ops list on the restored copy: 0 runs readable" "$tmp/drill.log" || fail "the app could not read the restored copy"
+  grep -qF "cavman ops list on the restored copy: 0 runs readable" "$tmp/drill.log" || fail "the app could not read the restored copy"
 fi
 echo "backup and restore drill: ok"

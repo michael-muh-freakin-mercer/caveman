@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("agents")
 
-from caveman.workflow import PlanProposal, WorkflowDriver
+from cavman.workflow import PlanProposal, WorkflowDriver
 from walter.adapter import INITIAL_COMPLETION_CRITERION, DurableController
 from walter.models import TaskStatus
 from walter.orchestration import GateError, Orchestrator
