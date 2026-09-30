@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-30 — Live campaign survives more than one build
+
+- A three-build live smoke stopped at its second build with "Event loop is closed". The campaign started a new event loop for every job while the provider client, which is cached, kept a connection from the previous loop. It now runs every job on one loop, as a worker does. Production workers were never affected.
+
 ## 2026-09-30 — Error reporting to Sentry
 
 - With `SENTRY_DSN` set, the API and workers (`pip install '.[sentry]'`, now in the API image) and the web server report errors to Sentry: unhandled exceptions, ERROR log records (so logged job failures), and failed Next.js requests. Unset, nothing changes.
