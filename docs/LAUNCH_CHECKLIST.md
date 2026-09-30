@@ -61,8 +61,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 8. Operations
 - [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)
 - [x] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (`deploy/monitoring/`; needs a Prometheus and Grafana to run in, chosen with error reporting below)
-- [ ] 🧑 Choose error reporting (e.g. Sentry) and log hosting (Sentry live on cavman.dev since 2026-09-30 for the API, workers and web server; log hosting still open)
-- [x] 🤖 Integrate them (Sentry in the API, workers and web server, off until `SENTRY_DSN` is set; listed in the privacy policy)
+- [x] 🧑 Choose error reporting (e.g. Sentry) and log hosting (Sentry live on cavman.dev since 2026-09-30 for the API, workers and web server; Grafana Cloud chosen for logs 2026-09-30)
+- [x] 🤖 Integrate them (Sentry in the API, workers and web server, off until `SENTRY_DSN` is set; log shipping to Grafana Cloud with Alloy in `compose.prod.yaml`, off until `COMPOSE_PROFILES=logs`; both listed in the privacy policy)
+- [ ] 🧑 Create the Grafana Cloud stack, set `GRAFANA_LOKI_*` and `COMPOSE_PROFILES=logs` on cavman.dev, and confirm logs arrive
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
 - [x] 🧑 Backups for Postgres and the shared volume (nightly at ~07:30 UTC, encrypted, off-server to the `caveman-backups` Space: `deploy/backup/`; live since 2026-09-30)

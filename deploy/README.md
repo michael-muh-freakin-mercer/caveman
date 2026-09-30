@@ -116,6 +116,8 @@ workflow when the `E2B_API_KEY` secret is set.
   month's model spend and calls. `deploy/monitoring/` has alert rules, a
   scrape config and a Grafana dashboard for it.
 - `CAVEMAN_LOG_FORMAT=json` writes one JSON object per log line.
+- `compose.prod.yaml` can ship container logs to Grafana Cloud Logs or any Loki
+  (`deploy/logs/config.alloy`, off unless `COMPOSE_PROFILES=logs`).
 - `caveman ops list [--attention]`, `caveman ops requeue RUN_ID` and
   `caveman ops abandon RUN_ID --reason ...` act on durable state across all
   accounts without spending credits; abandon uses the kernel's rules.

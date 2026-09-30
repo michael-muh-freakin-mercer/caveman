@@ -171,6 +171,34 @@ docker compose --env-file .env -f deploy/compose.yaml -f deploy/compose.prod.yam
 Runs survive restarts: jobs are leased, and an interrupted job is recovered by
 the next worker (see [RUNBOOK.md](RUNBOOK.md)).
 
+## Logs
+
+Without this, logs stay on the Droplet (`docker compose logs`, 5 x 10 MB per
+service). To search them in Grafana Cloud:
+
+1. Create a Grafana Cloud stack (the free plan keeps logs for 14 days). In the
+   Grafana Cloud portal, open the stack's Loki details page and note the
+   **URL** and the **User** (a number). Create an access policy token with
+   only the `logs:write` scope.
+2. Add to `/opt/caveman/.env`:
+
+   ```
+   COMPOSE_PROFILES=logs
+   GRAFANA_LOKI_URL=https://<your logs host>/loki/api/v1/push
+   GRAFANA_LOKI_USER=<the user number>
+   GRAFANA_LOKI_TOKEN=<the token>
+   ```
+3. Run the update command below. Every service is recreated once, because
+   their log lines now carry the service name.
+4. Check `docker compose ... logs alloy` shows no errors, then in Grafana's
+   **Explore** run `{app="caveman"}`. Labels: `service` (api, worker, web,
+   caddy, alloy) and `stream`.
+
+The `alloy` service reads Docker's log files through a read-only mount and
+ships only Caveman's containers. It is not given the Docker socket. Keep log
+retention at 30 days or less: the privacy policy says so. `CAVEMAN_LOG_FORMAT=json`
+in `.env` makes API and worker lines easier to filter.
+
 ## Backups
 
 - **Postgres, inside DigitalOcean:** daily backups with 7-day point-in-time
@@ -241,3 +269,4 @@ It ends with `== drill passed for <timestamp>`. A real restore follows
 | `BETTER_AUTH_SECRET` | `web/.env.local` | — |
 | `TURNSTILE_*` | `web/.env.local` | — |
 | `SENTRY_DSN` | `.env` and `web/.env.local` | — |
+| `GRAFANA_LOKI_TOKEN` | `.env` | — |
