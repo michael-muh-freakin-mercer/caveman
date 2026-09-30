@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-01 — Log shipper starts under its locked-down settings
+
+- The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).
+- New CI job "log shipper in the production overlay" (`deploy/logs/ci-test.sh`) starts the service from `compose.prod.yaml` next to a stand-in for Loki and checks that it stays up, that a marked container's lines arrive with the right labels and credentials, and that an unmarked container is left out.
+
 ## 2026-09-30 — The landing page promises only what builds have proven
 
 - The example prompts under the landing page's build box were a web app, a SaaS and a mobile app, which no live build has shown Cavman delivering. They are now the kinds of work the live campaign completed: a Python CLI, a Python library, an API core, a TypeScript rate limiter, a CSV parser and a tattoo studio's booking availability engine, each with tests. The placeholder follows.
