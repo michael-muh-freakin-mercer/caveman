@@ -1,4 +1,4 @@
-"""Caveman platform settings, resolved from the environment.
+"""Cavman platform settings, resolved from the environment.
 
 Provider credentials are deliberately not read here: the orchestration core's
 ``RuntimeConfig.from_env`` stays the only place that reads them, and only the
@@ -13,6 +13,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from .legacy import is_legacy, prefer_existing, with_legacy_names
+
 ORCHESTRATION_WORKFLOW = "workflow"
 ORCHESTRATION_MANAGER = "manager"
 
@@ -26,7 +28,7 @@ MIN_API_TOKEN_LENGTH = 32
 
 
 class SettingsError(ValueError):
-    """Raised when the Caveman platform configuration is missing or unsafe."""
+    """Raised when the Cavman platform configuration is missing or unsafe."""
 
 
 def _float(values: Mapping[str, str], name: str, default: float, *, minimum: float = 0.0) -> float:
@@ -59,16 +61,16 @@ MODEL_MODES = ("budget", "balanced", "quality")
 
 
 def _profiles(values: Mapping[str, str]) -> tuple[tuple[str, str, str], ...]:
-    """CAVEMAN_MODELS_<MODE>="manager=<model>,worker=<model>" for budget, balanced, quality."""
+    """CAVMAN_MODELS_<MODE>="manager=<model>,worker=<model>" for budget, balanced, quality."""
     profiles = []
     for mode in MODEL_MODES:
-        raw = (values.get(f"CAVEMAN_MODELS_{mode.upper()}") or "").strip()
+        raw = (values.get(f"CAVMAN_MODELS_{mode.upper()}") or "").strip()
         if not raw:
             continue
         parts = dict(item.split("=", 1) for item in raw.split(",") if "=" in item)
         manager, worker = parts.get("manager", "").strip(), parts.get("worker", "").strip()
         if not manager or not worker:
-            raise SettingsError(f"CAVEMAN_MODELS_{mode.upper()} must be 'manager=<model>,worker=<model>'.")
+            raise SettingsError(f"CAVMAN_MODELS_{mode.upper()} must be 'manager=<model>,worker=<model>'.")
         profiles.append((mode, manager, worker))
     return tuple(profiles)
 
@@ -106,7 +108,7 @@ class Settings:
     # <database_schema>_ops and <database_schema>_platform) so API and workers
     # can run on several hosts. Unset: SQLite files in data_dir.
     database_url: str | None = None
-    database_schema: str = "caveman"
+    database_schema: str = "cavman"
     # Per-account abuse limits. Rates are per user across all API hosts.
     builds_per_hour: int = 20          # new builds and continuations
     imports_per_hour: int = 5          # repository imports
@@ -135,19 +137,19 @@ class Settings:
     # Where candidate code runs: bubblewrap (namespaces on the worker host) or
     # e2b (a fresh E2B microVM per check; the worker needs E2B_API_KEY).
     sandbox_backend: str = SANDBOX_BUBBLEWRAP
-    e2b_template: str = "caveman-sandbox"
+    e2b_template: str = "cavman-sandbox"
 
     @property
     def operations_db(self) -> Path:
-        return self.data_dir / "caveman-operations.db"
+        return prefer_existing(self.data_dir / "cavman-operations.db", self.data_dir / "caveman-operations.db")
 
     @property
     def platform_db(self) -> Path:
-        return self.data_dir / "caveman-platform.db"
+        return prefer_existing(self.data_dir / "cavman-platform.db", self.data_dir / "caveman-platform.db")
 
     @property
     def sessions_db(self) -> Path:
-        return self.data_dir / "caveman-sessions.db"
+        return prefer_existing(self.data_dir / "cavman-sessions.db", self.data_dir / "caveman-sessions.db")
 
     def open_operations_store(self):
         """The orchestration kernel's run store (snapshots and events)."""
@@ -176,45 +178,50 @@ class Settings:
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
-        values = os.environ if env is None else env
-        token = values.get("CAVEMAN_API_TOKEN", "").strip()
+        raw = os.environ if env is None else env
+        values = with_legacy_names(raw)
+        # An install still configured with CAVEMAN_* names predates the rename:
+        # keep its database schema and E2B template unless it names new ones.
+        legacy = is_legacy(raw)
+        token = values.get("CAVMAN_API_TOKEN", "").strip()
         if len(token) < MIN_API_TOKEN_LENGTH:
             raise SettingsError(
-                "CAVEMAN_API_TOKEN must be set to a random secret of at least "
+                "CAVMAN_API_TOKEN must be set to a random secret of at least "
                 f"{MIN_API_TOKEN_LENGTH} characters (for example `openssl rand -hex 32`). "
                 "The web server presents it on every API call; browsers never see it.")
-        environment = values.get("CAVEMAN_ENV", "development").strip().lower() or "development"
-        executor = values.get("CAVEMAN_EXECUTOR", EXECUTOR_PROVIDER).strip().lower()
+        environment = values.get("CAVMAN_ENV", "development").strip().lower() or "development"
+        executor = values.get("CAVMAN_EXECUTOR", EXECUTOR_PROVIDER).strip().lower()
         if executor not in {EXECUTOR_PROVIDER, EXECUTOR_SCRIPTED}:
             raise SettingsError(
-                f"CAVEMAN_EXECUTOR must be '{EXECUTOR_PROVIDER}' or '{EXECUTOR_SCRIPTED}'; got {executor!r}.")
+                f"CAVMAN_EXECUTOR must be '{EXECUTOR_PROVIDER}' or '{EXECUTOR_SCRIPTED}'; got {executor!r}.")
         if executor == EXECUTOR_SCRIPTED and environment == "production":
             raise SettingsError(
                 "The scripted test executor drives runs with scripted models and is refused "
-                "when CAVEMAN_ENV=production.")
-        orchestration = values.get("CAVEMAN_ORCHESTRATION", ORCHESTRATION_WORKFLOW).strip().lower()
+                "when CAVMAN_ENV=production.")
+        orchestration = values.get("CAVMAN_ORCHESTRATION", ORCHESTRATION_WORKFLOW).strip().lower()
         if orchestration not in {ORCHESTRATION_WORKFLOW, ORCHESTRATION_MANAGER}:
             raise SettingsError(
-                f"CAVEMAN_ORCHESTRATION must be '{ORCHESTRATION_WORKFLOW}' or '{ORCHESTRATION_MANAGER}'; "
+                f"CAVMAN_ORCHESTRATION must be '{ORCHESTRATION_WORKFLOW}' or '{ORCHESTRATION_MANAGER}'; "
                 f"got {orchestration!r}.")
-        sandbox_backend = (values.get("CAVEMAN_SANDBOX_BACKEND") or SANDBOX_BUBBLEWRAP).strip().lower()
+        sandbox_backend = (values.get("CAVMAN_SANDBOX_BACKEND") or SANDBOX_BUBBLEWRAP).strip().lower()
         if sandbox_backend not in {SANDBOX_BUBBLEWRAP, SANDBOX_E2B}:
             raise SettingsError(
-                f"CAVEMAN_SANDBOX_BACKEND must be '{SANDBOX_BUBBLEWRAP}' or '{SANDBOX_E2B}'; got {sandbox_backend!r}.")
-        e2b_template = (values.get("CAVEMAN_E2B_TEMPLATE") or "caveman-sandbox").strip()
+                f"CAVMAN_SANDBOX_BACKEND must be '{SANDBOX_BUBBLEWRAP}' or '{SANDBOX_E2B}'; got {sandbox_backend!r}.")
+        e2b_template = (values.get("CAVMAN_E2B_TEMPLATE") or ("caveman-sandbox" if legacy else "cavman-sandbox")).strip()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.:/-]{0,127}", e2b_template):
-            raise SettingsError("CAVEMAN_E2B_TEMPLATE must be an E2B template name such as caveman-sandbox.")
-        data_dir = Path(values.get("CAVEMAN_DATA_DIR", ".local/caveman")).expanduser().resolve()
-        database_url = (values.get("CAVEMAN_DATABASE_URL") or "").strip() or None
+            raise SettingsError("CAVMAN_E2B_TEMPLATE must be an E2B template name such as cavman-sandbox.")
+        data_dir = Path(values.get("CAVMAN_DATA_DIR")
+                        or prefer_existing(Path(".local/cavman"), Path(".local/caveman"))).expanduser().resolve()
+        database_url = (values.get("CAVMAN_DATABASE_URL") or "").strip() or None
         if database_url and not database_url.startswith(("postgres://", "postgresql://")):
-            raise SettingsError("CAVEMAN_DATABASE_URL must be a postgres:// URL; leave it unset for SQLite files.")
-        database_schema = (values.get("CAVEMAN_DATABASE_SCHEMA") or "caveman").strip()
+            raise SettingsError("CAVMAN_DATABASE_URL must be a postgres:// URL; leave it unset for SQLite files.")
+        database_schema = (values.get("CAVMAN_DATABASE_SCHEMA") or ("caveman" if legacy else "cavman")).strip()
         if not re.fullmatch(r"[a-z_][a-z0-9_]{0,40}", database_schema):
-            raise SettingsError("CAVEMAN_DATABASE_SCHEMA must be lowercase letters, digits and underscores.")
-        default_budget = _float(values, "CAVEMAN_DEFAULT_BUDGET_USD", 5.0, minimum=0.01)
-        max_budget = _float(values, "CAVEMAN_MAX_BUDGET_USD", 100.0, minimum=0.01)
+            raise SettingsError("CAVMAN_DATABASE_SCHEMA must be lowercase letters, digits and underscores.")
+        default_budget = _float(values, "CAVMAN_DEFAULT_BUDGET_USD", 5.0, minimum=0.01)
+        max_budget = _float(values, "CAVMAN_MAX_BUDGET_USD", 100.0, minimum=0.01)
         if default_budget > max_budget:
-            raise SettingsError("CAVEMAN_DEFAULT_BUDGET_USD cannot exceed CAVEMAN_MAX_BUDGET_USD.")
+            raise SettingsError("CAVMAN_DEFAULT_BUDGET_USD cannot exceed CAVMAN_MAX_BUDGET_USD.")
         return cls(
             data_dir=data_dir,
             api_token=token,
@@ -224,31 +231,31 @@ class Settings:
             model_profiles=_profiles(values),
             database_url=database_url,
             database_schema=database_schema,
-            github_api_url=(values.get("CAVEMAN_GITHUB_API_URL") or "https://api.github.com").strip(),
-            metrics_token=(values.get("CAVEMAN_METRICS_TOKEN") or "").strip() or None,
-            import_max_mb=_int(values, "CAVEMAN_IMPORT_MAX_MB", 100, minimum=0),
-            github_import_token=(values.get("CAVEMAN_GITHUB_IMPORT_TOKEN") or "").strip() or None,
-            builds_per_hour=_int(values, "CAVEMAN_BUILDS_PER_HOUR", 20),
-            imports_per_hour=_int(values, "CAVEMAN_IMPORTS_PER_HOUR", 5),
-            actions_per_minute=_int(values, "CAVEMAN_ACTIONS_PER_MINUTE", 60),
-            max_concurrent_builds=_int(values, "CAVEMAN_MAX_CONCURRENT_BUILDS", 2),
-            max_projects=_int(values, "CAVEMAN_MAX_PROJECTS", 100),
-            account_disk_mb=_int(values, "CAVEMAN_ACCOUNT_DISK_MB", 2048),
-            import_max_files=_int(values, "CAVEMAN_IMPORT_MAX_FILES", 5000),
+            github_api_url=(values.get("CAVMAN_GITHUB_API_URL") or "https://api.github.com").strip(),
+            metrics_token=(values.get("CAVMAN_METRICS_TOKEN") or "").strip() or None,
+            import_max_mb=_int(values, "CAVMAN_IMPORT_MAX_MB", 100, minimum=0),
+            github_import_token=(values.get("CAVMAN_GITHUB_IMPORT_TOKEN") or "").strip() or None,
+            builds_per_hour=_int(values, "CAVMAN_BUILDS_PER_HOUR", 20),
+            imports_per_hour=_int(values, "CAVMAN_IMPORTS_PER_HOUR", 5),
+            actions_per_minute=_int(values, "CAVMAN_ACTIONS_PER_MINUTE", 60),
+            max_concurrent_builds=_int(values, "CAVMAN_MAX_CONCURRENT_BUILDS", 2),
+            max_projects=_int(values, "CAVMAN_MAX_PROJECTS", 100),
+            account_disk_mb=_int(values, "CAVMAN_ACCOUNT_DISK_MB", 2048),
+            import_max_files=_int(values, "CAVMAN_IMPORT_MAX_FILES", 5000),
             default_budget_usd=default_budget,
             max_budget_usd=max_budget,
-            default_max_model_calls=_int(values, "CAVEMAN_DEFAULT_MAX_MODEL_CALLS", 300),
-            account_monthly_budget_usd=_float(values, "CAVEMAN_ACCOUNT_MONTHLY_BUDGET_USD", 25.0, minimum=0.01),
-            account_monthly_max_calls=_int(values, "CAVEMAN_ACCOUNT_MONTHLY_MAX_CALLS", 3000),
-            manager_max_turns=_int(values, "CAVEMAN_MANAGER_MAX_TURNS", 60),
-            specialist_max_turns=_int(values, "CAVEMAN_SPECIALIST_MAX_TURNS", 40),
-            worker_concurrency=_int(values, "CAVEMAN_WORKER_CONCURRENCY", 1),
-            lease_seconds=_float(values, "CAVEMAN_LEASE_SECONDS", 90.0, minimum=5.0),
-            heartbeat_seconds=_float(values, "CAVEMAN_HEARTBEAT_SECONDS", 5.0, minimum=0.1),
-            max_recoveries=_int(values, "CAVEMAN_MAX_RECOVERIES", 3, minimum=0),
-            maintenance_interval_seconds=_float(values, "CAVEMAN_MAINTENANCE_INTERVAL_SECONDS", 3600.0, minimum=60.0),
-            node_deps_max_age_days=_float(values, "CAVEMAN_NODE_DEPS_MAX_AGE_DAYS", 7.0, minimum=0.0),
-            scripted_step_delay=_float(values, "CAVEMAN_SCRIPTED_STEP_DELAY", 0.25),
+            default_max_model_calls=_int(values, "CAVMAN_DEFAULT_MAX_MODEL_CALLS", 300),
+            account_monthly_budget_usd=_float(values, "CAVMAN_ACCOUNT_MONTHLY_BUDGET_USD", 25.0, minimum=0.01),
+            account_monthly_max_calls=_int(values, "CAVMAN_ACCOUNT_MONTHLY_MAX_CALLS", 3000),
+            manager_max_turns=_int(values, "CAVMAN_MANAGER_MAX_TURNS", 60),
+            specialist_max_turns=_int(values, "CAVMAN_SPECIALIST_MAX_TURNS", 40),
+            worker_concurrency=_int(values, "CAVMAN_WORKER_CONCURRENCY", 1),
+            lease_seconds=_float(values, "CAVMAN_LEASE_SECONDS", 90.0, minimum=5.0),
+            heartbeat_seconds=_float(values, "CAVMAN_HEARTBEAT_SECONDS", 5.0, minimum=0.1),
+            max_recoveries=_int(values, "CAVMAN_MAX_RECOVERIES", 3, minimum=0),
+            maintenance_interval_seconds=_float(values, "CAVMAN_MAINTENANCE_INTERVAL_SECONDS", 3600.0, minimum=60.0),
+            node_deps_max_age_days=_float(values, "CAVMAN_NODE_DEPS_MAX_AGE_DAYS", 7.0, minimum=0.0),
+            scripted_step_delay=_float(values, "CAVMAN_SCRIPTED_STEP_DELAY", 0.25),
             sandbox_backend=sandbox_backend,
             e2b_template=e2b_template,
         )

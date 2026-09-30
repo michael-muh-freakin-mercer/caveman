@@ -80,7 +80,7 @@ def parse_url(url: str) -> Source:
 
 def repository_metadata(source: Source, api_url: str, token: str | None = None) -> dict:
     """Public metadata from GitHub's API; an operator token only raises rate limits."""
-    headers = {"Accept": "application/vnd.github+json", "User-Agent": "caveman-importer",
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "cavman-importer",
                "X-GitHub-Api-Version": "2022-11-28"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -91,7 +91,7 @@ def repository_metadata(source: Source, api_url: str, token: str | None = None) 
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise RepositoryImportError("That repository was not found, or it is private. "
-                               "Caveman can only start from public repositories.", 404) from None
+                               "Cavman can only start from public repositories.", 404) from None
         if exc.code == 429 or (exc.code == 403 and exc.headers.get("X-RateLimit-Remaining") == "0"):
             raise RepositoryImportError("GitHub is rate limiting requests right now. Try again in a few minutes.", 503) from None
         raise RepositoryImportError(f"GitHub returned an error ({exc.code}).", 502) from None
@@ -115,7 +115,7 @@ def _git(*args: str, cwd: Path | None = None, timeout: float = 60, token: str | 
         result = subprocess.run(
             ["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
              "-c", "core.symlinks=false", "-c", "submodule.recurse=false",
-             "-c", "user.name=Caveman", "-c", "user.email=caveman@localhost", *args],
+             "-c", "user.name=Cavman", "-c", "user.email=cavman@localhost", *args],
             cwd=cwd, env=_environment(token), capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise RepositoryImportError("Downloading the repository took too long.", 504) from None
@@ -149,7 +149,7 @@ def import_repository(url: str, repo: Path, name: str, *, api_url: str, max_mb: 
     source = parse_url(url)
     metadata = repository_metadata(source, api_url, token)
     if metadata.get("private") or metadata.get("visibility", "public") != "public":
-        raise RepositoryImportError("Caveman can only start from public repositories.")
+        raise RepositoryImportError("Cavman can only start from public repositories.")
     size_kb = metadata.get("size")
     if isinstance(size_kb, int) and size_kb > max_mb * 1024:
         raise RepositoryImportError(f"That repository is larger than the {max_mb} MB import limit.")
@@ -182,14 +182,14 @@ def _clone(source: Source, repo: Path, name: str, branch: str, clone_url: str,
         meta, path = record.split("\t", 1)
         mode = meta.split()[0]
         if mode == "120000":
-            raise RepositoryImportError(f"The repository contains a symbolic link ({path[:200]}), which Caveman does not import.")
+            raise RepositoryImportError(f"The repository contains a symbolic link ({path[:200]}), which Cavman does not import.")
         if mode == "160000":
-            raise RepositoryImportError(f"The repository contains a submodule ({path[:200]}), which Caveman does not import.")
+            raise RepositoryImportError(f"The repository contains a submodule ({path[:200]}), which Cavman does not import.")
         if mode not in {"100644", "100755"}:
             raise RepositoryImportError(f"The repository contains an unsupported entry ({path[:200]}).")
         (dropped if _excluded(path) else kept).append(record)
     if not kept:
-        raise RepositoryImportError("That repository has no files Caveman can import.")
+        raise RepositoryImportError("That repository has no files Cavman can import.")
     if len(kept) > max_files:
         raise RepositoryImportError(f"That repository has more than {max_files} files, the import limit.")
     # Build the project's first commit from exactly the kept files, then drop
@@ -215,7 +215,7 @@ def _clone(source: Source, repo: Path, name: str, branch: str, clone_url: str,
     _git("gc", "--quiet", "--prune=now", cwd=repo, timeout=CLONE_TIMEOUT_SECONDS)
     (repo / ".git" / "shallow").unlink(missing_ok=True)
     _git("checkout", "--quiet", "--force", "main", cwd=repo)
-    # Caveman's own state stays out of the project without changing its files.
+    # Cavman's own state stays out of the project without changing its files.
     info = repo / ".git" / "info"
     info.mkdir(exist_ok=True)
     (info / "exclude").write_text(PROJECT_GITIGNORE)

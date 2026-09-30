@@ -71,7 +71,7 @@ export function NewBuildForm({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/caveman/builds", {
+      const response = await fetch("/api/cavman/builds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -90,11 +90,11 @@ export function NewBuildForm({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         const detail = Array.isArray(body.detail) ? "Check the advanced settings." : body.detail;
-        throw new Error(typeof detail === "string" ? detail : "Caveman could not start this build.");
+        throw new Error(typeof detail === "string" ? detail : "Cavman could not start this build.");
       }
       router.push(`/app/runs/${body.run_id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Caveman could not start this build.");
+      setError(reason instanceof Error ? reason.message : "Cavman could not start this build.");
       setBusy(false);
     }
   }
@@ -106,7 +106,7 @@ export function NewBuildForm({
     <form method="post" onSubmit={submit} className="mx-auto max-w-3xl" aria-describedby={error ? ids.error : undefined}>
       {projectName ? (
         <p className="mb-3 text-sm text-muted">
-          New run in <span className="text-fg">{projectName}</span>. Caveman starts from this project&rsquo;s current code and builds on it.
+          New run in <span className="text-fg">{projectName}</span>. Cavman starts from this project&rsquo;s current code and builds on it.
         </p>
       ) : null}
       <label htmlFor={ids.prompt} className="sr-only">
@@ -126,12 +126,12 @@ export function NewBuildForm({
         />
       </div>
       <div className="mt-2 flex items-start justify-between gap-4 text-xs">
-        <p className="text-muted">Caveman runs real tests for Python and Node/TypeScript code. Other stacks are delivered as reviewed source.</p>
+        <p className="text-muted">Cavman runs real tests for Python and Node/TypeScript code. Other stacks are delivered as reviewed source.</p>
         <p className="shrink-0 text-faint">{prompt.length}/{MAX_PROMPT_LENGTH}</p>
       </div>
       {unverified.length ? (
         <p role="status" className="mt-3 rounded-lg border border-warn/30 bg-warn/5 px-4 py-3 text-sm text-warn">
-          Caveman can&rsquo;t run or test {unverified.join(", ")} code yet. It will still plan, write and review it, but
+          Cavman can&rsquo;t run or test {unverified.join(", ")} code yet. It will still plan, write and review it, but
           nothing will prove it builds or works. For tested results, ask for Python or Node/TypeScript.
         </p>
       ) : null}
@@ -152,7 +152,7 @@ export function NewBuildForm({
           </div>
           <div className="sm:col-span-2">
             <label htmlFor={ids.constraints} className="text-xs text-muted">Constraints</label>
-            <textarea id={ids.constraints} value={constraints} onChange={(e) => setConstraints(e.target.value)} maxLength={2000} rows={2} placeholder="Anything Caveman must or must not do" className={`${input} py-2`} />
+            <textarea id={ids.constraints} value={constraints} onChange={(e) => setConstraints(e.target.value)} maxLength={2000} rows={2} placeholder="Anything Cavman must or must not do" className={`${input} py-2`} />
           </div>
           <div>
             <label htmlFor={ids.budget} className="text-xs text-muted">Budget ceiling (USD, max {maxBudget})</label>
@@ -171,7 +171,7 @@ export function NewBuildForm({
               <label htmlFor={ids.repository} className="text-xs text-muted">Start from a public GitHub repository</label>
               <input id={ids.repository} type="url" inputMode="url" value={repository} onChange={(e) => setRepository(e.target.value)} maxLength={300} placeholder="https://github.com/owner/repo" className={`${input} h-10`} />
               <p className="mt-1.5 text-xs text-faint">
-                Caveman copies the default branch&rsquo;s files (not its history) into a new project. Symlinks and submodules are refused; secret-looking files are left out.
+                Cavman copies the default branch&rsquo;s files (not its history) into a new project. Symlinks and submodules are refused; secret-looking files are left out.
               </p>
             </div>
           )}

@@ -76,12 +76,12 @@ export function RunControls({
           <h2 id="continue-title" className="text-lg font-semibold">Continue this build</h2>
           {run.orchestration === "manager" ? (
             <>
-              <p className="mt-1 text-sm text-muted">Caveman picks up from the saved state. Add direction if you like.</p>
+              <p className="mt-1 text-sm text-muted">Cavman picks up from the saved state. Add direction if you like.</p>
               <label className="mt-4 block text-xs text-muted" htmlFor="continue-message">Instruction (optional)</label>
               <textarea id="continue-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={4000} className="mt-1 w-full rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm focus:border-glacier focus:outline-none" />
             </>
           ) : (
-            <p className="mt-1 text-sm text-muted">Caveman picks up exactly where it stopped, from the saved state.</p>
+            <p className="mt-1 text-sm text-muted">Cavman picks up exactly where it stopped, from the saved state.</p>
           )}
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => continueDialog.current?.close()}>Cancel</Button>
@@ -100,7 +100,7 @@ export function RunControls({
         >
           <h2 id="close-title" className="text-lg font-semibold">Close this run?</h2>
           <p className="mt-1 text-sm text-muted">
-            Closing stops the build for good. Everything recorded so far stays visible. Caveman refuses while a decision is still pending.
+            Closing stops the build for good. Everything recorded so far stays visible. Cavman refuses while a decision is still pending.
           </p>
           <label className="mt-4 block text-xs text-muted" htmlFor="close-reason">Reason</label>
           <input id="close-reason" required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-line-strong bg-surface-2 px-3 text-sm focus:border-glacier focus:outline-none" />

@@ -186,7 +186,7 @@ def _postgres_schema() -> str:
 
 
 class PlatformStore:
-    def __init__(self, path: str | Path, *, schema: str = "caveman_platform"):
+    def __init__(self, path: str | Path, *, schema: str = "cavman_platform"):
         self._lock = threading.RLock()
         if is_postgres_url(path):
             self.connection = PostgresConnection(str(path), schema)

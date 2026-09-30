@@ -24,7 +24,7 @@ def test_credentials_come_from_the_environment_only():
 
 def test_only_containers_marked_for_shipping_are_shipped():
     assert 'labels: "com.docker.compose.service,dev.cavman.logs"' in COMPOSE
-    # Every service that logs is marked, and nothing else can be: the marker is Caveman's own.
+    # Every service that logs is marked, and nothing else can be: the marker is Cavman's own.
     assert COMPOSE.count("logging: *logging") == COMPOSE.count("labels: *ship-logs") == 5
     assert 'ship    = "attrs.\\"dev.cavman.logs\\""' in ALLOY
     assert re.search(r'stage\.match \{\s+selector = "\{ship!=\\"ship\\"\}"\s+action\s+= "drop"', ALLOY)

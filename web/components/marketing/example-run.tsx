@@ -20,7 +20,7 @@ const TONE = {
 
 export function ExampleRun() {
   return (
-    <figure className="panel relative overflow-hidden" aria-label="Illustrative example of a Caveman run">
+    <figure className="panel relative overflow-hidden" aria-label="Illustrative example of a Cavman run">
       <div className="flex items-center justify-between border-b border-line px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5" aria-hidden="true">

@@ -59,17 +59,17 @@ from .sandbox import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TEMPLATE = "caveman-sandbox"
+DEFAULT_TEMPLATE = "cavman-sandbox"
 # Provided by the template (scripts/e2b_template.py) rather than uploaded.
 TEMPLATE_RUNTIMES = frozenset({"/opt/walter-env", "/opt/node"})
 # Host network configuration; meaningless inside a remote VM.
 HOST_ONLY_TARGETS = frozenset({"/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/ssl",
-                               "/etc/caveman-extra-ca.pem"})
+                               "/etc/cavman-extra-ca.pem"})
 HOST_ONLY_ENVIRONMENT = frozenset(PROXY_ENVIRONMENT) | {"NODE_EXTRA_CA_CERTS"}
 RUN_USER = "sandbox"
 DROP_PRIVILEGES = ("/usr/bin/setpriv", f"--reuid={RUN_USER}", f"--regid={RUN_USER}", "--clear-groups",
                    "--no-new-privs", "--inh-caps=-all", "--bounding-set=-all")
-TRANSFER = "/var/caveman"
+TRANSFER = "/var/cavman"
 MAX_COPY_BACK_BYTES = 1_000_000_000
 # E2B's Hobby tier caps a sandbox's lifetime at one hour.
 MAX_LIFETIME_SECONDS = 3600
@@ -81,7 +81,7 @@ NETWORK_FILTER = f"{TRANSFER}/netdeny.py"
 # unprivileged process may install it); inherited across exec by the command.
 NETWORK_FILTER_SOURCE = f'''import ctypes, errno, os, sys
 def fail(reason):
-    sys.stderr.write("caveman-netdeny: " + reason + "\\n"); sys.exit({NETWORK_FILTER_FAILED})
+    sys.stderr.write("cavman-netdeny: " + reason + "\\n"); sys.exit({NETWORK_FILTER_FAILED})
 try:
     lib = ctypes.CDLL("libseccomp.so.2", use_errno=True)
 except OSError as exc:
@@ -150,7 +150,7 @@ def _script(*lines: str) -> str:
 
 
 class E2BBackend:
-    """Run each execution in a fresh E2B microVM built from the Caveman template."""
+    """Run each execution in a fresh E2B microVM built from the Cavman template."""
 
     name = "e2b"
 
@@ -169,11 +169,11 @@ class E2BBackend:
                 from e2b import Sandbox
             except ImportError as exc:
                 raise SandboxUnavailable(
-                    "The e2b package is not installed (pip install 'caveman[e2b]'); "
+                    "The e2b package is not installed (pip install 'cavman[e2b]'); "
                     "host fallback prohibited") from exc
             factory = Sandbox.create
         return factory(template=self.template, timeout=lifetime, allow_internet_access=network,
-                       api_key=self._api_key, metadata={"service": "caveman"})
+                       api_key=self._api_key, metadata={"service": "cavman"})
 
     def run(self, spec: ExecutionSpec) -> CommandResult:
         writable = [(source, _target(target)) for source, target in spec.writable_mounts]
@@ -184,7 +184,7 @@ class E2BBackend:
         provided = [target for _, target in readonly if target in TEMPLATE_RUNTIMES]
         uploaded = [(source, target) for source, target in readonly
                     if target not in TEMPLATE_RUNTIMES and target not in HOST_ONLY_TARGETS]
-        with tempfile.TemporaryDirectory(prefix="caveman-e2b-") as staging:
+        with tempfile.TemporaryDirectory(prefix="cavman-e2b-") as staging:
             archive = Path(staging) / "in.tgz"
             _pack(writable + uploaded, archive)
             lifetime = min(MAX_LIFETIME_SECONDS, int(spec.timeout) + SETUP_SECONDS)
@@ -277,7 +277,7 @@ class E2BBackend:
             f"head -c {MAX_OUTPUT_BYTES} {TRANSFER}/io/stderr > {TRANSFER}/stderr"))
         stdout = bytes(sandbox.files.read(f"{TRANSFER}/stdout", format="bytes", user="root"))
         stderr = bytes(sandbox.files.read(f"{TRANSFER}/stderr", format="bytes", user="root"))
-        if returncode == NETWORK_FILTER_FAILED and stderr.startswith(b"caveman-netdeny:"):
+        if returncode == NETWORK_FILTER_FAILED and stderr.startswith(b"cavman-netdeny:"):
             raise SandboxUnavailable("E2B network filter could not be installed: "
                                      + stderr.decode(errors="replace").strip())
 

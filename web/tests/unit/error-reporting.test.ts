@@ -16,7 +16,7 @@ describe("error reporting", () => {
   it("strips bodies, cookies, queries, auth headers and the user from reports", () => {
     const event = scrubEvent({
       request: {
-        url: "https://cavman.dev/api/caveman/runs?token=abc",
+        url: "https://cavman.dev/api/cavman/runs?token=abc",
         data: '{"prompt":"secret plan"}',
         cookies: { "better-auth.session_token": "abc" },
         query_string: "token=abc",
@@ -29,7 +29,7 @@ describe("error reporting", () => {
         },
       },
       user: { email: "someone@example.com" },
-      contexts: { nextjs: { request_path: "/api/caveman/runs?token=abc" } },
+      contexts: { nextjs: { request_path: "/api/cavman/runs?token=abc" } },
       breadcrumbs: [
         { message: "GET http://api:8000/api/runs?token=abc", data: { url: "http://api:8000/api/runs?token=abc", "http.query": "token=abc", "http.method": "GET" } },
         { message: "navigation" },
@@ -38,10 +38,10 @@ describe("error reporting", () => {
     });
     expect(event).toEqual({
       request: {
-        url: "https://cavman.dev/api/caveman/runs",
+        url: "https://cavman.dev/api/cavman/runs",
         headers: { "User-Agent": "Firefox", Referer: "https://cavman.dev/app/new" },
       },
-      contexts: { nextjs: { request_path: "/api/caveman/runs" } },
+      contexts: { nextjs: { request_path: "/api/cavman/runs" } },
       breadcrumbs: [
         { message: "GET http://api:8000/api/runs", data: { url: "http://api:8000/api/runs", "http.method": "GET" } },
         { message: "navigation" },

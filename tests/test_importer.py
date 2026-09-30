@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from caveman import importer
+from cavman import importer
 from walter.sandbox import INTEGRATION_REF, WorkspaceManager
 
 
@@ -84,11 +84,11 @@ def test_import_keeps_files_but_not_history_remote_or_secrets(tmp_path, local_gi
     files = set(git(repo, "ls-tree", "-r", "--name-only", "HEAD").splitlines())
     assert files == {".gitignore", "README.md", "src/app.py", "src/more.py"}
     assert not (repo / ".env").exists() and (repo / "src" / "more.py").read_text() == "X = 1\n"
-    # Caveman state is ignored locally without changing the project's own .gitignore.
+    # Cavman state is ignored locally without changing the project's own .gitignore.
     assert ".local/" in (repo / ".git" / "info" / "exclude").read_text()
     assert (repo / ".gitignore").read_text() == "build/\n"
     assert git(repo, "status", "--porcelain") == ""
-    # The imported repository works as a Caveman project: integration starts from it.
+    # The imported repository works as a Cavman project: integration starts from it.
     workspaces = WorkspaceManager(repo)
     assert workspaces.tracked_files() == sorted(files)
     head = workspaces.integration_head(create=True)
@@ -155,11 +155,11 @@ def test_api_starts_projects_and_builds_from_an_imported_repository(tmp_path, lo
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from caveman.api import create_app
-    from caveman.config import Settings
+    from cavman.api import create_app
+    from cavman.config import Settings
 
     token = "t" * 40
-    headers = {"Authorization": f"Bearer {token}", "X-Caveman-User": "alice"}
+    headers = {"Authorization": f"Bearer {token}", "X-Cavman-User": "alice"}
     settings = Settings(data_dir=tmp_path / "data", api_token=token, executor="scripted")
     with TestClient(create_app(settings)) as client:
         response = client.post("/api/projects", headers=headers, json={

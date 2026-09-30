@@ -152,7 +152,7 @@ export function AuthForm({
         ) : null}
       </form>
       <p className="mt-6 text-center text-sm text-muted">
-        {mode === "sign-in" ? "New to Caveman? " : "Already have an account? "}
+        {mode === "sign-in" ? "New to Cavman? " : "Already have an account? "}
         <Link href={`${other}${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="text-ember hover:underline">
           {mode === "sign-in" ? "Create an account" : "Sign in"}
         </Link>

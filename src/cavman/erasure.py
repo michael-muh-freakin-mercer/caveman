@@ -4,7 +4,7 @@ Erasure removes the platform's ownership records first, in one transaction that
 refuses while a build is running, and then everything those records pointed to:
 the kernel's run snapshots and events, conversation sessions, project
 repositories (with candidate worktrees) and delivery archives. If the process
-stops part-way, ``caveman ops purge-orphans`` removes what is left, because
+stops part-way, ``cavman ops purge-orphans`` removes what is left, because
 nothing can reach it any more.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-logger = logging.getLogger("caveman.erasure")
+logger = logging.getLogger("cavman.erasure")
 
 _HEX_ID = re.compile(r"^[0-9a-f]{32}$")
 
@@ -50,12 +50,12 @@ def _purge(settings, engine, run_ids: list[str], project_ids: list[str]) -> None
 
 
 def erase_account(settings, engine, platform, owner_id: str) -> dict:
-    """Delete everything Caveman holds for ``owner_id``. Raises ActiveWork while a build runs."""
+    """Delete everything Cavman holds for ``owner_id``. Raises ActiveWork while a build runs."""
     owned = platform.delete_owner(owner_id)
     try:
         _purge(settings, engine, owned["runs"], owned["projects"])
     except Exception:
-        logger.exception("Account erasure left data behind; run `caveman ops purge-orphans`",
+        logger.exception("Account erasure left data behind; run `cavman ops purge-orphans`",
                          extra={"runs": len(owned["runs"]), "projects": len(owned["projects"])})
         raise
     return {"runs": len(owned["runs"]), "projects": len(owned["projects"])}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Cavman nightly off-server backup (deploy/backup/backup.sh)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/cavman
+ExecStart=/opt/cavman/deploy/backup/backup.sh
+Nice=10
+IOSchedulingClass=idle

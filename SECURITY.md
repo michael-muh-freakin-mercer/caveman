@@ -1,6 +1,6 @@
 # Security policy
 
-Caveman's whole job is running code that a language model wrote, so isolation
+Cavman's whole job is running code that a language model wrote, so isolation
 and authority bugs are the worst bugs it can have. If you found one: first,
 nice work. Second, please tell us before you tell the internet.
 
@@ -8,7 +8,7 @@ nice work. Second, please tell us before you tell the internet.
 
 **Please don't open a public issue.** Use GitHub's private vulnerability
 reporting instead:
-[Report a vulnerability](https://github.com/michael-muh-freakin-mercer/caveman/security/advisories/new).
+[Report a vulnerability](https://github.com/michael-muh-freakin-mercer/cavman/security/advisories/new).
 
 Helpful things to include:
 
@@ -37,12 +37,12 @@ credit you in the advisory, unless you'd rather stay a mysterious stranger.
 
 **Not in scope:** running out your own budget or rate limits, anything that
 needs an already-compromised operator host, and the behavior of generated code
-outside Caveman (it's untrusted by design; that's the raccoon policy in the
+outside Cavman (it's untrusted by design; that's the raccoon policy in the
 README).
 
 ## Supported versions
 
-Caveman is pre-1.0. Security fixes land on the latest commit of the default
+Cavman is pre-1.0. Security fixes land on the latest commit of the default
 branch, and that's the only version we support.
 
 The design and its known leftover risks are written up in

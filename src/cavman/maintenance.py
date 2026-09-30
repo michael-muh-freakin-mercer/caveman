@@ -21,7 +21,7 @@ from uuid import uuid4
 
 from walter.sandbox import WorkspaceManager
 
-logger = logging.getLogger("caveman.maintenance")
+logger = logging.getLogger("cavman.maintenance")
 
 LEASE_SECONDS = 900
 

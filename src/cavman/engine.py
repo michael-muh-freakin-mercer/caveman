@@ -1,4 +1,4 @@
-"""Thin trusted boundary between the Caveman platform and the orchestration core.
+"""Thin trusted boundary between the Cavman platform and the orchestration core.
 
 Every mutation here is a call into the existing kernel (``walter.orchestration``),
 which reloads the run, authorizes the transition and commits it with its events.
@@ -23,7 +23,7 @@ from .config import Settings
 _GIT_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_TERMINAL_PROMPT": "0"}
 
-PROJECT_GITIGNORE = """# Caveman orchestration state (candidate worktrees, grants). Never delivered.
+PROJECT_GITIGNORE = """# Cavman orchestration state (candidate worktrees, grants). Never delivered.
 .local/
 __pycache__/
 .pytest_cache/
@@ -38,7 +38,7 @@ def git(*args: str, cwd: Path | None = None) -> str:
     """Run git with hooks, global config and prompts disabled."""
     result = subprocess.run(
         ["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
-         "-c", "user.name=Caveman", "-c", "user.email=caveman@localhost", *args],
+         "-c", "user.name=Cavman", "-c", "user.email=cavman@localhost", *args],
         cwd=cwd, env=_GIT_ENV, capture_output=True, text=True, timeout=60)
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or f"git {args[0]} failed")
@@ -66,8 +66,8 @@ class Redactor:
             return ""
         for path in self._paths:
             if path and path != "/":
-                text = text.replace(path, "<caveman>")
-        text = re.sub(r"<caveman>/projects/[0-9a-f]{32}/repo", "<project>", text)
+                text = text.replace(path, "<cavman>")
+        text = re.sub(r"<cavman>/projects/[0-9a-f]{32}/repo", "<project>", text)
         for pattern in _SECRET_PATTERNS:
             text = pattern.sub("[redacted]", text)
         if limit is not None and len(text) > limit:
@@ -106,13 +106,13 @@ class Engine:
         return self.settings.projects_dir / project_id / "repo"
 
     def init_project_repo(self, project_id: str, name: str, description: str) -> Path:
-        """Create the project's own repository; generated work never lands in Caveman's."""
+        """Create the project's own repository; generated work never lands in Cavman's."""
         repo = self.project_repo(project_id)
         repo.mkdir(parents=True, exist_ok=False)
         git("init", "-q", "-b", "main", cwd=repo)
         (repo / ".gitignore").write_text(PROJECT_GITIGNORE)
         summary = description.strip().splitlines()[0][:500] if description.strip() else ""
-        (repo / "README.md").write_text(f"# {name}\n\n{summary}\n\nCreated by Caveman.\n")
+        (repo / "README.md").write_text(f"# {name}\n\n{summary}\n\nCreated by Cavman.\n")
         git("add", ".gitignore", "README.md", cwd=repo)
         git("commit", "-q", "-m", "Initialize project", cwd=repo)
         return repo

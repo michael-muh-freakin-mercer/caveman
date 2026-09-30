@@ -50,7 +50,7 @@ test("journeys 2, 3 and 6: a real run is created, streams progress, and delivers
   const download = page.getByRole("link", { name: "Download project" });
   await expect(download).toBeVisible();
   await expect(page.locator("#build-report")).toContainText("booking.py");
-  const archive = await page.request.get(`/api/caveman/runs/${runId}/delivery/download`);
+  const archive = await page.request.get(`/api/cavman/runs/${runId}/delivery/download`);
   expect(archive.status()).toBe(200);
   expect(archive.headers()["content-type"]).toContain("gzip");
   const final = await runJson(page, runId);
@@ -76,7 +76,7 @@ test("journey 4: an approval is shown and the exact-scoped decision reaches the 
   const decided = await runJson(page, runId);
   expect(decided.approvals[0].status).toBe("approved");
   expect(decided.approvals[0].decision.reason).toBe("Reviewed the scope");
-  expect(decided.approvals[0].decision.decided_by).toMatch(/^caveman-user:/);
+  expect(decided.approvals[0].decision.decided_by).toMatch(/^cavman-user:/);
 });
 
 test("journey 4b: rejecting is recorded and leaves the work honestly blocked; scope cannot be forged", async ({ page }) => {
@@ -85,7 +85,7 @@ test("journey 4b: rejecting is recorded and leaves the work honestly blocked; sc
   await expect(page.locator("#approvals").getByRole("button", { name: "Reject" })).toBeVisible();
   const pending = await runJson(page, runId);
   const approvalId = pending.approvals[0].id;
-  const forged = await page.request.post(`/api/caveman/runs/${runId}/approvals/${approvalId}`, {
+  const forged = await page.request.post(`/api/cavman/runs/${runId}/approvals/${approvalId}`, {
     data: { decision: "approve", scope_digest: "0".repeat(64) },
     headers: { Origin: "http://localhost:3100" },
   });
@@ -119,15 +119,15 @@ test("runs are private to their owner", async ({ browser }) => {
   const runId = await startBuild(owner, "Private project");
   const stranger = await browser.newPage();
   await signUp(stranger);
-  expect((await stranger.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(404);
+  expect((await stranger.request.get(`/api/cavman/runs/${runId}`)).status()).toBe(404);
   await stranger.goto(`/app/runs/${runId}`);
   await expect(stranger.getByText("This does not exist, or it belongs to someone else.")).toBeVisible();
 });
 
 test("the API is unreachable from the browser without a session", async ({ request }) => {
-  const response = await request.get("/api/caveman/runs");
+  const response = await request.get("/api/cavman/runs");
   expect(response.status()).toBe(401);
-  const crossSite = await request.post("/api/caveman/builds", {
+  const crossSite = await request.post("/api/cavman/builds", {
     data: { prompt: "x" },
     headers: { Origin: "https://evil.example" },
   });
@@ -163,7 +163,7 @@ test("a forgotten password is reset through the emailed link", async ({ browser 
   await page.getByRole("button", { name: "Send reset link" }).click();
   await expect(page.getByRole("status")).toContainText("reset link is on its way");
 
-  const outbox = readFileSync(join(process.env.CAVEMAN_E2E_DIR!, "outbox.jsonl"), "utf8").trim().split("\n")
+  const outbox = readFileSync(join(process.env.CAVMAN_E2E_DIR!, "outbox.jsonl"), "utf8").trim().split("\n")
     .map((line) => JSON.parse(line) as { to: string; subject: string; text: string });
   const message = outbox.reverse().find((item) => item.to === email && item.subject.includes("Reset"));
   const link = message!.text.match(/https?:\/\/\S+/)![0];
@@ -206,14 +206,14 @@ test("an account's data can be exported and the account deleted", async ({ page 
   await page.goto("/app/settings");
   const exported = await page.request.get("/api/account/export");
   expect(exported.status()).toBe(200);
-  expect(exported.headers()["content-disposition"]).toContain("caveman-export-");
+  expect(exported.headers()["content-disposition"]).toContain("cavman-export-");
   const data = await exported.json();
   expect(data.account.email).toBe(email);
   expect(data.runs.map((run: { id: string }) => run.id)).toEqual([runId]);
   expect(JSON.stringify(data)).not.toMatch(/accessToken|password/i);
 
   // Erasure is reachable only through the password-checked auth flow, never the API proxy.
-  const viaProxy = await page.request.delete("/api/caveman/account", { headers: { Origin: new URL(page.url()).origin } });
+  const viaProxy = await page.request.delete("/api/cavman/account", { headers: { Origin: new URL(page.url()).origin } });
   expect([404, 405]).toContain(viaProxy.status());
 
   await page.getByRole("button", { name: "Delete account" }).click();
@@ -223,12 +223,12 @@ test("an account's data can be exported and the account deleted", async ({ page 
   await page.getByLabel("Password", { exact: true }).fill("the-wrong-password");
   await confirm.click();
   await expect(page.getByRole("alert")).toBeVisible();
-  expect((await page.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(200);
+  expect((await page.request.get(`/api/cavman/runs/${runId}`)).status()).toBe(200);
 
   await page.getByLabel("Password", { exact: true }).fill("a-long-enough-password");
   await confirm.click();
   await page.waitForURL((url) => url.pathname === "/");
-  expect((await page.request.get(`/api/caveman/runs/${runId}`)).status()).toBe(401);
+  expect((await page.request.get(`/api/cavman/runs/${runId}`)).status()).toBe(401);
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("a-long-enough-password");
@@ -283,7 +283,7 @@ test("a user sees their signed-in devices, signs one out and changes their passw
   await expect(signOutOther).toHaveCount(1);
   await signOutOther.click();
   await expect(first.getByRole("button", { name: /^Sign out (?!all other)/ })).toHaveCount(0);
-  expect((await other.request.get("/api/caveman/runs")).status()).toBe(401);
+  expect((await other.request.get("/api/cavman/runs")).status()).toBe(401);
 
   await first.getByLabel("Current password").fill("a-long-enough-password");
   await first.getByLabel("New password").fill("another-long-password");

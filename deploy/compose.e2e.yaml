@@ -9,11 +9,11 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: caveman
-      POSTGRES_PASSWORD: caveman
-      POSTGRES_DB: caveman
+      POSTGRES_USER: cavman
+      POSTGRES_PASSWORD: cavman
+      POSTGRES_DB: cavman
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "caveman"]
+      test: ["CMD", "pg_isready", "-U", "cavman"]
       interval: 2s
       timeout: 5s
       retries: 30
@@ -21,13 +21,13 @@ services:
   api:
     env_file: !reset []
     environment: &backend
-      CAVEMAN_DATA_DIR: /data
-      CAVEMAN_API_TOKEN: e2e-service-token-0123456789abcdef0123456789
-      CAVEMAN_DATABASE_URL: postgresql://caveman:caveman@postgres:5432/caveman
-      CAVEMAN_EXECUTOR: scripted
-      CAVEMAN_ENV: development
-      CAVEMAN_SCRIPTED_STEP_DELAY: "0.15"
-      CAVEMAN_HEARTBEAT_SECONDS: "0.5"
+      CAVMAN_DATA_DIR: /data
+      CAVMAN_API_TOKEN: e2e-service-token-0123456789abcdef0123456789
+      CAVMAN_DATABASE_URL: postgresql://cavman:cavman@postgres:5432/cavman
+      CAVMAN_EXECUTOR: scripted
+      CAVMAN_ENV: development
+      CAVMAN_SCRIPTED_STEP_DELAY: "0.15"
+      CAVMAN_HEARTBEAT_SECONDS: "0.5"
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -41,14 +41,14 @@ services:
   web:
     env_file: !reset []
     environment:
-      CAVEMAN_API_URL: http://api:8000
-      CAVEMAN_API_TOKEN: e2e-service-token-0123456789abcdef0123456789
+      CAVMAN_API_URL: http://api:8000
+      CAVMAN_API_TOKEN: e2e-service-token-0123456789abcdef0123456789
       BETTER_AUTH_SECRET: e2e-auth-secret-0123456789abcdef0123456789
       BETTER_AUTH_URL: http://localhost:3100
-      AUTH_DATABASE_URL: postgresql://caveman:caveman@postgres:5432/caveman
-      CAVEMAN_DEV_OUTBOX: /outbox/outbox.jsonl
-      CAVEMAN_E2E: "1"
-    volumes: ["${CAVEMAN_E2E_DIR:?set CAVEMAN_E2E_DIR}:/outbox"]
+      AUTH_DATABASE_URL: postgresql://cavman:cavman@postgres:5432/cavman
+      CAVMAN_DEV_OUTBOX: /outbox/outbox.jsonl
+      CAVMAN_E2E: "1"
+    volumes: ["${CAVMAN_E2E_DIR:?set CAVMAN_E2E_DIR}:/outbox"]
     ports: !override ["3100:3000"]
     depends_on:
       postgres: { condition: service_healthy }

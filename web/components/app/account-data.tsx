@@ -25,7 +25,7 @@ export function AccountData({ hasPassword }: { hasPassword: boolean }) {
       setBusy(false);
       setError(result.error.status === 400 && !hasPassword
         ? "For your security, sign out and sign in again, then delete your account."
-        : result.error.message ?? "Caveman could not delete your account.");
+        : result.error.message ?? "Cavman could not delete your account.");
       return;
     }
     router.replace("/");

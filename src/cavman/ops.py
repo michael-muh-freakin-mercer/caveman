@@ -39,7 +39,7 @@ def run_ops(settings, args) -> int:
             if platform.active_job(args.run_id) is not None:
                 print("Run has an active job; wait for it or stop it first.")
                 return 1
-            run = engine.abandon(args.run_id, args.reason, actor_id="caveman-operator")
+            run = engine.abandon(args.run_id, args.reason, actor_id="cavman-operator")
             print(json.dumps({"run_id": run.id, "status": run.status}))
             return 0
         if args.ops_command == "purge-orphans":

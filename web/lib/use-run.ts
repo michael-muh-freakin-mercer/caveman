@@ -18,7 +18,7 @@ export function streamFinished(run: RunDetail): boolean {
 }
 
 export async function fetchRun(runId: string): Promise<RunDetail> {
-  const response = await fetch(`/api/caveman/runs/${runId}`, { cache: "no-store" });
+  const response = await fetch(`/api/cavman/runs/${runId}`, { cache: "no-store" });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(typeof body.detail === "string" ? body.detail : `Request failed (${response.status})`);
@@ -57,7 +57,7 @@ export function useRun(initial: RunDetail) {
   useEffect(() => {
     if (finished) return;
     // Resumes from the server-rendered cursor; EventSource sends Last-Event-ID on reconnect.
-    const source = new EventSource(`/api/caveman/runs/${initial.id}/stream?after=${initial.event_cursor}`);
+    const source = new EventSource(`/api/cavman/runs/${initial.id}/stream?after=${initial.event_cursor}`);
     source.onopen = () => setConnection("live");
     source.onerror = () => setConnection(source.readyState === EventSource.CLOSED ? "closed" : "reconnecting");
     source.addEventListener("timeline", (message) => {
@@ -87,7 +87,7 @@ export function useRun(initial: RunDetail) {
 }
 
 export async function postJson<T>(path: string, body: unknown, method = "POST"): Promise<T> {
-  const response = await fetch(`/api/caveman/${path}`, {
+  const response = await fetch(`/api/cavman/${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

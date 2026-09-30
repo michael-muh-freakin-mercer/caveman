@@ -1,4 +1,4 @@
-"""Caveman API and worker: ownership, trust boundaries, durable execution, delivery.
+"""Cavman API and worker: ownership, trust boundaries, durable execution, delivery.
 
 Runs use the scripted test executor, so the Manager's *model* is scripted while
 every state change goes through the real kernel and every check runs in the real
@@ -20,14 +20,14 @@ pytest.importorskip("fastapi")
 
 from fastapi.testclient import TestClient
 
-from caveman.api import create_app, project_name_from_prompt
-from caveman.config import Settings, SettingsError
-from caveman.platform_store import PlatformStore
-from caveman.worker import Worker
+from cavman.api import create_app, project_name_from_prompt
+from cavman.config import Settings, SettingsError
+from cavman.platform_store import PlatformStore
+from cavman.worker import Worker
 
 TOKEN = "t" * 40
-ALICE = {"Authorization": f"Bearer {TOKEN}", "X-Caveman-User": "alice"}
-MALLORY = {"Authorization": f"Bearer {TOKEN}", "X-Caveman-User": "mallory"}
+ALICE = {"Authorization": f"Bearer {TOKEN}", "X-Cavman-User": "alice"}
+MALLORY = {"Authorization": f"Bearer {TOKEN}", "X-Cavman-User": "mallory"}
 
 
 def sandbox_available() -> bool:
@@ -39,13 +39,13 @@ needs_sandbox = pytest.mark.skipif(not sandbox_available(), reason="Bubblewrap s
 
 @pytest.fixture
 def settings(tmp_path):
-    # CAVEMAN_TEST_DATABASE_URL runs this suite with all state in PostgreSQL,
+    # CAVMAN_TEST_DATABASE_URL runs this suite with all state in PostgreSQL,
     # each test in its own schemas.
-    database_url = os.environ.get("CAVEMAN_TEST_DATABASE_URL") or None
+    database_url = os.environ.get("CAVMAN_TEST_DATABASE_URL") or None
     return Settings(data_dir=tmp_path / "data", api_token=TOKEN, executor="scripted",
                     scripted_step_delay=0, heartbeat_seconds=0.2, lease_seconds=30,
                     stream_max_seconds=1.5, stream_poll_seconds=0.1, database_url=database_url,
-                    database_schema="t_" + uuid.uuid4().hex[:12] if database_url else "caveman")
+                    database_schema="t_" + uuid.uuid4().hex[:12] if database_url else "cavman")
 
 
 @pytest.fixture
@@ -70,15 +70,15 @@ def build(client, prompt="Build me a booking app for a tattoo studio", headers=A
 
 
 def test_settings_require_strong_service_token_and_refuse_scripted_production(tmp_path):
-    with pytest.raises(SettingsError, match="CAVEMAN_API_TOKEN"):
-        Settings.from_env({"CAVEMAN_API_TOKEN": "short"})
+    with pytest.raises(SettingsError, match="CAVMAN_API_TOKEN"):
+        Settings.from_env({"CAVMAN_API_TOKEN": "short"})
     with pytest.raises(SettingsError, match="production"):
-        Settings.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_EXECUTOR": "scripted",
-                           "CAVEMAN_ENV": "production"})
+        Settings.from_env({"CAVMAN_API_TOKEN": TOKEN, "CAVMAN_EXECUTOR": "scripted",
+                           "CAVMAN_ENV": "production"})
     with pytest.raises(SettingsError, match="cannot exceed"):
-        Settings.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_DEFAULT_BUDGET_USD": "50",
-                           "CAVEMAN_MAX_BUDGET_USD": "10"})
-    settings = Settings.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_DATA_DIR": str(tmp_path)})
+        Settings.from_env({"CAVMAN_API_TOKEN": TOKEN, "CAVMAN_DEFAULT_BUDGET_USD": "50",
+                           "CAVMAN_MAX_BUDGET_USD": "10"})
+    settings = Settings.from_env({"CAVMAN_API_TOKEN": TOKEN, "CAVMAN_DATA_DIR": str(tmp_path)})
     assert settings.default_budget_usd == 5.0 and settings.default_max_model_calls == 300
 
 
@@ -86,10 +86,10 @@ def test_service_token_and_user_identity_are_required(client):
     assert client.get("/api/health").status_code == 200
     assert client.get("/api/projects").status_code == 401
     assert client.get("/api/projects", headers={"Authorization": "Bearer wrong",
-                                                "X-Caveman-User": "alice"}).status_code == 401
+                                                "X-Cavman-User": "alice"}).status_code == 401
     assert client.get("/api/projects", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
     assert client.get("/api/projects", headers={"Authorization": f"Bearer {TOKEN}",
-                                                "X-Caveman-User": "bad user!"}).status_code == 401
+                                                "X-Cavman-User": "bad user!"}).status_code == 401
 
 
 def test_runs_and_projects_are_private_to_their_owner(client):
@@ -179,8 +179,8 @@ def test_completed_run_exposes_real_state_and_verified_delivery(client, settings
     with tarfile.open(fileobj=io.BytesIO(download.content)) as archive:
         names = archive.getnames()
         root = names[0].split("/")[0]
-        assert f"{root}/booking.py" in names and f"{root}/CAVEMAN_BUILD_REPORT.md" in names
-        assert f"{root}/docs/caveman/01-spec.md" in names
+        assert f"{root}/booking.py" in names and f"{root}/CAVMAN_BUILD_REPORT.md" in names
+        assert f"{root}/docs/cavman/01-spec.md" in names
         assert not any("/.local" in n or n.endswith(".env") for n in names)
     artifact = client.get(f"/api/runs/{run_id}/artifacts/{code['id']}", headers=ALICE).json()
     assert "class Calendar" in artifact["diff"]
@@ -226,7 +226,7 @@ def test_approval_is_exact_scoped_and_resumes_execution(client, settings):
     detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
     assert detail["state"] == "complete"
     decision = detail["approvals"][0]["decision"]
-    assert decision["approved"] is True and decision["decided_by"] == "caveman-user:alice"
+    assert decision["approved"] is True and decision["decided_by"] == "cavman-user:alice"
 
 
 def test_stop_cancels_queued_work_and_continue_requeues(client, settings):
@@ -319,15 +319,15 @@ def test_stopping_a_running_build_records_interruption_honestly(settings):
 
 @needs_sandbox
 def test_sandbox_probe_reports_real_usability(client):
-    from caveman.sandbox_probe import probe
+    from cavman.sandbox_probe import probe
     usable, detail = probe(max_age=0)
     assert usable, detail
     assert client.get("/api/system", headers=ALICE).json()["sandbox"]["available"] is True
 
 
 def test_worker_refuses_to_start_without_isolation(settings, monkeypatch):
-    import caveman.sandbox_probe as sandbox_probe
-    from caveman import worker as worker_module
+    import cavman.sandbox_probe as sandbox_probe
+    from cavman import worker as worker_module
     monkeypatch.setattr(sandbox_probe, "probe", lambda **_: (False, "no namespaces"))
     with pytest.raises(SystemExit, match="refuses to start: no namespaces"):
         worker_module.main(settings)
@@ -385,11 +385,11 @@ def test_failed_integration_blocks_completion(client, settings, monkeypatch):
 
 
 @needs_sandbox
-def test_delivery_refuses_an_integration_branch_moved_outside_caveman(client, settings):
+def test_delivery_refuses_an_integration_branch_moved_outside_cavman(client, settings):
     import subprocess
-    from caveman.delivery import DeliveryError, assemble
-    from caveman.engine import Engine
-    from caveman.platform_store import PlatformStore
+    from cavman.delivery import DeliveryError, assemble
+    from cavman.engine import Engine
+    from cavman.platform_store import PlatformStore
 
     run_id = build(client, prompt="Booking core")["run_id"]
     drain(settings)
@@ -399,7 +399,7 @@ def test_delivery_refuses_an_integration_branch_moved_outside_caveman(client, se
     engine = Engine(settings)
     repo = engine.project_repo(record.project_id)
     subprocess.run(["git", "-C", str(repo), "update-ref", "refs/heads/walter-integration", "HEAD"], check=True)
-    with pytest.raises(DeliveryError, match="moved outside Caveman"):
+    with pytest.raises(DeliveryError, match="moved outside Cavman"):
         assemble(engine.load(run_id), repo, settings.deliveries_dir, "x", cost_usd=0, cost_complete=True)
 
 
@@ -501,17 +501,17 @@ def test_metrics_are_disabled_by_default_and_token_protected(settings):
         assert client.get("/api/metrics").status_code == 401
         assert client.get("/api/metrics", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
         body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
-    assert 'caveman_jobs{status="queued",outcome=""} 1' in body
-    assert "caveman_runs 1" in body and "caveman_sandbox_available" in body
-    assert "caveman_spend_month_usd 0.000000" in body and "caveman_model_calls_month 0" in body
+    assert 'cavman_jobs{status="queued",outcome=""} 1' in body
+    assert "cavman_runs 1" in body and "cavman_sandbox_available" in body
+    assert "cavman_spend_month_usd 0.000000" in body and "cavman_model_calls_month 0" in body
     # Exported before any delivery has failed, so the first failure is a visible rise.
-    assert 'caveman_deliveries{status="failed"} 0' in body
+    assert 'cavman_deliveries{status="failed"} 0' in body
 
 
 def test_server_usage_counts_this_months_calls_by_when_they_were_made(tmp_path):
     from datetime import datetime, timezone
     from types import SimpleNamespace
-    from caveman.accounts import server_usage
+    from cavman.accounts import server_usage
 
     now = datetime(2026, 9, 15, tzinfo=timezone.utc)
     store = PlatformStore(str(tmp_path / "platform.db"))
@@ -556,14 +556,14 @@ def test_metrics_count_this_months_model_calls(settings):
         build(client)
         drain(metered)
         body = client.get("/api/metrics", headers={"Authorization": "Bearer " + "m" * 32}).text
-    calls = next(int(line.split()[1]) for line in body.splitlines() if line.startswith("caveman_model_calls_month "))
+    calls = next(int(line.split()[1]) for line in body.splitlines() if line.startswith("cavman_model_calls_month "))
     # The scripted executor reports no cost, so every call is counted as uncosted.
-    assert calls > 0 and f"caveman_model_calls_without_cost_month {calls}" in body
+    assert calls > 0 and f"cavman_model_calls_without_cost_month {calls}" in body
 
 
 def test_operator_commands_list_requeue_and_abandon(settings, capsys):
     import argparse
-    from caveman.ops import run_ops
+    from cavman.ops import run_ops
     with TestClient(create_app(settings)) as client:
         run_id = build(client)["run_id"]
         client.post(f"/api/runs/{run_id}/stop", headers=ALICE)
@@ -582,8 +582,8 @@ def test_operator_commands_list_requeue_and_abandon(settings, capsys):
 
 def test_json_log_format_is_one_object_per_line():
     import logging
-    from caveman.logs import JsonFormatter
-    record = logging.LogRecord("caveman.worker", logging.INFO, __file__, 1, "Job %s done", ("j1",), None)
+    from cavman.logs import JsonFormatter
+    record = logging.LogRecord("cavman.worker", logging.INFO, __file__, 1, "Job %s done", ("j1",), None)
     record.run_id = "r1"
     payload = json.loads(JsonFormatter().format(record))
     assert payload["message"] == "Job j1 done" and payload["run_id"] == "r1" and payload["level"] == "INFO"
@@ -592,7 +592,7 @@ def test_json_log_format_is_one_object_per_line():
 @needs_sandbox
 def test_publish_pushes_exactly_the_verified_commit_to_a_new_repository(client, settings, tmp_path, monkeypatch):
     import subprocess
-    from caveman import publish as publish_module
+    from cavman import publish as publish_module
 
     token = "gho_" + "t" * 36
     created = []
@@ -636,7 +636,7 @@ def test_publish_pushes_exactly_the_verified_commit_to_a_new_repository(client, 
 
 
 def test_push_failure_messages_never_contain_the_token(tmp_path):
-    from caveman.publish import PublishError, push
+    from cavman.publish import PublishError, push
     token = "gho_" + "s" * 36
     repo = tmp_path / "r"
     repo.mkdir()
@@ -648,12 +648,12 @@ def test_push_failure_messages_never_contain_the_token(tmp_path):
 
 
 def test_model_modes_are_offered_only_when_configured(tmp_path, monkeypatch):
-    from caveman.config import Settings as S
+    from cavman.config import Settings as S
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-not-real")
-    settings = S.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_DATA_DIR": str(tmp_path),
-                           "CAVEMAN_MODELS_BUDGET": "manager=deepseek/deepseek-chat,worker=qwen/qwen3-coder"})
-    with pytest.raises(SettingsError, match="CAVEMAN_MODELS_QUALITY"):
-        S.from_env({"CAVEMAN_API_TOKEN": TOKEN, "CAVEMAN_MODELS_QUALITY": "worker=x"})
+    settings = S.from_env({"CAVMAN_API_TOKEN": TOKEN, "CAVMAN_DATA_DIR": str(tmp_path),
+                           "CAVMAN_MODELS_BUDGET": "manager=deepseek/deepseek-chat,worker=qwen/qwen3-coder"})
+    with pytest.raises(SettingsError, match="CAVMAN_MODELS_QUALITY"):
+        S.from_env({"CAVMAN_API_TOKEN": TOKEN, "CAVMAN_MODELS_QUALITY": "worker=x"})
     with TestClient(create_app(settings)) as client:
         modes = {m["mode"]: m for m in client.get("/api/system", headers=ALICE).json()["model_modes"]}
         assert modes["budget"]["available"] and modes["budget"]["worker_model"] == "qwen/qwen3-coder"
@@ -720,7 +720,7 @@ def test_account_export_and_erasure_cover_everything_the_owner_has(client, setti
     project_id = client.get(f"/api/runs/{run_id}", headers=ALICE).json()["project_id"]
 
     export = client.get("/api/account/export", headers=ALICE).json()
-    assert export["format"] == "caveman-export/1" and export["user_id"] == "alice"
+    assert export["format"] == "cavman-export/1" and export["user_id"] == "alice"
     assert [r["id"] for r in export["runs"]] == [run_id] and [p["id"] for p in export["projects"]] == [project_id]
     assert any(a.get("diff") for a in export["runs"][0]["artifacts"])
     assert "Build complete" in [e["title"] for e in export["runs"][0]["timeline"]]
@@ -761,8 +761,8 @@ def test_account_erasure_waits_for_running_work(client, settings):
 
 
 def test_orphans_left_by_an_interrupted_erasure_are_purged(client, settings):
-    from caveman.engine import Engine
-    from caveman.erasure import purge_orphans
+    from cavman.engine import Engine
+    from cavman.erasure import purge_orphans
 
     kept = build(client)["run_id"]
     engine = Engine(settings)
@@ -877,8 +877,8 @@ def test_maintenance_retires_finished_work_without_losing_deliveries(client, set
     import os
     import subprocess
 
-    from caveman.engine import Engine
-    from caveman.maintenance import run_maintenance
+    from cavman.engine import Engine
+    from cavman.maintenance import run_maintenance
 
     first = build(client)
     drain(settings)
@@ -912,7 +912,7 @@ def test_cost_history_reports_only_real_completed_spend_per_mode():
     from datetime import datetime, timedelta, timezone
     from types import SimpleNamespace
 
-    from caveman.accounts import cost_history
+    from cavman.accounts import cost_history
 
     now = datetime(2026, 9, 28, tzinfo=timezone.utc)
     runs, records = {}, []
@@ -944,7 +944,7 @@ def test_cost_history_reports_only_real_completed_spend_per_mode():
 
 
 def test_runs_created_since_returns_only_recent_runs(tmp_path):
-    from caveman.platform_store import PlatformStore
+    from cavman.platform_store import PlatformStore
 
     store = PlatformStore(tmp_path / "platform.db")
     try:

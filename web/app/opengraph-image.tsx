@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { Mark } from "@/components/brand/logo";
 import { brand, geistFonts } from "@/lib/brand-image";
 
-export const alt = "Caveman — Type what you want. Caveman builds it.";
+export const alt = "Cavman — Type what you want. Cavman builds it.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -26,7 +26,7 @@ export default async function OpenGraphImage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <Mark width={56} height={56} />
-          <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: "0.14em" }}>CAVEMAN</div>
+          <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: "0.14em" }}>CAVMAN</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div style={{ fontFamily: "Geist Mono", fontSize: 22, letterSpacing: "0.18em", color: brand.ember }}>
@@ -34,7 +34,7 @@ export default async function OpenGraphImage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", fontSize: 96, fontWeight: 600, lineHeight: 1.02, letterSpacing: "-0.035em" }}>
             <span>Type what you want.</span>
-            <span style={{ color: brand.emberHot }}>Caveman builds it.</span>
+            <span style={{ color: brand.emberHot }}>Cavman builds it.</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: 28, fontFamily: "Geist Mono", fontSize: 20, letterSpacing: "0.14em", color: brand.muted }}>

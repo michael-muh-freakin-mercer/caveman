@@ -1,5 +1,5 @@
 """Log setup: human-readable by default, one JSON object per line when
-CAVEMAN_LOG_FORMAT=json (for log shippers)."""
+CAVMAN_LOG_FORMAT=json (for log shippers)."""
 from __future__ import annotations
 
 import json
@@ -22,10 +22,10 @@ class JsonFormatter(logging.Formatter):
 
 def configure_logging() -> None:
     handler = logging.StreamHandler()
-    if os.getenv("CAVEMAN_LOG_FORMAT", "").lower() == "json":
+    if os.getenv("CAVMAN_LOG_FORMAT", "").lower() == "json":
         handler.setFormatter(JsonFormatter())
     else:
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     root = logging.getLogger()
     root.handlers[:] = [handler]
-    root.setLevel(os.getenv("CAVEMAN_LOG_LEVEL", "INFO"))
+    root.setLevel(os.getenv("CAVMAN_LOG_LEVEL", "INFO"))

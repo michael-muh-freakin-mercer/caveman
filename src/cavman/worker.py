@@ -27,7 +27,7 @@ from .engine import Engine
 from .platform_store import Job
 from .views import Projector
 
-logger = logging.getLogger("caveman.worker")
+logger = logging.getLogger("cavman.worker")
 
 MAX_DETAIL_CHARS = 4000
 
@@ -50,7 +50,7 @@ def build_objective_message(prompt: str, constraints: list[str]) -> str:
     lines = [prompt.strip()]
     if constraints:
         lines += ["", "Constraints from the user:"] + [f"- {c}" for c in constraints]
-    lines += ["", "Caveman platform notes: " + PLATFORM_NOTES]
+    lines += ["", "Cavman platform notes: " + PLATFORM_NOTES]
     return "\n".join(lines)
 
 
@@ -89,7 +89,7 @@ class Worker:
         self._stopping.set()
 
     async def run_forever(self, poll_seconds: float = 1.0) -> None:
-        logger.info("Caveman worker %s started (executor: %s, orchestration: %s, concurrency: %s)",
+        logger.info("Cavman worker %s started (executor: %s, orchestration: %s, concurrency: %s)",
                     self.worker_id, self.settings.executor, self.settings.orchestration,
                     self.settings.worker_concurrency)
         await asyncio.gather(*(self._slot(poll_seconds) for _ in range(self.settings.worker_concurrency)))
@@ -261,7 +261,7 @@ def main(settings: Settings | None = None) -> None:
     if not usable:
         # Fail closed: without isolation every executable check would fail, and
         # there is no host fallback. See deploy/README.md for container options.
-        raise SystemExit(f"Caveman worker refuses to start: {detail}")
+        raise SystemExit(f"Cavman worker refuses to start: {detail}")
     logger.info(detail)
     worker = Worker(settings)
 

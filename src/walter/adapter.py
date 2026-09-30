@@ -270,13 +270,13 @@ class DurableController:
         self.run_id = run_id
         self.workspaces = workspaces
         self._config = config
-        # Integration is enabled only for repositories the platform owns (Caveman
+        # Integration is enabled only for repositories the platform owns (Cavman
         # projects). The operator CLI on a user's own checkout leaves it off.
         self.integration = integration and workspaces is not None
         self._integration_lock = threading.RLock()
         # When a developer specialist runs out of steps after changing its
         # workspace, submit the workspace to trusted validation and review
-        # instead of discarding the attempt (Caveman). Off for the operator CLI.
+        # instead of discarding the attempt (Cavman). Off for the operator CLI.
         self.salvage_exhausted = salvage_exhausted
 
     def instructions(self):
@@ -917,9 +917,9 @@ class DurableController:
             return None
         return WorkerResult(
             task_id=task_id, status="completed",
-            summary=("The specialist used all its steps before reporting. Caveman submitted its workspace "
+            summary=("The specialist used all its steps before reporting. Cavman submitted its workspace "
                      "as-is for trusted validation and independent review."),
-            deliverable=("Candidate workspace changes (see the diff). Submitted by Caveman: the specialist "
+            deliverable=("Candidate workspace changes (see the diff). Submitted by Cavman: the specialist "
                          "used all its steps before reporting, so it did not describe or self-check this work."),
             evidence=["Submitted by the platform after the specialist's step budget ran out"],
             uncertainties=["The specialist did not describe or self-check its final state"],

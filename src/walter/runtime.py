@@ -243,7 +243,7 @@ def build_walter(controller) -> Agent:
     """Build the Walter Manager using the repository doctrine plus the Agents SDK adapter."""
 
     # A controller may carry a per-run configuration (for example a per-run
-    # spend ceiling set by the Caveman platform); otherwise use the environment.
+    # spend ceiling set by the Cavman platform); otherwise use the environment.
     configure = getattr(controller, "configuration", None)
     config = configure() if callable(configure) else RuntimeConfig.from_env()
     manager_model, _ = build_models(config)

@@ -1,5 +1,5 @@
 /**
- * What Caveman can verify by running it. Python and Node/TypeScript code is
+ * What Cavman can verify by running it. Python and Node/TypeScript code is
  * compiled and tested in the sandbox; anything else is delivered as reviewed
  * source without executable checks. This only informs the user before a build
  * starts; it never blocks one.

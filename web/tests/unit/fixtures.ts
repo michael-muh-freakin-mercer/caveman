@@ -64,7 +64,7 @@ export function approval(overrides: Partial<ApprovalView> = {}): ApprovalView {
     action: "publish_to_main",
     category: "candidate_action",
     title: "Approve: publish to main",
-    what: "Allow Caveman to publish to main the accepted work.",
+    what: "Allow Cavman to publish to main the accepted work.",
     why: "Publish the accepted booking core.",
     changes: ["Target: main"],
     risk: "Action affects canonical project state",

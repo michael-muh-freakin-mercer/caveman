@@ -26,7 +26,7 @@ export default async function Overview() {
             title="No builds yet"
             action={<ButtonLink href="/app/new" size="lg">What do you want to build? <ArrowRight className="h-4 w-4" aria-hidden="true" /></ButtonLink>}
           >
-            Describe any piece of software in plain English. Caveman plans it, builds it, tests it and hands it back.
+            Describe any piece of software in plain English. Cavman plans it, builds it, tests it and hands it back.
           </EmptyState>
         ) : (
           <OverviewSections runs={result.data.runs} />

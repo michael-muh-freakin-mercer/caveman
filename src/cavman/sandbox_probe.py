@@ -29,7 +29,7 @@ def probe(*, max_age: float = 60.0, backend: str = "bubblewrap") -> tuple[bool, 
         return _cache[2], _cache[3]
     if backend == "e2b":
         if importlib.util.find_spec("e2b") is None:
-            result = (False, "E2B is selected but the e2b package is not installed (pip install 'caveman[e2b]').")
+            result = (False, "E2B is selected but the e2b package is not installed (pip install 'cavman[e2b]').")
         elif not os.environ.get("E2B_API_KEY", "").strip():
             result = (False, "E2B is selected but E2B_API_KEY is not set.")
         else:
@@ -70,7 +70,7 @@ else:
 
 def probe_execution(execution_backend) -> tuple[bool, str]:
     """Run the isolation probe through a real backend (used when a worker starts with E2B)."""
-    with tempfile.TemporaryDirectory(prefix="caveman-probe-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="cavman-probe-") as temporary:
         workspace, scratch = Path(temporary) / "workspace", Path(temporary) / "scratch"
         workspace.mkdir(); scratch.mkdir()
         spec = ExecutionSpec(

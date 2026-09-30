@@ -29,7 +29,7 @@ from walter.models import (ApprovalStatus, BlockerReason, CapabilityRequestStatu
 from walter.orchestration import GateError
 from walter.usage import UsageBudgetExceeded
 
-logger = logging.getLogger("caveman.workflow")
+logger = logging.getLogger("cavman.workflow")
 
 MAX_ROUNDS = 40
 NEEDS_WORKSPACE = "developer sandbox task has no bound workspace"
@@ -52,7 +52,7 @@ class PlanProposal(BaseModel):
     tasks: list[PlannedTask] = Field(min_length=1, max_length=12)
 
 
-PLANNER_INSTRUCTIONS = """You are Caveman's planner. Turn the user's request into:
+PLANNER_INSTRUCTIONS = """You are Cavman's planner. Turn the user's request into:
 1. two to five measurable success criteria (each at least 12 characters, distinct, and more specific
    than the request itself);
 2. a small dependency-aware graph of tasks. Each task has exactly one specialist role, one
@@ -105,7 +105,7 @@ class WorkflowDriver:
         for attempt in range(MAX_PLAN_ATTEMPTS):
             try:
                 proposal = await self.controller._invoke(
-                    name="Caveman planner", role="planner", task_id=None, worker_id="planner",
+                    name="Cavman planner", role="planner", task_id=None, worker_id="planner",
                     instructions=PLANNER_INSTRUCTIONS, output_type=PlanProposal, tools=[],
                     input=request + feedback, use_manager_model=True)
                 self._install_plan(proposal)
@@ -236,7 +236,7 @@ class WorkflowDriver:
                     raise result
                 if isinstance(result, BaseException):
                     logger.warning("Task step raised: %r", result)
-        return "Caveman paused after its round limit. Continue the run to keep going."
+        return "Cavman paused after its round limit. Continue the run to keep going."
 
     def _delegatable(self, run, task) -> bool:
         if task.status in {TaskStatus.READY, TaskStatus.REVISION_REQUIRED}:
@@ -383,4 +383,4 @@ class WorkflowDriver:
                    or t.id in self._stuck]
         if not blocked:
             return "Nothing is ready to run."
-        return "Caveman is blocked and needs a decision: " + "; ".join(blocked)
+        return "Cavman is blocked and needs a decision: " + "; ".join(blocked)

@@ -18,9 +18,9 @@ export function Mark({ className = "h-7 w-7", ...props }: ComponentProps<"svg">)
 
 export function Logo({ href = "/", className = "" }: { href?: string; className?: string }) {
   return (
-    <Link href={href} className={`group inline-flex items-center gap-2.5 ${className}`} aria-label="Caveman home">
+    <Link href={href} className={`group inline-flex items-center gap-2.5 ${className}`} aria-label="Cavman home">
       <Mark />
-      <span className="text-[1.05rem] font-semibold tracking-[0.14em] text-fg">CAVEMAN</span>
+      <span className="text-[1.05rem] font-semibold tracking-[0.14em] text-fg">CAVMAN</span>
     </Link>
   );
 }

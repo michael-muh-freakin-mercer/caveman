@@ -1,15 +1,15 @@
 <div align="center">
 
-<img src="docs/assets/banner.png" alt="Caveman: Type what you want. Caveman builds it." width="100%">
+<img src="docs/assets/banner.png" alt="Cavman: Type what you want. Cavman builds it." width="100%">
 
 <br>
 
-[![CI](https://github.com/michael-muh-freakin-mercer/caveman/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-muh-freakin-mercer/caveman/actions/workflows/ci.yml)
+[![CI](https://github.com/michael-muh-freakin-mercer/cavman/actions/workflows/ci.yml/badge.svg)](https://github.com/michael-muh-freakin-mercer/cavman/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-ff6a1f.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-2fd4ee.svg)](pyproject.toml)
 [![Node 22+](https://img.shields.io/badge/node-22%2B-2fd4ee.svg)](web/package.json)
 [![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-8b95a4.svg)](docs/ROADMAP.md)
-[![Powered by: receipts](https://img.shields.io/badge/powered%20by-receipts-ff6a1f.svg)](#why-caveman-or-trust-issues-productized)
+[![Powered by: receipts](https://img.shields.io/badge/powered%20by-receipts-ff6a1f.svg)](#why-cavman-or-trust-issues-productized)
 
 **[Quick start](#build-it-yourself)** ·
 **[How it works](#how-it-works)** ·
@@ -22,14 +22,14 @@
 
 ---
 
-You describe the thing. Caveman plans it, hands the pieces to specialist agents,
+You describe the thing. Cavman plans it, hands the pieces to specialist agents,
 makes them prove their work in a locked box with no internet, gets a second
 opinion from a reviewer who has never met them, and gives you back a project.
 When something breaks, it tries again. When something is scary, it asks you
 first. Otherwise it leaves you alone.
 
 Here's the catch with AI agents: they are *extremely* confident, and confidence
-is not a test suite. So Caveman believes nothing an agent says. **The model
+is not a test suite. So Cavman believes nothing an agent says. **The model
 proposes; the kernel authorizes.** Nothing counts as done until trusted checks
 and an independent reviewer sign off, and the kernel keeps the receipts.
 
@@ -38,19 +38,19 @@ it works, it's honest about what it can't do yet, and it will change under
 your feet.
 
 <p align="center">
-  <img src="docs/assets/screenshot-run-complete.png" alt="A completed Caveman run: every stage done, 3 of 3 trusted checks passed, verified by the completion gate, with the delivered files and success criteria listed" width="100%">
+  <img src="docs/assets/screenshot-run-complete.png" alt="A completed Cavman run: every stage done, 3 of 3 trusted checks passed, verified by the completion gate, with the delivered files and success criteria listed" width="100%">
   <br>
   <sub>A finished build. Every stage done, every check actually run, stamped by the completion gate. (Recorded with the scripted executor: fake brain, real everything else.)</sub>
 </p>
 
-## Why Caveman (or: trust issues, productized)
+## Why Cavman (or: trust issues, productized)
 
 |  |  |
 | --- | --- |
 | **Receipts, not vibes** | Checks run in a Bubblewrap sandbox with no network and no access to your secrets. An agent saying "tests pass" is worth exactly nothing until the tests pass. |
 | **A second opinion, always** | A fresh reviewer that never touched the work inspects every candidate before the kernel can accept it. No grading your own homework. |
-| **Hard-to-kill runs** | Every task, attempt, check and decision is written down. Close the tab, restart the worker, trip over the power cord: the build picks up where it left off. (Automatic recovery is capped at 3 per run by default, `CAVEMAN_MAX_RECOVERIES`, so a truly cursed run fails honestly instead of looping forever.) |
-| **You're the boss of the scary stuff** | Consequential actions wait for you, bound to the exact scope you were shown. If Caveman changes the ask, it asks again. No bait-and-switch. |
+| **Hard-to-kill runs** | Every task, attempt, check and decision is written down. Close the tab, restart the worker, trip over the power cord: the build picks up where it left off. (Automatic recovery is capped at 3 per run by default, `CAVMAN_MAX_RECOVERIES`, so a truly cursed run fails honestly instead of looping forever.) |
+| **You're the boss of the scary stuff** | Consequential actions wait for you, bound to the exact scope you were shown. If Cavman changes the ask, it asks again. No bait-and-switch. |
 | **Your wallet has a seatbelt** | Every run has a USD and model-call ceiling. Cost is tracked per call, and in the live campaign it matched OpenRouter's own counter to within half a cent. |
 | **Bring your own brain** | Any tool-calling model on OpenRouter. No single vendor holding the keys to your cave. |
 
@@ -86,7 +86,7 @@ human has code-reviewed the output yet. We said we'd be honest.)
 <p align="center">
   <img src="docs/assets/screenshot-approval.png" alt="An approval card asking the user to grant a sandboxed-development capability, showing why, the risk, what changes and the exact scope digest, with Approve and Reject buttons" width="100%">
   <br>
-  <sub>Caveman asking permission like a well-raised agent: why, what's risky, what changes, and a digest of the exact thing you're approving.</sub>
+  <sub>Cavman asking permission like a well-raised agent: why, what's risky, what changes, and a digest of the exact thing you're approving.</sub>
 </p>
 
 ### Architecture
@@ -94,13 +94,13 @@ human has code-reviewed the output yet. We said we'd be honest.)
 ```text
 Browser
    ↓
-Caveman Web            web/            Next.js · auth (Better Auth) · same-origin proxy
+Cavman Web            web/            Next.js · auth (Better Auth) · same-origin proxy
    ↓  service token + verified user id
-Caveman API            src/caveman/    FastAPI · ownership · approvals · SSE · delivery
+Cavman API            src/cavman/    FastAPI · ownership · approvals · SSE · delivery
    ↓  reads kernel state; queues durable jobs
 Orchestration Core     src/walter/     runs · tasks · gates · approvals · recovery · events
    ↓  executed by
-Workers / Sandboxes    caveman worker  leased jobs · planner + specialists · Bubblewrap
+Workers / Sandboxes    cavman worker  leased jobs · planner + specialists · Bubblewrap
    ↓
 Generated Project      per-project git repo → verified delivery archive
 ```
@@ -108,25 +108,25 @@ Generated Project      per-project git repo → verified delivery archive
 - **Core (`src/walter/`)** is the single source of truth for runs, plans, tasks,
   dependencies, artifacts, validation, review, acceptance, approvals, recovery,
   replanning and completion. The deep dive is [docs/ENGINE.md](docs/ENGINE.md).
-- **API (`src/caveman/`)** never keeps its own copy of that truth. It tracks who
+- **API (`src/cavman/`)** never keeps its own copy of that truth. It tracks who
   owns what, queues work as leased jobs, turns kernel state into honest
   user-facing views, and binds each approval to the exact scope digest you saw.
   It has *no endpoint* that can record a check, a review, an acceptance or a
   completion. Not a locked one. None.
 - **Worker** claims jobs, runs them outside any HTTP request, heartbeats, and
   recovers orphaned jobs through the core's own interruption recovery. By
-  default it runs the **workflow driver** (`src/caveman/workflow.py`): boring,
+  default it runs the **workflow driver** (`src/cavman/workflow.py`): boring,
   deterministic code drives plan → delegate → validate → review →
   accept/integrate → recover, and models only do the parts that need a brain
   (planning, building, reviewing). No tokens burned on bookkeeping. Every step
-  still goes through the kernel. `CAVEMAN_ORCHESTRATION=manager` brings back
+  still goes through the kernel. `CAVMAN_ORCHESTRATION=manager` brings back
   the original mode, where a Manager model drives each step through tool calls.
 - **Web (`web/`)** renders real state over server-sent events. The browser only
   watches and decides; closing it never hurts a run.
 
-> **A note on Walter.** Caveman used to be called Walter. Walter still lives in
+> **A note on Walter.** Cavman used to be called Walter. Walter still lives in
 > `src/walter/` (and the `walter` operator CLI), quietly doing the actual
-> thinking. He doesn't need the credit. Everything a user sees is Caveman.
+> thinking. He doesn't need the credit. Everything a user sees is Cavman.
 
 ## Build it yourself
 
@@ -146,8 +146,8 @@ sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 **1. Clone and install**
 
 ```bash
-git clone https://github.com/michael-muh-freakin-mercer/caveman.git
-cd caveman
+git clone https://github.com/michael-muh-freakin-mercer/cavman.git
+cd cavman
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[test]'
 (cd web && npm ci)
@@ -164,17 +164,17 @@ cp .env.example .env                 # API + worker
 cp web/.env.example web/.env.local   # web app
 ```
 
-Put the same random `CAVEMAN_API_TOKEN` (`openssl rand -hex 32`) in both files,
+Put the same random `CAVMAN_API_TOKEN` (`openssl rand -hex 32`) in both files,
 a `BETTER_AUTH_SECRET` in `web/.env.local`, and then either an
-`OPENROUTER_API_KEY` (real models, real bills) or `CAVEMAN_EXECUTOR=scripted`
+`OPENROUTER_API_KEY` (real models, real bills) or `CAVMAN_EXECUTOR=scripted`
 (free, fake models; see [Testing](#testing-we-have-opinions)). Every variable is
 explained in the example files.
 
 **3. Light the fire** (three terminals)
 
 ```bash
-.venv/bin/caveman api --port 8000    # private API; binds to localhost
-.venv/bin/caveman worker             # does the builds; refuses to start without working isolation
+.venv/bin/cavman api --port 8000    # private API; binds to localhost
+.venv/bin/cavman worker             # does the builds; refuses to start without working isolation
 cd web && npm run dev                # or: npm run build && npm start
 ```
 
@@ -194,13 +194,13 @@ npx playwright test                                   # end-to-end journeys (sta
 ```
 
 The E2E suite boots the real API, a real worker and the production web build.
-The worker uses the **scripted test executor** (`CAVEMAN_EXECUTOR=scripted`):
+The worker uses the **scripted test executor** (`CAVMAN_EXECUTOR=scripted`):
 the *model* is a script, but every state change still goes through the kernel
 and every check really runs in the sandbox. Tags in the prompt pick the
 scenario: none (the happy path), `#approval`, `#fail-validation`, `#dependent`
 (a task building on another task's merged code) and `#parallel` (a stale-base
 rebuild with carry-over). Scripted runs are labelled in the UI, and the
-scripted executor flat-out refuses to run when `CAVEMAN_ENV=production`. The
+scripted executor flat-out refuses to run when `CAVMAN_ENV=production`. The
 browser Playwright uses must match the pinned `@playwright/test` version
 (`npx playwright install chromium`).
 
@@ -253,10 +253,10 @@ baseline, and dependency audits. Green or it didn't happen.
 - Follow-ups: "Ask for changes" on a completed build starts a new run in the
   same project from its integrated code; the new run's delivery contains the
   earlier work plus the change.
-- Delivery: when the kernel completes a run, Caveman archives the integration
+- Delivery: when the kernel completes a run, Cavman archives the integration
   head (verified against the kernel's recorded commits) plus a build report.
 - Publish to GitHub (when GitHub sign-in is configured): on explicit request,
-  Caveman asks for repository scope at that moment, creates a new repository
+  Cavman asks for repository scope at that moment, creates a new repository
   with the exact name and visibility you confirm, and pushes only the verified
   integration commit to `main`. The token is encrypted at rest in the auth
   store, used once per request, and never stored by the API. Nothing existing is
@@ -275,7 +275,7 @@ baseline, and dependency audits. Green or it didn't happen.
   model-call ceiling per run and per account per month, with a warning at 80%
   and a safe pause at the limit. OpenRouter calls explicitly request cost
   reporting.
-- Your data is yours: download everything Caveman holds for your account as
+- Your data is yours: download everything Cavman holds for your account as
   JSON (account, sign-in methods without tokens, projects, runs, decisions,
   checks, artifacts and events), or delete the account. Deletion needs your
   password (or a recent sign-in for GitHub-only accounts), is refused while a
@@ -305,7 +305,7 @@ absolutely not getting the car keys.
 - Provider keys live only with workers; the service token only with web and
   API; the auth secret only with the web app. Host paths and credential-shaped
   strings are redacted from everything shown to users.
-- Generated apps are never rendered on the Caveman origin. Live previews don't
+- Generated apps are never rendered on the Cavman origin. Live previews don't
   exist yet because we'd rather ship nothing than ship them unsafely.
 
 The full paranoia is written up in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
@@ -328,13 +328,13 @@ The honesty section. Everything here is a known gap, not a surprise.
   scripts and dev servers are not run, and other stacks get reviewed source and
   documents without executable checks.
 - Isolation is Bubblewrap on a shared kernel by default. For a public
-  multi-tenant service, use the E2B backend (`CAVEMAN_SANDBOX_BACKEND=e2b`),
+  multi-tenant service, use the E2B backend (`CAVMAN_SANDBOX_BACKEND=e2b`),
   which runs every check in its own throwaway microVM; see
   [deploy/README.md](deploy/README.md#e2b-instead-of-bubblewrap).
 - OpenRouter is the only configured model provider (any tool-calling model on it,
   e.g. Kimi, DeepSeek, Qwen). Model modes (Budget, Balanced, Maximum Quality)
-  appear only when an operator configures them (`CAVEMAN_MODELS_*`).
-- Operational and platform state can live in PostgreSQL (`CAVEMAN_DATABASE_URL`),
+  appear only when an operator configures them (`CAVMAN_MODELS_*`).
+- Operational and platform state can live in PostgreSQL (`CAVMAN_DATABASE_URL`),
   which the whole API suite runs against in CI; without it they are SQLite files.
   Project repositories and delivery archives are still files, so API and
   workers share a volume either way. Manager-mode conversation sessions stay
@@ -343,7 +343,7 @@ The honesty section. Everything here is a known gap, not a surprise.
   OAuth scope upgrade and token retrieval path has not been exercised against
   github.com from this environment. Repository import is tested against a local
   upstream and supports public repositories only. No live previews yet.
-- Some providers don't report cost for every call. When that happens Caveman
+- Some providers don't report cost for every call. When that happens Cavman
   shows the cost as incomplete instead of making up a number.
 
 ## Where things live
@@ -351,7 +351,7 @@ The honesty section. Everything here is a known gap, not a surprise.
 | Path | What's in there |
 | --- | --- |
 | [`src/walter/`](src/walter/) | The brain: kernel, sandbox, durable store, Agents SDK adapter, operator CLI |
-| [`src/caveman/`](src/caveman/) | The body: FastAPI API, leased-job worker, workflow driver, delivery |
+| [`src/cavman/`](src/cavman/) | The body: FastAPI API, leased-job worker, workflow driver, delivery |
 | [`web/`](web/) | The face: marketing site, auth, live run dashboard (Next.js) |
 | [`doctrine/`](doctrine/) | The rules the brain follows; `SYSTEM_PROMPT.md` is loaded at runtime |
 | [`docs/`](docs/) | Engine guide, threat model, runbooks, roadmap, implementation state, campaign reports |
@@ -366,7 +366,7 @@ The honesty section. Everything here is a known gap, not a surprise.
 | [docs/ENGINE.md](docs/ENGINE.md) | How the orchestration core really works: lifecycle, gates, recovery, sandbox, operator CLI |
 | [doctrine/](doctrine/README.md) | The rulebook: operating model, permissions, QA, failure recovery |
 | [deploy/README.md](deploy/README.md) | Deployment topology, isolation requirements, durability |
-| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Keeping a hosted Caveman alive |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Keeping a hosted Cavman alive |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, trust boundaries, threats and mitigations |
 | [docs/ROADMAP.md](docs/ROADMAP.md), [CHANGELOG.md](CHANGELOG.md) | Where we're going, and every decision we made on the way |
 

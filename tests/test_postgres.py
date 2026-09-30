@@ -81,7 +81,7 @@ def test_open_store_selects_the_backend(postgres_url, tmp_path):
 
 
 def test_platform_queue_hands_each_job_to_exactly_one_worker(postgres_url):
-    from caveman.platform_store import PlatformStore
+    from cavman.platform_store import PlatformStore
     name = schema()
     stores = [PlatformStore(postgres_url, schema=name) for _ in range(4)]
     try:
@@ -131,14 +131,14 @@ def test_a_scripted_build_completes_with_all_state_in_postgres(postgres_url, tmp
 
     from fastapi.testclient import TestClient
 
-    from caveman.api import create_app
-    from caveman.config import Settings
-    from caveman.worker import Worker
+    from cavman.api import create_app
+    from cavman.config import Settings
+    from cavman.worker import Worker
 
     if not Path("/usr/bin/bwrap").exists():
         pytest.skip("Bubblewrap sandbox unavailable")
     token = "t" * 40
-    headers = {"Authorization": f"Bearer {token}", "X-Caveman-User": "alice"}
+    headers = {"Authorization": f"Bearer {token}", "X-Cavman-User": "alice"}
     settings = Settings(data_dir=tmp_path / "data", api_token=token, executor="scripted",
                         scripted_step_delay=0, database_url=postgres_url, database_schema=schema())
     with TestClient(create_app(settings)) as client:

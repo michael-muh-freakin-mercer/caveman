@@ -4,15 +4,15 @@ import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
 const description =
-  "Describe the software you want in plain English. Caveman plans the work, coordinates specialist agents, tests the result, fixes failures, and delivers the project.";
+  "Describe the software you want in plain English. Cavman plans the work, coordinates specialist agents, tests the result, fixes failures, and delivers the project.";
 
 export const metadata: Metadata = {
   // Link previews need absolute image URLs; the public origin is the one auth already uses.
   metadataBase: new URL(process.env.BETTER_AUTH_URL || "http://localhost:3000"),
-  title: { default: "Caveman — Type what you want. Caveman builds it.", template: "%s · Caveman" },
+  title: { default: "Cavman — Type what you want. Cavman builds it.", template: "%s · Cavman" },
   description,
-  applicationName: "Caveman",
-  openGraph: { type: "website", siteName: "Caveman", description },
+  applicationName: "Cavman",
+  openGraph: { type: "website", siteName: "Cavman", description },
   twitter: { card: "summary_large_image" },
 };
 

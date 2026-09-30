@@ -113,7 +113,7 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
           <p>{run.explanation}</p>
           {managerMessage ? (
             <p className="mt-2 border-l-2 border-line-strong pl-3 text-fg-soft">
-              <span className="text-xs text-muted">Caveman said: </span>
+              <span className="text-xs text-muted">Cavman said: </span>
               {managerMessage}
             </p>
           ) : null}
@@ -122,7 +122,7 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
       ) : null}
 
       {pending.length ? (
-        <Panel id="approvals" title={<span className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-ember" aria-hidden="true" /> Approval needed</span>} description="Caveman is paused until you decide.">
+        <Panel id="approvals" title={<span className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-ember" aria-hidden="true" /> Approval needed</span>} description="Cavman is paused until you decide.">
           <div className="space-y-4">
             {pending.map((approval) => (
               <ApprovalCard key={approval.id} approval={approval} onDecide={(decision, reason) => decide(approval, decision, reason)} />
@@ -141,10 +141,10 @@ export function RunDashboard({ initial, githubEnabled = false }: { initial: RunD
                 ))}
               </div>
             ) : (
-              <EmptyState title={executing ? "Caveman is planning" : "No tasks yet"}>
+              <EmptyState title={executing ? "Cavman is planning" : "No tasks yet"}>
                 {executing
                   ? "Tasks appear here as soon as the plan is recorded."
-                  : "Caveman has not created a plan for this run."}
+                  : "Cavman has not created a plan for this run."}
               </EmptyState>
             )}
             {run.criteria.length ? (

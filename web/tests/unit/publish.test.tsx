@@ -54,6 +54,6 @@ describe("PublishPanel", () => {
 
   it("slugifies project names into valid repository names", () => {
     expect(slugify("Tattoo Studio: Booking!")).toBe("tattoo-studio-booking");
-    expect(slugify("!!!")).toBe("caveman-project");
+    expect(slugify("!!!")).toBe("cavman-project");
   });
 });

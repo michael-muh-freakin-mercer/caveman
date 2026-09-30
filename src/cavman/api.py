@@ -1,11 +1,11 @@
-"""Caveman API: the authenticated control plane around the orchestration core.
+"""Cavman API: the authenticated control plane around the orchestration core.
 
 Trust model
 -----------
 * The API is private. Every request (except health) must present the shared
-  ``CAVEMAN_API_TOKEN``, which only the Caveman web server holds. Browsers talk
+  ``CAVMAN_API_TOKEN``, which only the Cavman web server holds. Browsers talk
   to the web server, which authenticates the user session and forwards the
-  user's identity in ``X-Caveman-User``.
+  user's identity in ``X-Cavman-User``.
 * Authorization is enforced here: every project and run lookup is filtered by
   that owner. Another user's run is indistinguishable from a missing one.
 * No endpoint can record validation, review, acceptance, completion, artifact
@@ -122,7 +122,7 @@ def _constraints(settings: BuildSettings) -> list[str]:
         items.append("Constraints: " + settings.constraints.strip())
     if settings.deployment_target and settings.deployment_target.strip():
         items.append("Intended deployment target: " + settings.deployment_target.strip()
-                     + " (Caveman does not deploy; this informs the design only)")
+                     + " (Cavman does not deploy; this informs the design only)")
     return items
 
 
@@ -149,14 +149,14 @@ def _sandbox_status(backend: str = "bubblewrap") -> dict:
 
 
 def principal(request: Request, authorization: Annotated[str | None, Header()] = None,
-              x_caveman_user: Annotated[str | None, Header()] = None) -> str:
+              x_cavman_user: Annotated[str | None, Header()] = None) -> str:
     """Authenticate the calling web server and return the user it vouches for."""
     expected = f"Bearer {request.app.state.settings.api_token}"
     if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
         raise HTTPException(401, "Missing or invalid service credentials.")
-    if not x_caveman_user or not USER_ID.fullmatch(x_caveman_user):
+    if not x_cavman_user or not USER_ID.fullmatch(x_cavman_user):
         raise HTTPException(401, "Missing user identity.")
-    return x_caveman_user
+    return x_cavman_user
 
 
 User = Annotated[str, Depends(principal)]
@@ -173,7 +173,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         platform.close()
 
-    app = FastAPI(title="Caveman API", version=__version__, lifespan=lifespan,
+    app = FastAPI(title="Cavman API", version=__version__, lifespan=lifespan,
                   docs_url=None if settings.environment == "production" else "/api/docs",
                   openapi_url=None if settings.environment == "production" else "/api/openapi.json",
                   redoc_url=None)
@@ -235,7 +235,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "service": "caveman-api", "version": __version__}
+        return {"status": "ok", "service": "cavman-api", "version": __version__}
 
     @app.get("/api/metrics")
     def metrics(authorization: Annotated[str | None, Header()] = None):
@@ -245,36 +245,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not authorization or not hmac.compare_digest(authorization.encode(),
                                                         f"Bearer {settings.metrics_token}".encode()):
             raise HTTPException(401, "Missing or invalid metrics credentials.")
-        lines = ["# HELP caveman_jobs Jobs by status and outcome.", "# TYPE caveman_jobs gauge"]
+        lines = ["# HELP cavman_jobs Jobs by status and outcome.", "# TYPE cavman_jobs gauge"]
         for (status, outcome), count in sorted(platform.job_counts().items()):
-            lines.append(f'caveman_jobs{{status="{status}",outcome="{outcome}"}} {count}')
+            lines.append(f'cavman_jobs{{status="{status}",outcome="{outcome}"}} {count}')
         queue = platform.queue_stats()
-        lines += ["# HELP caveman_queue_oldest_seconds Age of the oldest queued job.",
-                  "# TYPE caveman_queue_oldest_seconds gauge",
-                  f"caveman_queue_oldest_seconds {queue['oldest_queued_seconds']:.1f}",
-                  "# HELP caveman_expired_leases Running jobs whose worker stopped heartbeating.",
-                  "# TYPE caveman_expired_leases gauge",
-                  f"caveman_expired_leases {queue['expired_leases']}",
-                  "# HELP caveman_runs Runs recorded on this server.", "# TYPE caveman_runs gauge",
-                  f"caveman_runs {len(platform.all_runs())}",
-                  "# HELP caveman_deliveries Delivery archives by status.", "# TYPE caveman_deliveries gauge"]
+        lines += ["# HELP cavman_queue_oldest_seconds Age of the oldest queued job.",
+                  "# TYPE cavman_queue_oldest_seconds gauge",
+                  f"cavman_queue_oldest_seconds {queue['oldest_queued_seconds']:.1f}",
+                  "# HELP cavman_expired_leases Running jobs whose worker stopped heartbeating.",
+                  "# TYPE cavman_expired_leases gauge",
+                  f"cavman_expired_leases {queue['expired_leases']}",
+                  "# HELP cavman_runs Runs recorded on this server.", "# TYPE cavman_runs gauge",
+                  f"cavman_runs {len(platform.all_runs())}",
+                  "# HELP cavman_deliveries Delivery archives by status.", "# TYPE cavman_deliveries gauge"]
         # Always export the failed series, so the first failure is a rise from 0.
         for status, count in sorted({"failed": 0, **platform.delivery_counts()}.items()):
-            lines.append(f'caveman_deliveries{{status="{status}"}} {count}')
+            lines.append(f'cavman_deliveries{{status="{status}"}} {count}')
         sandbox = _sandbox_status(settings.sandbox_backend)
-        lines += ["# HELP caveman_sandbox_available Whether isolation works on the API host.",
-                  "# TYPE caveman_sandbox_available gauge",
-                  f"caveman_sandbox_available {1 if sandbox['available'] else 0}"]
+        lines += ["# HELP cavman_sandbox_available Whether isolation works on the API host.",
+                  "# TYPE cavman_sandbox_available gauge",
+                  f"cavman_sandbox_available {1 if sandbox['available'] else 0}"]
         spend = server_usage(engine, platform)
-        lines += ["# HELP caveman_spend_month_usd Provider-reported model cost this calendar month (UTC), all accounts.",
-                  "# TYPE caveman_spend_month_usd gauge",
-                  f"caveman_spend_month_usd {spend['spent_usd']:.6f}",
-                  "# HELP caveman_model_calls_month Model calls this calendar month, all accounts.",
-                  "# TYPE caveman_model_calls_month gauge",
-                  f"caveman_model_calls_month {spend['model_calls']}",
-                  "# HELP caveman_model_calls_without_cost_month Calls this month whose provider reported no cost.",
-                  "# TYPE caveman_model_calls_without_cost_month gauge",
-                  f"caveman_model_calls_without_cost_month {spend['calls_without_cost']}"]
+        lines += ["# HELP cavman_spend_month_usd Provider-reported model cost this calendar month (UTC), all accounts.",
+                  "# TYPE cavman_spend_month_usd gauge",
+                  f"cavman_spend_month_usd {spend['spent_usd']:.6f}",
+                  "# HELP cavman_model_calls_month Model calls this calendar month, all accounts.",
+                  "# TYPE cavman_model_calls_month gauge",
+                  f"cavman_model_calls_month {spend['model_calls']}",
+                  "# HELP cavman_model_calls_without_cost_month Calls this month whose provider reported no cost.",
+                  "# TYPE cavman_model_calls_without_cost_month gauge",
+                  f"cavman_model_calls_without_cost_month {spend['calls_without_cost']}"]
         return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
     # System -----------------------------------------------------------
@@ -357,7 +357,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/account/export")
     def export_account(user: User):
-        """Everything Caveman holds for this account, as shown to its owner."""
+        """Everything Cavman holds for this account, as shown to its owner."""
         runs = []
         for record in platform.list_runs(user):
             view = detail(record)
@@ -368,7 +368,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         projects = [project_view(project, []) for project in platform.list_projects(user)]
         for project in projects:
             project.pop("runs", None)
-        return {"format": "caveman-export/1", "exported_at": datetime.now(timezone.utc).isoformat(),
+        return {"format": "cavman-export/1", "exported_at": datetime.now(timezone.utc).isoformat(),
                 "user_id": user, "spending": account_usage(engine, platform, settings, user),
                 "projects": projects, "runs": runs,
                 "notes": "Delivered project files are in each run's download archive; "
@@ -390,9 +390,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.executor == EXECUTOR_PROVIDER:
             status = _provider_status()
             if not status["configured"]:
-                raise HTTPException(503, "Caveman's model provider is not configured on the server yet, "
+                raise HTTPException(503, "Cavman's model provider is not configured on the server yet, "
                                          "so builds cannot start. An operator needs to set "
-                                         "OPENROUTER_API_KEY for the Caveman worker.")
+                                         "OPENROUTER_API_KEY for the Cavman worker.")
         require_account_allowance(user)
         modes = {"automatic"} | {mode for mode, _, _ in settings.model_profiles}
         if body.settings.model_mode not in modes:
@@ -589,11 +589,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         act(user)
         record = owned_run(user, run_id)
         approved = body.decision == "approve"
-        reason = body.reason.strip() or ("Approved in Caveman after reviewing the exact scope." if approved
-                                         else "Rejected in Caveman.")
+        reason = body.reason.strip() or ("Approved in Cavman after reviewing the exact scope." if approved
+                                         else "Rejected in Cavman.")
         try:
             engine.decide_approval(record.id, approval_id, approved=approved,
-                                   human_id=f"caveman-user:{user}", reason=reason,
+                                   human_id=f"cavman-user:{user}", reason=reason,
                                    expected_scope_digest=body.scope_digest)
         except KeyError:
             raise HTTPException(404, "Approval not found.") from None
@@ -611,7 +611,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if engine.load(record.id).status != "active":
             raise HTTPException(409, "This run has finished; start a new build instead.")
         if settings.executor == EXECUTOR_PROVIDER and not _provider_status()["configured"]:
-            raise HTTPException(503, "Caveman's model provider is not configured on the server.")
+            raise HTTPException(503, "Cavman's model provider is not configured on the server.")
         if body.message.strip() and settings.orchestration != "manager":
             raise HTTPException(422, "Follow-up instructions are not supported by this server yet. "
                                      "Continue without an instruction, or start a new build.")
@@ -639,7 +639,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         record = owned_run(user, run_id)
         if platform.active_job(record.id) is not None:
             raise HTTPException(409, "Stop the run before closing it.")
-        engine.abandon(record.id, body.reason.strip(), actor_id=f"caveman-user:{user}")
+        engine.abandon(record.id, body.reason.strip(), actor_id=f"cavman-user:{user}")
         return detail(record)
 
     @app.patch("/api/runs/{run_id}/budget")
@@ -697,7 +697,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         client = GitHubClient(body.github_token, settings.github_api_url)
         try:
             created = client.create_repository(body.name, body.private,
-                                               f"{project_name(record.project_id)} - built with Caveman")
+                                               f"{project_name(record.project_id)} - built with Cavman")
             push(engine.project_repo(record.project_id), commit, created["clone_url"], body.github_token)
         except PublishError as exc:
             raise HTTPException(exc.status, engine.redact(str(exc))) from None
@@ -713,7 +713,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         path = settings.deliveries_dir / delivery.archive_name
         if not path.is_file() or path.parent.resolve() != settings.deliveries_dir.resolve():
             raise HTTPException(404, "The deliverable file is missing.")
-        filename = f"{delivery.manifest.get('root', 'caveman-project')}.tar.gz"
+        filename = f"{delivery.manifest.get('root', 'cavman-project')}.tar.gz"
         return FileResponse(path, media_type="application/gzip", filename=filename)
 
     return app

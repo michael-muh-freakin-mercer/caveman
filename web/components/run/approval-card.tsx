@@ -113,7 +113,7 @@ export function ApprovalCard({
             </Button>
           </div>
           <p className="mt-3 text-xs text-muted">
-            Your decision applies only to this exact scope. If Caveman changes the request, it will ask again.
+            Your decision applies only to this exact scope. If Cavman changes the request, it will ask again.
           </p>
         </div>
       ) : approval.decision ? (

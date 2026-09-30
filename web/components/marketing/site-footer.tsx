@@ -7,7 +7,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
         <div className="flex items-center gap-3">
           <Mark className="h-6 w-6" />
-          <p className="text-sm text-muted">You describe. Caveman delivers.</p>
+          <p className="text-sm text-muted">You describe. Cavman delivers.</p>
         </div>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
           <Link href="/how-it-works" className="hover:text-fg">How It Works</Link>
@@ -16,7 +16,7 @@ export function SiteFooter() {
           <Link href="/terms" className="hover:text-fg">Terms</Link>
           <Link href="/privacy" className="hover:text-fg">Privacy</Link>
           <Link href="/acceptable-use" className="hover:text-fg">Acceptable Use</Link>
-          <a href="https://github.com/michael-muh-freakin-mercer/caveman" className="hover:text-fg" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/michael-muh-freakin-mercer/cavman" className="hover:text-fg" rel="noreferrer">GitHub</a>
           <span className="text-faint">MIT licensed</span>
         </nav>
       </div>

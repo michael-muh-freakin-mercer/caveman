@@ -14,7 +14,7 @@ const NAV = [
   { href: "/docs", label: "Docs" },
 ];
 
-const GITHUB_URL = "https://github.com/michael-muh-freakin-mercer/caveman";
+const GITHUB_URL = "https://github.com/michael-muh-freakin-mercer/cavman";
 
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname();
@@ -44,7 +44,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
         <div className="hidden items-center gap-2 md:flex">
           {signedIn ? (
             <Link href="/app" className={buttonClass("primary", "sm")}>
-              Open Caveman
+              Open Cavman
             </Link>
           ) : (
             <>
@@ -81,7 +81,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
           <div className="mt-3 grid grid-cols-2 gap-2">
             {signedIn ? (
               <Link href="/app" className={buttonClass("primary", "md", "col-span-2")}>
-                Open Caveman
+                Open Cavman
               </Link>
             ) : (
               <>

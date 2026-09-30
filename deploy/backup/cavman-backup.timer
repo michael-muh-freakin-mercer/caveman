@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Caveman backup nightly
+Description=Run the Cavman backup nightly
 
 [Timer]
 OnCalendar=*-*-* 07:30:00 UTC

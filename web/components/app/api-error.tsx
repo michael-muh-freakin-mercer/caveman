@@ -7,9 +7,9 @@ export function ApiError({ status, message }: { status: number; message: string 
   }
   return (
     <div role="alert">
-      <EmptyState icon={<CloudOff className="h-6 w-6" />} title={status >= 500 ? "Caveman is temporarily unavailable" : "Something went wrong"}>
+      <EmptyState icon={<CloudOff className="h-6 w-6" />} title={status >= 500 ? "Cavman is temporarily unavailable" : "Something went wrong"}>
         {status >= 500
-          ? "The Caveman service could not be reached. Your builds are safe and keep running on the server; try again in a moment."
+          ? "The Cavman service could not be reached. Your builds are safe and keep running on the server; try again in a moment."
           : message}
       </EmptyState>
     </div>

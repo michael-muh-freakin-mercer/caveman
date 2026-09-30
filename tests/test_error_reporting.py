@@ -1,7 +1,7 @@
 import sys
 import types
 
-from caveman.error_reporting import configure_error_reporting
+from cavman.error_reporting import configure_error_reporting
 
 
 def fake_sdk(monkeypatch):
@@ -30,7 +30,7 @@ def test_blank_dsn_is_off(monkeypatch):
 def test_on_with_dsn_and_never_sends_user_content(monkeypatch):
     calls = fake_sdk(monkeypatch)
     monkeypatch.setenv("SENTRY_DSN", "https://key@o0.ingest.sentry.io/1")
-    monkeypatch.setenv("CAVEMAN_ENV", "production")
+    monkeypatch.setenv("CAVMAN_ENV", "production")
     monkeypatch.delenv("SENTRY_ENVIRONMENT", raising=False)
     assert configure_error_reporting("worker") is True
     init = calls["init"]

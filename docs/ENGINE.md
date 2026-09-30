@@ -1,9 +1,9 @@
-# Caveman Core — the orchestration engine
+# Cavman Core — the orchestration engine
 
-> This document describes Caveman's orchestration core in depth. The core was
+> This document describes Cavman's orchestration core in depth. The core was
 > built under the name **Walter**; that name survives only as the internal
 > Python package (`src/walter/`), the `walter` operator CLI kept for
-> compatibility, and the Manager's doctrine files. Caveman is the product.
+> compatibility, and the Manager's doctrine files. Cavman is the product.
 > For setup of the full product (API, web app, worker), see the top-level
 > [README](../README.md).
 
@@ -179,8 +179,8 @@ checkout's `doctrine/SYSTEM_PROMPT.md` at startup, so a non-editable install int
 `site-packages` will not start.
 
 ```bash
-git clone https://github.com/michael-muh-freakin-mercer/caveman.git
-cd caveman
+git clone https://github.com/michael-muh-freakin-mercer/cavman.git
+cd cavman
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[test]'
@@ -210,7 +210,7 @@ walter
 ```
 
 ```text
-Caveman ready. Session: main
+Cavman ready. Session: main
 Commands: :new starts a fresh run, :clear resets this conversation, :quit exits.
 Follow-up messages continue the current run until it completes.
 Operational state is durable. Provider trace export is disabled.

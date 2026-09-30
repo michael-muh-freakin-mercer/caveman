@@ -24,7 +24,7 @@ export function CompletionPanel({ run, githubEnabled = false, onPublished }: { r
           {run.final_result ? <p className="mt-3 whitespace-pre-line text-fg-soft">{run.final_result}</p> : null}
           <div className="mt-6 flex flex-wrap gap-2">
             {delivery?.downloadable ? (
-              <a href={`/api/caveman/runs/${run.id}/delivery/download`} className={buttonClass("primary", "md")} download>
+              <a href={`/api/cavman/runs/${run.id}/delivery/download`} className={buttonClass("primary", "md")} download>
                 <Download className="h-4 w-4" aria-hidden="true" /> Download project
               </a>
             ) : null}
@@ -65,7 +65,7 @@ export function CompletionPanel({ run, githubEnabled = false, onPublished }: { r
                   <>Local project repository{delivery?.commit ? <> · commit <span className="font-mono">{delivery.commit.slice(0, 7)}</span></> : null} · not published</>
                 )}
               </dd></div>
-          <div className="col-span-2"><dt className="text-xs text-muted">Preview</dt><dd className="text-fg-soft">Not available — Caveman does not run generated apps on this site.</dd></div>
+          <div className="col-span-2"><dt className="text-xs text-muted">Preview</dt><dd className="text-fg-soft">Not available — Cavman does not run generated apps on this site.</dd></div>
         </dl>
       </div>
       {delivery?.status === "ready" ? (

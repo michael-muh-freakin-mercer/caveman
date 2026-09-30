@@ -38,7 +38,7 @@ class GitHubClient:
             self._api + path, method=method,
             data=json.dumps(body).encode() if body is not None else None,
             headers={"Authorization": f"Bearer {self._token}", "Accept": "application/vnd.github+json",
-                     "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "caveman-publisher",
+                     "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "cavman-publisher",
                      "Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(request, timeout=30) as response:

@@ -7,7 +7,7 @@ export default function NotFound() {
       <Mark className="h-10 w-10" />
       <h1 className="mt-6 text-3xl font-semibold text-fg">Nothing here.</h1>
       <p className="mt-2 text-muted">That page does not exist.</p>
-      <Link href="/" className="mt-6 text-ember hover:underline">Back to Caveman</Link>
+      <Link href="/" className="mt-6 text-ember hover:underline">Back to Cavman</Link>
     </main>
   );
 }

@@ -14,19 +14,19 @@ pytest.importorskip("fastapi")
 
 from fastapi.testclient import TestClient
 
-from caveman.api import create_app
-from caveman.config import Settings
-from caveman.migrate import AUTH_TABLES, MigrationRefused, copy_sqlite_to_postgres, migrate_to_postgres
-from caveman.worker import Worker
+from cavman.api import create_app
+from cavman.config import Settings
+from cavman.migrate import AUTH_TABLES, MigrationRefused, copy_sqlite_to_postgres, migrate_to_postgres
+from cavman.worker import Worker
 
 TOKEN = "t" * 40
-ALICE = {"Authorization": f"Bearer {TOKEN}", "X-Caveman-User": "alice"}
+ALICE = {"Authorization": f"Bearer {TOKEN}", "X-Cavman-User": "alice"}
 
 needs_sandbox = pytest.mark.skipif(not (Path("/usr/bin/bwrap").exists() and Path("/usr/bin/prlimit").exists()),
                                    reason="Bubblewrap sandbox unavailable")
 
 
-def _settings(tmp_path, database_url=None, schema="caveman"):
+def _settings(tmp_path, database_url=None, schema="cavman"):
     return Settings(data_dir=tmp_path / "data", api_token=TOKEN, executor="scripted",
                     scripted_step_delay=0, heartbeat_seconds=0.2, lease_seconds=30,
                     database_url=database_url, database_schema=schema)
@@ -85,9 +85,9 @@ def test_completed_build_moves_to_postgres_and_is_served_from_it(tmp_path, postg
 
 def test_refuses_without_database_url_or_while_a_job_is_running(tmp_path, postgres_url, schema):
     settings = _settings(tmp_path)
-    with pytest.raises(MigrationRefused, match="CAVEMAN_DATABASE_URL"):
+    with pytest.raises(MigrationRefused, match="CAVMAN_DATABASE_URL"):
         migrate_to_postgres(settings)
-    from caveman.platform_store import PlatformStore
+    from cavman.platform_store import PlatformStore
     settings.data_dir.mkdir(parents=True)
     store = PlatformStore(settings.platform_db)
     project = store.create_project("alice", "Demo", "", {})
@@ -143,7 +143,7 @@ def test_refuses_an_auth_file_missing_better_auth_tables(tmp_path):
 
 
 def test_refuses_when_only_one_core_store_exists(tmp_path):
-    from caveman.platform_store import PlatformStore
+    from cavman.platform_store import PlatformStore
     settings = _settings(tmp_path, database_url="postgresql://unused.invalid/db")
     settings.data_dir.mkdir(parents=True)
     PlatformStore(settings.platform_db).close()

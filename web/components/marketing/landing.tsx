@@ -6,7 +6,7 @@ import { BuildPrompt } from "./build-prompt";
 import { ExampleRun } from "./example-run";
 
 const STEPS = [
-  { icon: ClipboardList, title: "Plan", body: "Caveman understands the request and creates executable work." },
+  { icon: ClipboardList, title: "Plan", body: "Cavman understands the request and creates executable work." },
   { icon: Hammer, title: "Build", body: "Specialist agents execute appropriate tasks." },
   { icon: ScanSearch, title: "Review", body: "Generated work is tested, inspected, and refined." },
   { icon: PackageCheck, title: "Deliver", body: "A verified project is returned to the user." },
@@ -18,7 +18,7 @@ const TRUST = [
   { icon: History, title: "Durable runs", body: "Every task, attempt, check and decision is recorded. Close the browser — the build keeps going and survives restarts." },
   { icon: UserCheck, title: "You approve what matters", body: "Consequential actions wait for your decision, bound to the exact scope you were shown. Nothing else interrupts you." },
   { icon: Gauge, title: "Spending under control", body: "Every run has a budget ceiling. Provider-reported cost and model usage are tracked per call." },
-  { icon: Boxes, title: "Any model", body: "Caveman is model-agnostic and routes work through economical open models — no single vendor required." },
+  { icon: Boxes, title: "Any model", body: "Cavman is model-agnostic and routes work through economical open models — no single vendor required." },
 ];
 
 export function Landing({ signedIn }: { signedIn: boolean }) {
@@ -33,22 +33,22 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
           <h1 className="text-balance mt-6 text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.035em] text-fg sm:text-6xl lg:text-7xl">
             Type what you want.
             <br />
-            <span className="bg-gradient-to-r from-ember via-ember-hot to-[#ffb07a] bg-clip-text text-transparent">Caveman builds it.</span>
+            <span className="bg-gradient-to-r from-ember via-ember-hot to-[#ffb07a] bg-clip-text text-transparent">Cavman builds it.</span>
           </h1>
           <p className="text-balance mx-auto mt-7 max-w-2xl text-base leading-relaxed text-fg-soft sm:text-lg">
-            Describe the software you want in plain English. Caveman plans the work, coordinates specialist agents,
+            Describe the software you want in plain English. Cavman plans the work, coordinates specialist agents,
             tests the result, fixes failures, and delivers the project.
           </p>
           <div className="mx-auto mt-10 max-w-3xl">
             <BuildPrompt signedIn={signedIn} />
           </div>
-          <p className="mt-8 font-mono text-xs tracking-[0.14em] text-muted">YOU DESCRIBE. CAVEMAN DELIVERS.</p>
+          <p className="mt-8 font-mono text-xs tracking-[0.14em] text-muted">YOU DESCRIBE. CAVMAN DELIVERS.</p>
         </div>
       </section>
 
       <section aria-labelledby="steps-title" className="border-t border-line bg-ink/40">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <h2 id="steps-title" className="sr-only">What Caveman does</h2>
+          <h2 id="steps-title" className="sr-only">What Cavman does</h2>
           <ol className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, index) => (
               <li key={step.title} className="relative bg-surface p-7">
@@ -74,7 +74,7 @@ export function Landing({ signedIn }: { signedIn: boolean }) {
               One request in. A verified project out.
             </h2>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-fg-soft">
-              You never manage agents. Caveman decomposes the goal, assigns specialists, runs independent work in
+              You never manage agents. Cavman decomposes the goal, assigns specialists, runs independent work in
               parallel, and keeps going — retrying, revising or replanning — until the work is accepted or it genuinely
               needs you.
             </p>

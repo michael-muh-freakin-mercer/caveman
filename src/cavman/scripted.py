@@ -1,6 +1,6 @@
 """Scripted test executor: drives the real kernel with scripted models.
 
-Enabled only when ``CAVEMAN_EXECUTOR=scripted`` (refused in production). It
+Enabled only when ``CAVMAN_EXECUTOR=scripted`` (refused in production). It
 exists so end-to-end tests can exercise the whole product -- durable jobs, the
 real Manager tool surface, real Bubblewrap validation, real review and
 acceptance gates, real approvals -- without spending provider credits.
@@ -38,7 +38,7 @@ from agents.usage import Usage
 from walter import runtime
 from walter.models import ApprovalStatus
 
-PROVIDER = "caveman-scripted"
+PROVIDER = "cavman-scripted"
 _RAW_USAGE = {"prompt_tokens": 120, "completion_tokens": 40, "total_tokens": 160}
 _USAGE = Usage(requests=1, input_tokens=120, output_tokens=40, total_tokens=160)
 

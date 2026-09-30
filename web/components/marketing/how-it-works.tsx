@@ -4,7 +4,7 @@ import { Mark } from "@/components/brand/logo";
 import { buttonClass } from "@/components/ui/button";
 
 const STAGES = [
-  { n: "01", icon: BrainCircuit, title: "Understand", body: "Interpret objective, constraints, requirements, and desired outcome.", detail: "Caveman turns your words into measurable success criteria before any work starts." },
+  { n: "01", icon: BrainCircuit, title: "Understand", body: "Interpret objective, constraints, requirements, and desired outcome.", detail: "Cavman turns your words into measurable success criteria before any work starts." },
   { n: "02", icon: Network, title: "Plan", body: "Create a dependency-aware execution graph and select specialists.", detail: "Each task gets one owner, one deliverable, acceptance criteria and predeclared checks." },
   { n: "03", icon: Workflow, title: "Build", body: "Execute ready work in parallel where appropriate.", detail: "Specialists work in isolated workspaces with only the tools their task needs." },
   { n: "04", icon: ScanSearch, title: "Review", body: "Validate, inspect, critique, retry, recover, or replan.", detail: "Sandboxed checks and a fresh independent reviewer gate every candidate. Failures are classified and routed." },
@@ -74,11 +74,11 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
           <div className="lg:pt-8">
             <p className="eyebrow text-glacier">The flow</p>
             <h2 id="flow-title" className="mt-4 text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
-              You talk to Caveman. Caveman runs the team.
+              You talk to Cavman. Cavman runs the team.
             </h2>
             <p className="mt-5 max-w-lg text-fg-soft">
               Specialists are created for each project, scoped to one lane of work, and retired when their work is
-              accepted. The set below is only an example — Caveman chooses the specialists your project actually needs.
+              accepted. The set below is only an example — Cavman chooses the specialists your project actually needs.
             </p>
             <ul className="mt-8 space-y-3 text-sm text-fg-soft">
               <li className="flex gap-3"><CheckCircle2 className="h-5 w-5 shrink-0 text-ok" aria-hidden="true" />Only accepted work unlocks the tasks that depend on it.</li>
@@ -86,13 +86,13 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
               <li className="flex gap-3"><CheckCircle2 className="h-5 w-5 shrink-0 text-ok" aria-hidden="true" />Material plan changes and risky actions wait for your exact approval.</li>
             </ul>
           </div>
-          <figure className="flex flex-col items-center" aria-label="Flow from your prompt, through Caveman and its specialists, to a verified project">
+          <figure className="flex flex-col items-center" aria-label="Flow from your prompt, through Cavman and its specialists, to a verified project">
             <FlowNode icon={MessageSquareText} title="User Prompt" caption="“Build me a booking app for a tattoo studio”" />
             <Down />
             <div className="panel flex w-full max-w-sm items-center gap-4 px-5 py-4 shadow-ember">
               <Mark className="h-10 w-10" />
               <div className="text-left">
-                <p className="text-sm font-semibold text-fg">Caveman</p>
+                <p className="text-sm font-semibold text-fg">Cavman</p>
                 <p className="text-xs text-muted">Plans, delegates, validates, reviews, accepts</p>
               </div>
             </div>
@@ -111,7 +111,7 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
             <Down />
             <FlowNode icon={Rocket} title="Verified Project" caption="Accepted, tested, reviewed — ready to download" accent />
             <figcaption className="sr-only">
-              User Prompt, then Caveman, then a dynamic set of specialists such as product, frontend, backend, QA and
+              User Prompt, then Cavman, then a dynamic set of specialists such as product, frontend, backend, QA and
               DevOps, then a verified project.
             </figcaption>
           </figure>
@@ -120,7 +120,7 @@ export function HowItWorks({ signedIn }: { signedIn: boolean }) {
 
       <section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-24 text-center sm:px-6">
         <h2 className="text-balance text-3xl font-semibold tracking-tight text-fg sm:text-4xl">Ready when you are.</h2>
-        <p className="mt-4 text-fg-soft">Describe it once. Caveman does the rest.</p>
+        <p className="mt-4 text-fg-soft">Describe it once. Cavman does the rest.</p>
         <Link href={signedIn ? "/app/new" : "/sign-up"} className={buttonClass("primary", "lg", "mt-8")}>
           Build something <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>

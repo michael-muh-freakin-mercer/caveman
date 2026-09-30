@@ -39,16 +39,16 @@ export function BuildPrompt({ signedIn }: { signedIn: boolean }) {
     }
     setBusy(true);
     try {
-      const response = await fetch("/api/caveman/builds", {
+      const response = await fetch("/api/cavman/builds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Caveman could not start this build.");
+      if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Cavman could not start this build.");
       router.push(`/app/runs/${body.run_id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Caveman could not start this build.");
+      setError(reason instanceof Error ? reason.message : "Cavman could not start this build.");
       setBusy(false);
     }
   }

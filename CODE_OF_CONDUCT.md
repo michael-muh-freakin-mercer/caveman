@@ -12,7 +12,7 @@ lives. We're cavemen, not animals.
 ## Reporting
 
 Report unacceptable behavior to the maintainer through a
-[private security advisory](https://github.com/michael-muh-freakin-mercer/caveman/security/advisories/new)
+[private security advisory](https://github.com/michael-muh-freakin-mercer/cavman/security/advisories/new)
 (it reaches the maintainer privately even though it isn't a security issue),
 or by contacting the maintainer through their GitHub profile. Reports are
 handled confidentially.

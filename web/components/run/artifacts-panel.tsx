@@ -18,7 +18,7 @@ export function ArtifactsPanel({ runId, artifacts }: { runId: string; artifacts:
     setOpen(artifact);
     setFull(null);
     setError(null);
-    fetch(`/api/caveman/runs/${runId}/artifacts/${artifact.id}`, { cache: "no-store" })
+    fetch(`/api/cavman/runs/${runId}/artifacts/${artifact.id}`, { cache: "no-store" })
       .then(async (r) => (r.ok ? setFull(await r.json()) : setError("Could not load this artifact.")))
       .catch(() => setError("Could not load this artifact."));
   }

@@ -26,7 +26,7 @@ def configure_error_reporting(component: str) -> bool:
         return False
     sentry_sdk.init(
         dsn=dsn,
-        environment=os.getenv("SENTRY_ENVIRONMENT") or os.getenv("CAVEMAN_ENV") or "production",
+        environment=os.getenv("SENTRY_ENVIRONMENT") or os.getenv("CAVMAN_ENV") or "production",
         release=os.getenv("SENTRY_RELEASE") or None,
         send_default_pii=False,
         include_local_variables=False,

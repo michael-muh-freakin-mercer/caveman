@@ -1,10 +1,10 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth, ensureAuthSchema } from "@/lib/auth";
-import { apiBase, serviceHeaders } from "@/lib/caveman";
+import { apiBase, serviceHeaders } from "@/lib/cavman";
 
 /**
- * Authenticated proxy to the private Caveman API.
+ * Authenticated proxy to the private Cavman API.
  *
  * The session is verified here, server-side, and only the verified user id is
  * forwarded. The API enforces ownership of every project and run. Only an
@@ -55,7 +55,7 @@ async function forward(request: Request, params: Promise<{ path: string[] }>) {
     upstream = await fetch(target, init);
   } catch {
     if (request.signal.aborted) return new Response(null, { status: 499 });
-    return NextResponse.json({ detail: "The Caveman API is unavailable. Try again shortly." }, { status: 503 });
+    return NextResponse.json({ detail: "The Cavman API is unavailable. Try again shortly." }, { status: 503 });
   }
 
   const passthrough = new Headers();

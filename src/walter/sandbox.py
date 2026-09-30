@@ -226,7 +226,7 @@ def _node_isolation_flag(node_root: Path) -> str:
 
 
 def _detect_node_root() -> Path | None:
-    configured = os.environ.get("CAVEMAN_NODE_ROOT")
+    configured = os.environ.get("CAVMAN_NODE_ROOT")
     if configured:
         root = Path(configured).resolve()
     else:
@@ -634,7 +634,7 @@ class WorkspaceManager:
             for start in range(0, len(deleted), 200):
                 self._git("-C", root, "rm", "-q", "--cached", "--ignore-unmatch", "--",
                           *deleted[start:start + 200])
-            self._git("-C", root, "-c", "user.name=Caveman", "-c", "user.email=caveman@localhost",
+            self._git("-C", root, "-c", "user.name=Cavman", "-c", "user.email=cavman@localhost",
                       "commit", "-q", "--no-verify", "--no-gpg-sign", "-m", message)
             current = self._git("-C", root, "rev-parse", "HEAD").strip()
         parents = self._git("-C", root, "rev-list", "--parents", "-n", "1", current).split()
@@ -687,8 +687,8 @@ class WorkspaceManager:
             commit = self._commit_candidate(source, "Previous attempt (carried over)")
             if commit == source.base_revision:
                 return False
-            applied = self._git_result("-C", target.root, "-c", "user.name=Caveman",
-                                       "-c", "user.email=caveman@localhost",
+            applied = self._git_result("-C", target.root, "-c", "user.name=Cavman",
+                                       "-c", "user.email=cavman@localhost",
                                        "cherry-pick", "--no-commit", commit)
             if applied.returncode:
                 self._git_result("-C", target.root, "cherry-pick", "--abort")
@@ -1289,8 +1289,8 @@ class WorkspaceManager:
                 environment += [(name, os.environ[name]) for name in PROXY_ENVIRONMENT if os.environ.get(name)]
                 extra_ca = os.environ.get("NODE_EXTRA_CA_CERTS")
                 if extra_ca and Path(extra_ca).is_file():
-                    readonly.append((extra_ca, "/etc/caveman-extra-ca.pem"))
-                    environment.append(("NODE_EXTRA_CA_CERTS", "/etc/caveman-extra-ca.pem"))
+                    readonly.append((extra_ca, "/etc/cavman-extra-ca.pem"))
+                    environment.append(("NODE_EXTRA_CA_CERTS", "/etc/cavman-extra-ca.pem"))
                 argv = ("/opt/node/bin/node", "/opt/node/lib/node_modules/npm/bin/npm-cli.js",
                         "ci" if lock is not None else "install", "--ignore-scripts", "--no-audit",
                         "--no-fund", f"--registry={NPM_REGISTRY}")

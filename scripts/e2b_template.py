@@ -1,6 +1,6 @@
-"""Build the E2B sandbox template that Caveman's E2B backend runs candidate code in.
+"""Build the E2B sandbox template that Cavman's E2B backend runs candidate code in.
 
-    E2B_API_KEY=... python scripts/e2b_template.py [--name caveman-sandbox]
+    E2B_API_KEY=... python scripts/e2b_template.py [--name cavman-sandbox]
 
 The template mirrors what the Bubblewrap backend binds from the worker host:
 a Python environment at /opt/walter-env with the worker's own dependency set
@@ -12,7 +12,7 @@ a network-deny seccomp filter through the base image's libseccomp. E2B caches
 unchanged layers, so rebuilding after a small change is quick.
 
 Rebuild when this file changes; workers pick the new build up on their next
-sandbox (set CAVEMAN_E2B_TEMPLATE if you use a name other than the default).
+sandbox (set CAVMAN_E2B_TEMPLATE if you use a name other than the default).
 """
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def template():
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--name", default="caveman-sandbox", help="E2B template name (default: caveman-sandbox)")
+    parser.add_argument("--name", default="cavman-sandbox", help="E2B template name (default: cavman-sandbox)")
     parser.add_argument("--skip-cache", action="store_true", help="rebuild every layer")
     args = parser.parse_args(argv)
     if not os.environ.get("E2B_API_KEY"):

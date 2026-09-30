@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Caveman design tokens. Dark-first: near-black ground, charcoal surfaces,
+/* Cavman design tokens. Dark-first: near-black ground, charcoal surfaces,
    slate structure, electric orange for action, cool cyan for system signal. */
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;

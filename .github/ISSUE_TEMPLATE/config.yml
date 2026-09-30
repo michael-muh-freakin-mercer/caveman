@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/michael-muh-freakin-mercer/caveman/security/advisories/new
+    url: https://github.com/michael-muh-freakin-mercer/cavman/security/advisories/new
     about: Found a way out of the sandbox? Tell us privately first, please.
   - name: Read how it works
-    url: https://github.com/michael-muh-freakin-mercer/caveman/blob/main/docs/ENGINE.md
+    url: https://github.com/michael-muh-freakin-mercer/cavman/blob/main/docs/ENGINE.md
     about: The engine guide. Your question may already have an answer (and a diagram).

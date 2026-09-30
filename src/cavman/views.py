@@ -35,7 +35,7 @@ FAILURE_EXPLANATIONS = {
     FailureClass.PROVIDER_FAILURE: "The model provider failed to respond.",
     FailureClass.TIMEOUT: "The work was interrupted before it finished.",
     FailureClass.CAPABILITY_UNAVAILABLE: "The task needs a capability it was not granted.",
-    FailureClass.UNSUPPORTED_CAPABILITY: "The task needs a capability Caveman does not support yet.",
+    FailureClass.UNSUPPORTED_CAPABILITY: "The task needs a capability Cavman does not support yet.",
     FailureClass.REPEATED_BAD_OUTPUT: "The specialist repeatedly produced unacceptable output.",
     FailureClass.STALE_BASE: ("Other accepted work was merged into the project after this candidate was "
                               "built, so it is rebuilt on the latest code before it can be accepted."),
@@ -64,7 +64,7 @@ JOB_OUTCOME_TEXT = {
                         "and was paused safely."),
     "turn_limit": "The Manager reached its per-session turn limit and paused.",
     "cancelled": "Execution was stopped by you.",
-    "config_error": "Caveman's model provider is not configured, so the run could not start.",
+    "config_error": "Cavman's model provider is not configured, so the run could not start.",
     "interrupted": "The worker running this build stopped unexpectedly.",
     "error": "Execution stopped because of an unexpected error.",
 }
@@ -576,24 +576,24 @@ class Projector:
         if active is not None:
             if active.kind == "recover":
                 return {"state": "recovering", "label": "Recovering",
-                        "explanation": "Caveman is recovering interrupted work before continuing."}
+                        "explanation": "Cavman is recovering interrupted work before continuing."}
             if active.status == "queued":
                 return {"state": "starting", "label": "Starting",
-                        "explanation": "Waiting for a Caveman worker to pick up this build."}
+                        "explanation": "Waiting for a Cavman worker to pick up this build."}
             if active.cancel_requested:
                 return {"state": "stopping", "label": "Stopping",
                         "explanation": "Stopping after the current step."}
             if not tasks:
                 return {"state": "planning", "label": "Planning",
-                        "explanation": "Caveman is working out what needs to be built."}
+                        "explanation": "Cavman is working out what needs to be built."}
             if any(t.status == TaskStatus.REVISION_REQUIRED for t in tasks):
                 return {"state": "revision_required", "label": "Revising",
-                        "explanation": "A reviewer or check asked for changes; Caveman is revising."}
+                        "explanation": "A reviewer or check asked for changes; Cavman is revising."}
             return {"state": "running", "label": "Building",
                     "explanation": "Specialists are working through the plan."}
         if pending or pending_caps:
             return {"state": "approval_needed", "label": "Approval needed",
-                    "explanation": "Caveman is waiting for your decision before continuing."}
+                    "explanation": "Cavman is waiting for your decision before continuing."}
         if last is not None and last.status in ("failed", "cancelled"):
             state = {"budget_exceeded": "budget_reached", "cancelled": "paused",
                      "interrupted": "failed", "config_error": "failed", "error": "failed",
@@ -603,11 +603,11 @@ class Projector:
                     "explanation": JOB_OUTCOME_TEXT.get(last.outcome or "", "Execution stopped.")}
         if any(t.status == TaskStatus.BLOCKED for t in tasks):
             return {"state": "blocked", "label": "Blocked",
-                    "explanation": "Some work is blocked. Continue the run to let Caveman decide how to recover."}
+                    "explanation": "Some work is blocked. Continue the run to let Cavman decide how to recover."}
         if last is None:
             return {"state": "starting", "label": "Starting", "explanation": "Queued."}
         return {"state": "waiting", "label": "Waiting for you",
-                "explanation": "Caveman paused and is waiting for your direction. Read its latest message, "
+                "explanation": "Cavman paused and is waiting for your direction. Read its latest message, "
                                "then continue the run."}
 
     @staticmethod

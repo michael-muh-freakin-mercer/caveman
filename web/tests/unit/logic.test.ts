@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { duration, formatUsd, relativeTime } from "@/lib/format";
 import { promptFromNext } from "@/lib/next-param";
 import { newBuildPath, safeNext, savePendingPrompt, takePendingPrompt } from "@/lib/prompt-storage";
 import { canContinue, checkDisplayStatus, isExecuting } from "@/lib/run-state";
 import { unverifiedStacks } from "@/lib/stack-support";
 import { describeDevice } from "@/lib/devices";
+import { setting } from "@/lib/env";
 import { mergeTimeline, streamFinished } from "@/lib/use-run";
 import { runDetail } from "./fixtures";
 
@@ -82,7 +83,7 @@ describe("formatting", () => {
 });
 
 describe("unverifiedStacks", () => {
-  it("names stacks Caveman cannot test and stays quiet for tested ones", () => {
+  it("names stacks Cavman cannot test and stays quiet for tested ones", () => {
     expect(unverifiedStacks("Build a habit tracker iOS app in SwiftUI")).toEqual(["iOS / Swift"]);
     expect(unverifiedStacks("A REST API", "Go backend with Postgres")).toEqual(["Go"]);
     expect(unverifiedStacks("Build a booking app for a tattoo studio", "Python, FastAPI")).toEqual([]);
@@ -96,5 +97,20 @@ describe("describeDevice", () => {
     expect(describeDevice("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15")).toBe("Safari on macOS");
     expect(describeDevice("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 Edg/126.0")).toBe("Edge on Windows");
     expect(describeDevice(null)).toBe("Unknown device");
+  });
+});
+
+describe("setting", () => {
+  afterEach(() => {
+    delete process.env.CAVMAN_TEST_VALUE;
+    delete process.env.CAVEMAN_TEST_VALUE;
+  });
+
+  it("reads the new name, falls back to the pre-rename one, and prefers the new one", () => {
+    expect(setting("TEST_VALUE")).toBeUndefined();
+    process.env.CAVEMAN_TEST_VALUE = "old";
+    expect(setting("TEST_VALUE")).toBe("old");
+    process.env.CAVMAN_TEST_VALUE = "new";
+    expect(setting("TEST_VALUE")).toBe("new");
   });
 });

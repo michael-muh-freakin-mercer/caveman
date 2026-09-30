@@ -2,7 +2,7 @@
  * Keeps a build request across sign-up / sign-in (including OAuth round trips),
  * so the words someone typed on the landing page are never lost.
  */
-const KEY = "caveman.pending-prompt";
+const KEY = "cavman.pending-prompt";
 export const MAX_PROMPT_LENGTH = 8000;
 
 export function savePendingPrompt(prompt: string): void {

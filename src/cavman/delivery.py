@@ -33,12 +33,12 @@ class DeliveryError(RuntimeError):
 
 def _slug(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug[:60] or "caveman-project"
+    return slug[:60] or "cavman-project"
 
 
 def _report(run: Run, project_name: str, files: dict[str, dict], documents: list[dict],
             cost_usd: float, cost_complete: bool) -> str:
-    lines = [f"# Build report: {project_name}", "", "Assembled by Caveman from accepted work only.", "",
+    lines = [f"# Build report: {project_name}", "", "Assembled by Cavman from accepted work only.", "",
              "## Request", "", run.objective.strip(), "", "## Success criteria", ""]
     lines += [f"- {criterion}" for criterion in run.plan.completion_criteria]
     lines += ["", "## Accepted tasks", ""]
@@ -69,7 +69,7 @@ def _documents(run: Run) -> tuple[dict[str, bytes], list[dict]]:
         if artifact.workspace_fingerprint:
             continue
         body, _ = _manifest(artifact.content)
-        path = f"docs/caveman/{index:02d}-{re.sub(r'[^A-Za-z0-9_-]+', '-', artifact.task_id)}.md"
+        path = f"docs/cavman/{index:02d}-{re.sub(r'[^A-Za-z0-9_-]+', '-', artifact.task_id)}.md"
         data = body.strip().encode() + b"\n"
         contents[path] = data
         documents.append({"path": path, "task_id": artifact.task_id, "artifact_id": artifact_id,
@@ -104,7 +104,7 @@ def _assemble_integrated(run: Run, repo: Path, out_dir: Path, project_name: str,
     commits = {artifact.integrated_commit: artifact for artifact in code}
     head = git("-C", str(repo), "rev-parse", "--verify", INTEGRATION_REF + "^{commit}").strip()
     if head not in commits:
-        raise DeliveryError("The integration branch moved outside Caveman; refusing to deliver it.")
+        raise DeliveryError("The integration branch moved outside Cavman; refusing to deliver it.")
     for commit in commits:
         if subprocess.run(["/usr/bin/git", "-C", str(repo), "merge-base", "--is-ancestor", commit, head],
                           env=_GIT_ENV, capture_output=True, timeout=30).returncode:
@@ -125,12 +125,12 @@ def _assemble_integrated(run: Run, repo: Path, out_dir: Path, project_name: str,
     deleted = sorted(set(_tree_at(repo, base)) - set(tree))
     doc_contents, documents = _documents(run)
     tree.update(doc_contents)
-    tree["CAVEMAN_BUILD_REPORT.md"] = _report(run, project_name, files, documents, cost_usd,
+    tree["CAVMAN_BUILD_REPORT.md"] = _report(run, project_name, files, documents, cost_usd,
                                               cost_complete).encode()
     slug = _slug(project_name)
     archive = _write_archive(tree, out_dir, run.id, slug)
     return ({"archive": archive, "root": slug, "commit": head, "files": files, "documents": documents,
-             "deleted": deleted, "total_files": len(tree), "report": "CAVEMAN_BUILD_REPORT.md"}, archive)
+             "deleted": deleted, "total_files": len(tree), "report": "CAVMAN_BUILD_REPORT.md"}, archive)
 
 
 def assemble(run: Run, repo: Path, out_dir: Path, project_name: str, *,
@@ -178,7 +178,7 @@ def assemble(run: Run, repo: Path, out_dir: Path, project_name: str, *,
             for path in sorted(baseline - present):
                 deletions[path] = artifact.task_id
         else:
-            path = f"docs/caveman/{index:02d}-{re.sub(r'[^A-Za-z0-9_-]+', '-', artifact.task_id)}.md"
+            path = f"docs/cavman/{index:02d}-{re.sub(r'[^A-Za-z0-9_-]+', '-', artifact.task_id)}.md"
             data = body.strip().encode() + b"\n"
             contents[path] = data
             documents.append({"path": path, "task_id": artifact.task_id, "artifact_id": artifact_id,
@@ -188,7 +188,7 @@ def assemble(run: Run, repo: Path, out_dir: Path, project_name: str, *,
                             + ", ".join(sorted(set(conflicts))))
 
     report = _report(run, project_name, files, documents, cost_usd, cost_complete).encode()
-    contents["CAVEMAN_BUILD_REPORT.md"] = report
+    contents["CAVMAN_BUILD_REPORT.md"] = report
     slug = _slug(project_name)
     archive_name = f"{run.id}.tar.gz"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -208,7 +208,7 @@ def assemble(run: Run, repo: Path, out_dir: Path, project_name: str, *,
     temporary.replace(out_dir / archive_name)
     manifest = {"archive": archive_name, "root": slug, "files": files, "documents": documents,
                 "deleted": sorted(deletions), "total_files": len(tree),
-                "report": "CAVEMAN_BUILD_REPORT.md"}
+                "report": "CAVMAN_BUILD_REPORT.md"}
     return manifest, archive_name
 
 
@@ -241,6 +241,6 @@ def deliver_run(engine, platform, projector, run_id: str, *, retry: bool = False
     except DeliveryError as exc:
         platform.save_delivery(run_id, "failed", {"error": engine.redact(str(exc), 2000)}, None)
     except Exception as exc:
-        logging.getLogger("caveman.delivery").exception("Delivery assembly failed for run %s", run_id)
+        logging.getLogger("cavman.delivery").exception("Delivery assembly failed for run %s", run_id)
         platform.save_delivery(run_id, "failed",
                                {"error": engine.redact(f"{type(exc).__name__}: {exc}", 2000)}, None)

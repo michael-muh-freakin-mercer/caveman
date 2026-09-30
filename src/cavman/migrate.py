@@ -1,8 +1,8 @@
 """Copy SQLite state into PostgreSQL before switching a deployment over.
 
-``caveman ops migrate-to-postgres`` moves the two stores the API and workers
+``cavman ops migrate-to-postgres`` moves the two stores the API and workers
 share (the kernel's operational store and the platform store) from the SQLite
-files under ``CAVEMAN_DATA_DIR`` into the schemas ``CAVEMAN_DATABASE_URL``
+files under ``CAVMAN_DATA_DIR`` into the schemas ``CAVMAN_DATABASE_URL``
 names, and optionally the web app's Better Auth database.
 
 The copy is deliberately conservative:
@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-# Better Auth's tables (its SQLite file holds nothing else Caveman needs).
+# Better Auth's tables (its SQLite file holds nothing else Cavman needs).
 AUTH_TABLES = frozenset({"user", "session", "account", "verification"})
 
 
@@ -168,7 +168,7 @@ def migrate_to_postgres(settings, *, auth_sqlite: Path | None = None, auth_url: 
                         dry_run: bool = False) -> list[StoreCopy]:
     """Copy the operational and platform stores, then optionally Better Auth."""
     if not settings.database_url:
-        raise MigrationRefused("Set CAVEMAN_DATABASE_URL to the PostgreSQL database to copy into")
+        raise MigrationRefused("Set CAVMAN_DATABASE_URL to the PostgreSQL database to copy into")
     if (auth_sqlite is None) != (auth_url is None):
         raise MigrationRefused("Give both --auth-sqlite and --auth-url, or neither")
     if auth_url is not None and not auth_url.startswith(("postgres://", "postgresql://")):
