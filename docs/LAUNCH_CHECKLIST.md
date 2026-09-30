@@ -46,7 +46,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🧑👥 Terms of service, privacy policy, acceptable-use policy
 - [ ] 🧑👥 List of third parties processing user data (OpenRouter and model providers, email, hosting)
 - [ ] 🧑👥 Data retention policy, cookie notice, minimum age
-- [x] 🤖 Pages and links in the app (data export and account deletion already exist): drafts at `/terms`, `/privacy`, `/acceptable-use`; owner facts in `web/lib/legal.ts`
+- [x] 🤖 Pages and links in the app (data export and account deletion already exist): live at `/terms`, `/privacy`, `/acceptable-use`; owner facts in `web/lib/legal.ts`
 
 ### 7. Abuse and tenancy limits
 - [x] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
