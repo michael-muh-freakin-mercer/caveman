@@ -176,7 +176,9 @@ the next worker (see [RUNBOOK.md](RUNBOOK.md)).
 - **Postgres, inside DigitalOcean:** daily backups with 7-day point-in-time
   recovery, included with the managed cluster.
 - **Postgres and the volume, off the server:** `deploy/backup/backup.sh` runs
-  nightly from a systemd timer. It dumps the database, archives the volume
+  nightly from a systemd timer. It stops the API and workers for the seconds
+  it takes to capture a consistent copy (the web app stays up; interrupted
+  jobs are recovered), dumps the database, archives the volume
   (project repositories and delivery archives), encrypts both with
   [age](https://age-encryption.org) to a key the server never holds, uploads
   them to a private Spaces bucket under a UTC timestamp, and deletes sets older
@@ -222,7 +224,7 @@ removes everything afterwards. Production is not touched.
 ```bash
 # from your computer: copy the private key over for the drill only
 scp caveman-backup.key root@<droplet-ip>:/root/drill.key
-ssh root@<droplet-ip> 'cd /opt/caveman && deploy/backup/restore-drill.sh /root/drill.key; shred -u /root/drill.key'
+ssh root@<droplet-ip> 'cd /opt/caveman && deploy/backup/restore-drill.sh /root/drill.key; status=$?; shred -u /root/drill.key; exit $status'
 ```
 
 It ends with `== drill passed for <timestamp>`. A real restore follows

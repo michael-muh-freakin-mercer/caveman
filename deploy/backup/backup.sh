@@ -2,6 +2,9 @@
 # Nightly off-server backup for the single-server deployment
 # (docs/DEPLOY_DIGITALOCEAN.md, "Backups").
 #
+# Stops the API and workers for the few seconds it takes to capture both
+# stores, so the database and the files describe the same moment, then
+# restarts them before the upload (and always, even when the backup fails).
 # Dumps the PostgreSQL database behind CAVEMAN_DATABASE_URL (and
 # AUTH_DATABASE_URL when it names a different one), archives the data volume
 # (project repositories and delivery archives), encrypts every file to
@@ -57,10 +60,19 @@ done
 # shellcheck source=remote.sh
 source "$root/deploy/backup/remote.sh"
 
+compose="docker compose --env-file $root/.env -f $root/deploy/compose.yaml -f $root/deploy/compose.prod.yaml"
+stop_writers=${BACKUP_STOP_CMD-$compose stop api worker}
+start_writers=${BACKUP_START_CMD-$compose start api worker}
+
 umask 077
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 work=$(mktemp -d "${TMPDIR:-/var/tmp}/caveman-backup.XXXXXX")
-trap 'rm -rf "$work"' EXIT
+stopped=0
+finish() {
+  if (( stopped )); then bash -c "$start_writers" || echo "error: could not restart the API and workers" >&2; fi
+  rm -rf "$work"
+}
+trap finish EXIT
 
 dump() { # $1 connection string, $2 output file
   local mounts=()
@@ -72,15 +84,19 @@ dump() { # $1 connection string, $2 output file
     | age -r "$BACKUP_AGE_RECIPIENT" > "$2"
 }
 
+# Nothing writes the database or the volume while both are captured: an
+# account erased between the dump and the archive would otherwise leave
+# records whose files are gone. Interrupted jobs are recovered on restart.
+stopped=1
+bash -c "$stop_writers"
 dump "$core_url" "$work/db-core.dump.age"
 if [ "$auth_url" != "$core_url" ]; then
   dump "$auth_url" "$work/db-auth.dump.age"
 fi
 
-# Services keep running, so a file can change mid-read; tar exits 1 for that
-# and the next night's set catches up. Anything worse still fails the backup.
-{ tar -C "$data_dir/" --warning=no-file-changed -cf - . || [ $? -eq 1 ]; } \
-  | age -r "$BACKUP_AGE_RECIPIENT" > "$work/data.tar.age"
+tar -C "$data_dir/" -cf - . | age -r "$BACKUP_AGE_RECIPIENT" > "$work/data.tar.age"
+bash -c "$start_writers"
+stopped=0
 
 (cd "$work" && sha256sum -- *.age > SHA256SUMS)
 

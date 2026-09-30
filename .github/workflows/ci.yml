@@ -225,5 +225,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends age
       - name: Lint the scripts
         run: shellcheck -x -P SCRIPTDIR deploy/backup/*.sh
+      - name: Build the API image
+        # The drill runs `caveman ops list` from it against the restored copy.
+        run: docker build -f deploy/api.Dockerfile -t caveman-backup-api .
       - name: Back up, prune and restore
+        env:
+          CAVEMAN_TEST_API_IMAGE: caveman-backup-api
         run: deploy/backup/ci-test.sh

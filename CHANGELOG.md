@@ -2,7 +2,7 @@
 
 ## 2026-09-30 — Nightly off-server backups and a restore drill
 
-- `deploy/backup/backup.sh` dumps PostgreSQL (the auth database too when it is separate) and archives the data volume, encrypts both with age to a key the server never holds, uploads the set to a private DigitalOcean Spaces bucket under a UTC timestamp, and prunes sets older than `BACKUP_RETENTION_DAYS` (1 to 30, default 14). `caveman-backup.timer` runs it nightly; `BACKUP_PING_URL` can report each success to a cron monitor.
+- `deploy/backup/backup.sh` stops the API and workers while it captures both stores, so the database and files match (they restart before the upload, and on any failure), dumps PostgreSQL (the auth database too when it is separate) and archives the data volume, encrypts both with age to a key the server never holds, uploads the set to a private DigitalOcean Spaces bucket under a UTC timestamp, and prunes sets older than `BACKUP_RETENTION_DAYS` (1 to 30, default 14). `caveman-backup.timer` runs it nightly; `BACKUP_PING_URL` can report each success to a cron monitor.
 - `deploy/backup/restore-drill.sh` restores a set into a throwaway Postgres container and a scratch directory, verifies checksums, row counts and `git fsck` on project repositories, and runs `caveman ops list` against the copy. Nothing in production is touched.
 - CI job "backup and restore drill" runs both against Postgres and an S3 stand-in on every push, including pruning and a check that no plaintext reaches the bucket.
 - Setup steps: `docs/DEPLOY_DIGITALOCEAN.md`, "Backups".
