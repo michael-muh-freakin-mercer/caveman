@@ -17,21 +17,23 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers (matches OpenRouter's usage counter within $0.005)
 - [x] 🤖 Opt-in, budget-capped live smoke in CI (`.github/workflows/live-smoke.yml`, run by hand from Actions)
 - [ ] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run
+- [x] 🧑 First live build on cavman.dev (2026-09-30: a Linux secret-folder CLI, $0.35, 54 tests passing)
+- [ ] 🤖 Review must check delivered work against the plan, not just tests: that first build passed every review while missing planned items (launcher shortcut not delivered, vault not hidden) and taking secrets as command-line arguments (shell history) with non-atomic saves
 
 ### 2. Stronger isolation for untrusted code
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
 - [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVEMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
-- [ ] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers
+- [x] 🧑 Build the E2B template once and set `CAVEMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers (template `caveman-sandbox`; isolation probe passed on caveman-1, 2026-09-29)
 - [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
 
 ### 3. Deployment
-- [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain still to choose
+- [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain cavman.dev
 - [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
 - [x] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end (`deploy/e2e.sh`, CI job `deploy`: all 15 journeys pass)
 - [x] 🤖 Verify Better Auth on Postgres (same run)
 - [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVEMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested
 - [x] 🤖 SQLite → Postgres data migration tool (`caveman ops migrate-to-postgres`, auth included)
-- [ ] 🧑 Approve the first deploy
+- [x] 🧑 Approve the first deploy (live at https://cavman.dev on Droplet caveman-1, 2026-09-29)
 
 ### 4. Security review
 - [ ] 👥 External review or pen test: sandbox, browser-to-API proxy and CSP, authentication, repository import, GitHub token handling, account deletion
@@ -52,7 +54,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Per-user rate limits on starting builds, imports and continuations (only sign-in is rate limited today)
 - [x] 🤖 Per-account caps: disk, projects, concurrent builds
 - [x] 🤖 CAPTCHA or equivalent on sign-up (Cloudflare Turnstile on sign-up and password-reset requests; off until keys are set)
-- [ ] 🧑 Create a Turnstile widget in Cloudflare and set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` on the web app
+- [x] 🧑 Create a Turnstile widget in Cloudflare and set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` on the web app (live on cavman.dev, 2026-09-30)
 - [x] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
 - [ ] 🧑 Prompt and content policy: what gets refused (draft in the Acceptable Use Policy; approve it)
 
