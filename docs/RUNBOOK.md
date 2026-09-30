@@ -107,12 +107,23 @@ validations fail with an isolation error.
 
 1. Stop workers, then the API.
 2. Restore the database (both schemas, or both SQLite files) and the data
-   directory from the same point in time.
+   directory from the same point in time. On the DigitalOcean deployment the
+   nightly set in Spaces holds both (`deploy/backup/`): decrypt with the age
+   key, `pg_restore --no-owner --no-privileges` each `db-*.dump` into an empty
+   database, and extract `data.tar` into the volume. `restore-drill.sh` shows
+   the exact commands. For a point in time after the last nightly set, use the
+   managed cluster's point-in-time recovery for the database, knowing files
+   written after that set are not in it.
 3. Start the API, then the workers. Jobs that were running at backup time have
    expired leases and are recovered automatically.
 4. Check `caveman ops list --attention` and the metrics above.
 
 Restore drills are on the launch checklist; record each drill's date and result here.
+`deploy/backup/restore-drill.sh` runs one without touching production, and CI
+runs it on every push against Postgres and an S3 stand-in.
+
+| Date | Backup set | Result | By |
+| --- | --- | --- | --- |
 
 ### Moving from SQLite to PostgreSQL
 
