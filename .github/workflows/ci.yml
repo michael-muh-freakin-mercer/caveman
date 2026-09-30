@@ -203,3 +203,27 @@ jobs:
           name: deploy-playwright-report
           path: web/playwright-report
           retention-days: 7
+  backup:
+    name: backup and restore drill
+    # deploy/backup/ against a real PostgreSQL and MinIO in place of Spaces:
+    # encrypted upload, retention pruning, and a full restore that is checked
+    # row by row and file by file.
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: caveman
+          POSTGRES_PASSWORD: caveman
+          POSTGRES_DB: caveman
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U caveman" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install age
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends age
+      - name: Lint the scripts
+        run: shellcheck -x -P SCRIPTDIR deploy/backup/*.sh
+      - name: Back up, prune and restore
+        run: deploy/backup/ci-test.sh

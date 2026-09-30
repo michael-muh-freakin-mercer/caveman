@@ -173,9 +173,60 @@ the next worker (see [RUNBOOK.md](RUNBOOK.md)).
 
 ## Backups
 
-- Postgres: DigitalOcean takes daily backups with 7-day point-in-time recovery.
-- Volume: **Volumes → caveman volume → Take Snapshot**, or a scheduled snapshot.
-- Secrets: keep a copy of the two env files in your password manager.
+- **Postgres, inside DigitalOcean:** daily backups with 7-day point-in-time
+  recovery, included with the managed cluster.
+- **Postgres and the volume, off the server:** `deploy/backup/backup.sh` runs
+  nightly from a systemd timer. It dumps the database, archives the volume
+  (project repositories and delivery archives), encrypts both with
+  [age](https://age-encryption.org) to a key the server never holds, uploads
+  them to a private Spaces bucket under a UTC timestamp, and deletes sets older
+  than `BACKUP_RETENTION_DAYS` (14; at most 30, as the privacy policy promises).
+- **Secrets:** keep a copy of `.env`, `web/.env.local` and
+  `deploy/backup/backup.env` in your password manager, next to the age private key.
+
+### Set up the nightly backup (once)
+
+1. **Spaces:** Create → Spaces Object Storage, region NYC3, name it
+   `caveman-backups`, and leave the file listing restricted. Then Spaces
+   Object Storage → **Access Keys** → Create, limited to that bucket with
+   Read/Write/Delete. About $5 a month.
+2. **Encryption key, on your computer, not the server:** install age
+   (`sudo apt install age`, `brew install age` or `pacman -S age`), run
+   `age-keygen -o caveman-backup.key`, and put the file in your password
+   manager. Its `# public key: age1...` line is the recipient for step 3.
+   Without this key the backups cannot be read by anyone, you included.
+3. **On the Droplet:**
+
+   ```bash
+   apt-get install -y age
+   cd /opt/caveman
+   cp deploy/backup/backup.env.example deploy/backup/backup.env
+   chmod 600 deploy/backup/backup.env
+   nano deploy/backup/backup.env      # Spaces key and secret, age1... recipient
+   cp deploy/backup/caveman-backup.{service,timer} /etc/systemd/system/
+   systemctl daemon-reload
+   systemctl enable --now caveman-backup.timer
+   systemctl start caveman-backup.service   # first backup now
+   journalctl -u caveman-backup.service -n 20
+   ```
+
+   The last line should read `backup <timestamp> uploaded to caveman-backups`.
+4. **Run a restore drill** (below) and record it in the runbook.
+
+### Restore drill
+
+The drill restores the newest set into a throwaway Postgres container and a
+scratch directory, runs `caveman ops list` against the restored copy, and
+removes everything afterwards. Production is not touched.
+
+```bash
+# from your computer: copy the private key over for the drill only
+scp caveman-backup.key root@<droplet-ip>:/root/drill.key
+ssh root@<droplet-ip> 'cd /opt/caveman && deploy/backup/restore-drill.sh /root/drill.key; shred -u /root/drill.key'
+```
+
+It ends with `== drill passed for <timestamp>`. A real restore follows
+[RUNBOOK.md](RUNBOOK.md#restore).
 
 ## Where each secret lives
 

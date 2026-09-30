@@ -65,8 +65,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Integrate them
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
-- [ ] 🧑 Backups for Postgres and the shared volume
-- [ ] 🤖 Tested restore drill
+- [ ] 🧑 Backups for Postgres and the shared volume (nightly, encrypted, off-server to Spaces: `deploy/backup/`; needs the Spaces bucket, age key and timer set up on the Droplet)
+- [ ] 🤖 Tested restore drill (`deploy/backup/restore-drill.sh`, passing in CI against Postgres and MinIO; a drill on the production backup is still to run)
 
 ## P1: needed for a good launch
 

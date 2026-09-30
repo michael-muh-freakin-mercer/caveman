@@ -24,3 +24,6 @@ dist/
 
 # Managed database CA certificate placed on the server (docs/DEPLOY_DIGITALOCEAN.md)
 deploy/postgres-ca.crt
+
+# Backup settings (Spaces key, age recipient); the template is deploy/backup/backup.env.example
+deploy/backup/backup.env
