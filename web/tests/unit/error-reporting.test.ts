@@ -20,15 +20,32 @@ describe("error reporting", () => {
         data: '{"prompt":"secret plan"}',
         cookies: { "better-auth.session_token": "abc" },
         query_string: "token=abc",
-        headers: { Cookie: "a=b", Authorization: "Bearer x", "User-Agent": "Firefox", "x-forwarded-for": "1.2.3.4" },
+        headers: {
+          Cookie: "a=b",
+          Authorization: "Bearer x",
+          "User-Agent": "Firefox",
+          "x-forwarded-for": "1.2.3.4",
+          Referer: "https://cavman.dev/app/new?prompt=secret%20plan#top",
+        },
       },
       user: { email: "someone@example.com" },
       contexts: { nextjs: { request_path: "/api/caveman/runs?token=abc" } },
+      breadcrumbs: [
+        { message: "GET http://api:8000/api/runs?token=abc", data: { url: "http://api:8000/api/runs?token=abc", "http.query": "token=abc", "http.method": "GET" } },
+        { message: "navigation" },
+      ],
       message: "boom",
     });
     expect(event).toEqual({
-      request: { url: "https://cavman.dev/api/caveman/runs", headers: { "User-Agent": "Firefox" } },
+      request: {
+        url: "https://cavman.dev/api/caveman/runs",
+        headers: { "User-Agent": "Firefox", Referer: "https://cavman.dev/app/new" },
+      },
       contexts: { nextjs: { request_path: "/api/caveman/runs" } },
+      breadcrumbs: [
+        { message: "GET http://api:8000/api/runs", data: { url: "http://api:8000/api/runs", "http.method": "GET" } },
+        { message: "navigation" },
+      ],
       message: "boom",
     });
   });
