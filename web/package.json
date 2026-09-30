@@ -14,6 +14,7 @@
     "auth:migrate": "node scripts/migrate-auth.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.75.3",
     "better-auth": "^1.7.6",
     "geist": "^1.7.2",
     "lucide-react": "^1.48.0",

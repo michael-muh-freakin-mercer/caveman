@@ -35,6 +35,7 @@ const SECTIONS: LegalSection[] = [
       "Cloudflare: DNS for cavman.dev, and Turnstile, which checks sign-up and password-reset requests for bots.",
       "Resend: your email address and the content of account emails.",
       "GitHub: only if you connect it, for imports and publishing you ask for.",
+      "Sentry: error reports from our servers (the error, where in our code it happened and which page or API route failed), so we can fix problems. We configure it not to receive your prompts, code, request contents, cookies or IP address.",
     ],
   },
   {

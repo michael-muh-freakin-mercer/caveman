@@ -38,6 +38,9 @@ def main(argv: list[str] | None = None) -> None:
         settings = Settings.from_env()
     except SettingsError as exc:
         raise SystemExit(f"Caveman configuration error: {exc}") from exc
+    if args.command in ("api", "worker"):
+        from .error_reporting import configure_error_reporting
+        configure_error_reporting(args.command)
     if args.command == "api":
         import uvicorn
 

@@ -44,6 +44,8 @@ walter = "walter.cli:main"
 test = ["httpx>=0.28.1"]
 # CAVEMAN_SANDBOX_BACKEND=e2b: run candidate code in E2B microVMs.
 e2b = ["e2b>=2.51,<3"]
+# SENTRY_DSN: report API and worker errors to Sentry.
+sentry = ["sentry-sdk[fastapi]>=2.40,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
