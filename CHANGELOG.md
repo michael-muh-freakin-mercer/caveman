@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-30 — Review checks the build against its plan
+
+- The first live build on cavman.dev passed every review while a planned launcher shortcut was never delivered, the vault folder was not hidden, secrets were taken as command-line arguments and saves were not atomic. Reviewers returned one overall verdict, and green tests were enough to earn it.
+- A reviewer now gets a numbered list of plan items built from the task packet (the planned deliverable, each acceptance criterion, each constraint, and in workflow mode each run success criterion only that task covers) together with the user's request, and must return a verdict on each. A review is recorded as failed when an item has no verdict or is ruled unmet, or when the reviewer reports a high or critical finding, whatever it put in `passed`. The failure names the items, so the specialist's revision knows what is missing.
+- Reviewers are told to look for secrets on the command line or in logs, in-place saves of user data, injection, path traversal, loose file permissions and silent data loss.
+- Not covered yet: a success criterion shared between several tasks is not checked as a whole when the run finishes. Verified offline only; reviewer behaviour with real models is unmeasured until the next live run.
+
 ## 2026-09-30 — Error reporting to Sentry
 
 - With `SENTRY_DSN` set, the API and workers (`pip install '.[sentry]'`, now in the API image) and the web server report errors to Sentry: unhandled exceptions, ERROR log records (so logged job failures), and failed Next.js requests. Unset, nothing changes.

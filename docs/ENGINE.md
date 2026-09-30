@@ -368,7 +368,10 @@ representative shape is:
    candidate changed no test file, the check fails — there is nothing to trust.
 6. **Review.** `review_task` commissions a reviewer that has never authored on
    this task, with read-only workspace tools. A reviewer of a code lane that
-   inspects no file is recorded as failed.
+   inspects no file is recorded as failed. The reviewer must rule on every
+   numbered plan item (the deliverable, each acceptance criterion, each
+   constraint); an unmet or unruled item, or a high or critical finding, fails
+   the review whatever the reviewer concluded.
 7. **Accept or recover.** `accept_task` applies the gates above. A failed gate
    becomes a classified failure and a bounded recovery route.
 8. **Finish.** `finish_run` requires a JSON object mapping each completion

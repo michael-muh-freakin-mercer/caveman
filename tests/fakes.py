@@ -6,6 +6,7 @@ provider-usage payload so UsageRecordingModel persists deterministic records.
 """
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
@@ -51,6 +52,32 @@ def message_step(text: str) -> dict:
 def responder_step(responder: Callable) -> dict:
     """One scripted turn computed from the live call (may read durable state)."""
     return {"responder": responder}
+
+
+def plan_item_numbers(review_input) -> list[int]:
+    """The numbered plan items a reviewer was asked to rule on."""
+    for entry in [review_input] if isinstance(review_input, str) else review_input:
+        content = entry if isinstance(entry, str) else entry.get("content")
+        if isinstance(content, list):
+            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        try:
+            return [item["item"] for item in json.loads(content)["plan_items"]]
+        except (TypeError, ValueError, KeyError):
+            continue
+    return []
+
+
+def verdicts(review_input, met: bool = True) -> list[dict]:
+    """One verdict for every plan item in a reviewer's input."""
+    return [{"item": number, "met": met, "evidence": "Inspected in the candidate"}
+            for number in plan_item_numbers(review_input)]
+
+
+def review_step(result: Mapping[str, Any]) -> dict:
+    """A reviewer's final turn that rules on every plan item it was given."""
+    def responder(call):
+        return message_step(json.dumps({**result, "verdicts": verdicts(call.input, result["passed"])}))
+    return responder_step(responder)
 
 
 def scripted_model(steps: Iterable) -> ScriptedModel:

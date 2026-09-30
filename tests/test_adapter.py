@@ -9,6 +9,7 @@ import pytest
 
 pytest.importorskip("agents")
 
+import fakes
 from walter.adapter import (DurableController, INITIAL_COMPLETION_CRITERION,
                             ReviewResult)
 from walter.contracts import TaskPacket, WorkerResult
@@ -489,7 +490,8 @@ def test_review_records_fresh_identity_and_cannot_accept_by_itself(monkeypatch):
     controller.validate("task")
 
     async def reviewer(**kwargs):
-        return ReviewResult(passed=True, evidence=["checked criterion"], reason="passes")
+        return ReviewResult(passed=True, evidence=["checked criterion"], reason="passes",
+                            verdicts=fakes.verdicts(kwargs["input"]))
 
     monkeypatch.setattr(controller, "_invoke", reviewer)
     asyncio.run(controller.review("task"))
@@ -843,7 +845,8 @@ def test_read_only_lane_review_does_not_require_candidate_inspection(tmp_path, m
     async def reviewer(**kwargs):
         observed.update(kwargs)
         return ReviewResult(passed=True, evidence=["report names files this repo contains"],
-                            reason="content reviewed against the repository")
+                            reason="content reviewed against the repository",
+                            verdicts=fakes.verdicts(kwargs["input"]))
 
     monkeypatch.setattr(controller, "_invoke", reviewer)
     asyncio.run(controller.review("task"))
@@ -868,7 +871,8 @@ def test_developer_lane_review_still_requires_candidate_inspection(tmp_path, mon
     controller.validate("task")
 
     async def uninspected(**kwargs):
-        return ReviewResult(passed=True, evidence=["looks fine"], reason="no files read")
+        return ReviewResult(passed=True, evidence=["looks fine"], reason="no files read",
+                            verdicts=fakes.verdicts(kwargs["input"]))
 
     monkeypatch.setattr(controller, "_invoke", uninspected)
     asyncio.run(controller.review("task"))
@@ -876,6 +880,100 @@ def test_developer_lane_review_still_requires_candidate_inspection(tmp_path, mon
     review = state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1]
     assert not review.passed
     assert "did not inspect any candidate file" in review.evidence
+
+
+def _submitted_for_review(monkeypatch, node=None):
+    controller = controller_for(node or TaskNode(packet=packet(), required_checks=["result_schema"]))
+
+    async def author(**kwargs):
+        return WorkerResult(task_id="task", status="completed", summary="done",
+                            deliverable="fixture output")
+
+    monkeypatch.setattr(controller, "_invoke", author)
+    asyncio.run(controller.delegate("task"))
+    controller.validate("task")
+    return controller
+
+
+def _review_with(controller, monkeypatch, result, **review_arguments):
+    observed = {}
+
+    async def reviewer(**kwargs):
+        observed.update(kwargs)
+        return result(kwargs["input"]) if callable(result) else result
+
+    monkeypatch.setattr(controller, "_invoke", reviewer)
+    report = asyncio.run(controller.review("task", **review_arguments))
+    state = controller.inspect()
+    return report, state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1], observed
+
+
+def test_reviewer_is_given_every_planned_item_and_the_request(monkeypatch):
+    planned = packet().model_copy(update={"constraints": ["Never read a secret from argv"]})
+    controller = _submitted_for_review(monkeypatch, TaskNode(packet=planned, required_checks=["result_schema"]))
+    _, _, observed = _review_with(
+        controller, monkeypatch,
+        lambda review_input: ReviewResult(passed=True, evidence=["checked"], reason="passes",
+                                          verdicts=fakes.verdicts(review_input)),
+        run_criteria=["The vault folder is hidden"])
+    payload = json.loads(observed["input"])
+    assert payload["request"] == controller.inspect().objective
+    assert payload["plan_items"] == [
+        {"item": 1, "text": "Planned deliverable is present and complete: One inspectable result"},
+        {"item": 2, "text": "Acceptance criterion: result is present"},
+        {"item": 3, "text": "Constraint respected: Never read a secret from argv"},
+        {"item": 4, "text": "Run success criterion this task alone covers: The vault folder is hidden"},
+    ]
+    assert "one verdict for each" in observed["instructions"]
+
+
+def test_review_cannot_pass_without_a_verdict_on_every_plan_item(monkeypatch):
+    """A reviewer's "passed" is a claim; silence about part of the plan fails it."""
+    controller = _submitted_for_review(monkeypatch)
+    report, review, _ = _review_with(
+        controller, monkeypatch,
+        ReviewResult(passed=True, evidence=["tests pass"], reason="looks complete",
+                     verdicts=[{"item": 1, "met": True, "evidence": "present"}]))
+    assert not report.passed and not review.passed
+    assert report.reason == "No verdict on plan item 2: Acceptance criterion: result is present"
+    with pytest.raises(GateError, match="Independent review required"):
+        controller.core.accept(controller.run_id, "task", reason="try anyway")
+
+
+def test_review_fails_on_an_unmet_plan_item_whatever_the_reviewer_concluded(monkeypatch):
+    controller = _submitted_for_review(monkeypatch)
+    report, review, _ = _review_with(
+        controller, monkeypatch,
+        ReviewResult(passed=True, evidence=["tests pass"], reason="good enough",
+                     verdicts=[{"item": 1, "met": False, "evidence": "no launcher shortcut in the diff"},
+                               {"item": 2, "met": True}]))
+    assert not review.passed
+    assert report.reason == ("Plan item 1 not met: Planned deliverable is present and complete: "
+                             "One inspectable result (no launcher shortcut in the diff)")
+    assert report.reason in json.loads(review.evidence)["evidence"]
+
+
+@pytest.mark.parametrize("severity,passes", [("critical", False), ("High", False), ("medium", True), ("low", True)])
+def test_serious_findings_fail_a_review_that_meets_every_plan_item(monkeypatch, severity, passes):
+    controller = _submitted_for_review(monkeypatch)
+    report, review, _ = _review_with(
+        controller, monkeypatch,
+        lambda review_input: ReviewResult.model_validate({
+            "passed": True, "evidence": ["checked"], "reason": "meets the criteria",
+            "verdicts": fakes.verdicts(review_input),
+            "findings": [{"severity": severity, "issue": "The passphrase is read from argv"}]}))
+    assert review.passed is passes
+    if not passes:
+        assert report.reason == f"{severity.capitalize()} finding: The passphrase is read from argv"
+
+
+def test_failed_review_keeps_the_reviewers_reason_and_names_the_plan_items(monkeypatch):
+    controller = _submitted_for_review(monkeypatch)
+    report, _, _ = _review_with(
+        controller, monkeypatch,
+        lambda review_input: ReviewResult(passed=False, evidence=["read it"], reason="Half of it is missing.",
+                                          verdicts=fakes.verdicts(review_input, met=False)))
+    assert report.reason.startswith("Half of it is missing. Plan item 1 not met: ")
 
 
 def test_exact_approved_material_replan_applies_and_stale_one_fails():
