@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, JetBrains_Mono, Rubik_Mono_One } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const archivo = Archivo({ subsets: ["latin"], variable: "--font-archivo", display: "swap" });
-const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
-const rubikMono = Rubik_Mono_One({ subsets: ["latin"], weight: "400", variable: "--font-rubik-mono", display: "swap" });
+// Bundled in the repo so builds never depend on reaching Google Fonts (see assets/fonts/README.md).
+const archivo = localFont({ src: "../assets/fonts/Archivo-Variable.woff2", weight: "100 900", variable: "--font-archivo", display: "swap" });
+const jetbrainsMono = localFont({ src: "../assets/fonts/JetBrainsMono-Variable.woff2", weight: "100 800", variable: "--font-jetbrains-mono", display: "swap" });
+const rubikMono = localFont({ src: "../assets/fonts/RubikMonoOne-Regular.woff2", weight: "400", variable: "--font-rubik-mono", display: "swap" });
 
 const description =
   "Describe the software you want in plain English. Cavman plans the work, coordinates specialist agents, tests the result, fixes failures, and delivers the project.";
