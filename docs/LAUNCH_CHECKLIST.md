@@ -56,7 +56,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 CAPTCHA or equivalent on sign-up (Cloudflare Turnstile on sign-up and password-reset requests; off until keys are set)
 - [x] 🧑 Create a Turnstile widget in Cloudflare and set `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` on the web app (live on cavman.dev, 2026-09-30)
 - [x] 🤖 Authenticated GitHub requests for imports (anonymous limit is 60 per hour per IP)
-- [ ] 🧑 Prompt and content policy: what gets refused (draft in the Acceptable Use Policy; approve it)
+- [x] 🧑 Prompt and content policy: what gets refused (Acceptable Use Policy, approved by the owner 2026-09-30)
 
 ### 8. Operations
 - [x] 🤖 Scheduled cleanup of finished runs' worktrees and stale dependency caches (delivery archives are kept; they count toward the account's disk cap)
