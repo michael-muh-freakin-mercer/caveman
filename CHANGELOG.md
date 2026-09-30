@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-30 — Pricing says the hosted beta is free
+
+- The pricing page now leads with the hosted beta at cavman.dev: free during the beta within a monthly model allowance shown in the account, with a "Start building free" button to sign-up. It says paid plans are coming, that nothing is charged without notice first, and that beta users get a discount. Self-hosting is still listed at $0 plus provider usage.
+
 ## 2026-09-30 — A new look: the dig site
 
 - The web app has a new light design: concrete background with a survey grid, ink outlines, duck-yellow for the one main action per screen, and pink and sky-blue stickers for small jokes. Headings use Rubik Mono One, text uses Archivo and code uses JetBrains Mono.
