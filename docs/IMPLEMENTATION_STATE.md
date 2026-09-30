@@ -55,8 +55,9 @@ tracked in `ROADMAP.md`.
   Full findings in `docs/first-real-run-gap-report.md`.
 - Review against the plan (2026-09-30): reviewers rule on every plan item and
   the adapter fails a review with an unmet or unruled item or a high or critical
-  finding. Verified offline with scripted reviewers only. Known gaps: no live
-  run has exercised it, and a success criterion shared between tasks is not
+  finding. Verified offline with scripted reviewers and by a three-build live
+  smoke (3 of 3 completed, $1.00). Known gaps: builds cost more than before and
+  the cause is unmeasured, and a success criterion shared between tasks is not
   checked against the finished project.
 - Eval runner (`evals/runner.py`): EVAL-001/002/003 pass offline against the
   durable runtime (3/3).

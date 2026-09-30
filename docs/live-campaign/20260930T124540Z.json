@@ -1,0 +1,89 @@
+{
+  "started_at": "2026-09-30T12:45:40.746469+00:00",
+  "executor": "provider",
+  "orchestration": "workflow",
+  "models": "deepseek/deepseek-v4-pro / deepseek/deepseek-v4-pro",
+  "requests": 3,
+  "completed": 3,
+  "completion_rate": 1.0,
+  "total_cost_usd": 1.004709,
+  "median_cost_usd": 0.187871,
+  "cost_complete": true,
+  "runs": [
+    {
+      "prompt": "Build a Python library that parses and validates ISO 8601 durations, with tests",
+      "run_id": "71b82f6abfe648e4b9a6992b43d4fef9",
+      "state": "complete",
+      "tasks": "2/2",
+      "failures": [
+        "BAD_OUTPUT"
+      ],
+      "calls": 76,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 57,
+        "reviewer": 18
+      },
+      "cost_usd": 0.67479,
+      "cost_complete": true,
+      "elapsed_s": 1969.0,
+      "files": [
+        "isoduration/__init__.py",
+        "isoduration/parser.py",
+        "setup.py",
+        "tests/__init__.py",
+        "tests/test_parser.py"
+      ],
+      "last_message": "Build complete. Delivered 2 accepted tasks: Technical specification writer \u2014 Define the grammar for ISO 8601 durations, valid/invalid patterns, edge cases, and the Python API.; Python library developer \u2014 Implement the isoduration library (parser/validator) and test suite matching the spec.."
+    },
+    {
+      "prompt": "Build a command-line todo manager in Python that stores tasks in a JSON file, with tests",
+      "run_id": "c82be2ca10394303bc29c4fefdea7657",
+      "state": "complete",
+      "tasks": "2/2",
+      "failures": [],
+      "calls": 26,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 20,
+        "reviewer": 5
+      },
+      "cost_usd": 0.142048,
+      "cost_complete": true,
+      "elapsed_s": 446.6,
+      "files": [
+        "main.py",
+        "test_cli.py",
+        "test_todo_manager.py",
+        "todo_manager.py"
+      ],
+      "last_message": "Build complete. Delivered 2 accepted tasks: Python Developer \u2014 Implement the todo storage module with atomic JSON file operations.; Python Developer \u2014 Build the command-line interface using argparse that parses subcommands add/list/done/remove and calls the todo_manager functions.."
+    },
+    {
+      "prompt": "Build a TypeScript module that formats money amounts for several currencies, with node:test tests",
+      "run_id": "ab82358921a14d1e885041200e1f7de4",
+      "state": "complete",
+      "tasks": "1/1",
+      "failures": [
+        "BAD_OUTPUT"
+      ],
+      "calls": 35,
+      "calls_by_role": {
+        "planner": 1,
+        "worker": 28,
+        "reviewer": 6
+      },
+      "cost_usd": 0.187871,
+      "cost_complete": true,
+      "elapsed_s": 477.8,
+      "files": [
+        "package.json",
+        "src/formatCurrency.js",
+        "src/formatCurrency.ts",
+        "test/formatCurrency.test.ts",
+        "tsconfig.json"
+      ],
+      "last_message": "Build complete. Delivered 1 accepted task: TypeScript library developer \u2014 Implement and test a TypeScript money formatting module for multiple currencies.."
+    }
+  ]
+}

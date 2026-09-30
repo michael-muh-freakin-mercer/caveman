@@ -16,10 +16,11 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Tune planner and specialist prompts, turn limits and recovery from the results. Bar: ≥70% complete, median cost under the $5 default budget (met: 100%, $0.09)
 - [x] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers (matches OpenRouter's usage counter within $0.005)
 - [x] 🤖 Opt-in, budget-capped live smoke in CI (`.github/workflows/live-smoke.yml`, run by hand from Actions)
-- [ ] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run
+- [x] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run (set 2026-09-28; first CI run 2026-09-30)
 - [x] 🧑 First live build on cavman.dev (2026-09-30: a Linux secret-folder CLI, $0.35, 54 tests passing)
 - [x] 🤖 Review must check delivered work against the plan, not just tests: that first build passed every review while missing planned items (launcher shortcut not delivered, vault not hidden) and taking secrets as command-line arguments (shell history) with non-atomic saves (reviewers now rule on every plan item and report findings by severity; an unmet or unruled item or a high or critical finding fails the review)
-- [ ] 🤖 Confirm the stricter review with real models: repeat a live build and check that reviewers return a verdict per plan item without failing sound work
+- [x] 🤖 Confirm the stricter review with real models (live smoke 2026-09-30: 3 of 3 builds completed, $1.00; see `docs/live-campaign/`)
+- [ ] 🤖 Measure what the stricter review costs: builds ran $0.14 to $0.67 against a $0.09 median before, and one took 33 minutes. Find out why reviewers asked for revisions and whether the requests were sound
 - [ ] 🤖 Check the finished project as a whole against each success criterion shared between tasks (reviews are per task today)
 
 ### 2. Stronger isolation for untrusted code

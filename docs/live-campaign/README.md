@@ -6,6 +6,28 @@ A small, budget-capped version runs on demand in CI: Actions → **Live smoke
 Each report lists every request with its final state, tasks, failure classes,
 model calls, provider-reported cost and time.
 
+## 2026-09-30: live smoke with plan-item review
+
+**Result: 3 of 3 builds completed** ([report](20260930T124540Z.md), [data](20260930T124540Z.json)),
+run from CI ([run 36716799520](https://github.com/michael-muh-freakin-mercer/caveman/actions/runs/36716799520))
+with reviewers ruling on every plan item.
+
+- Models: `deepseek/deepseek-v4-pro`. Limits: $1 per build, $3 total.
+- Cost: $1.00 total; $0.14, $0.19 and $0.67 per build. Every call reported its cost.
+- Time: 7.4, 8.0 and 32.8 minutes. Model calls: 26, 35 and 76.
+- Two builds hit a `BAD_OUTPUT` failure and completed after a revision.
+
+Review is dearer than on 2026-09-28, when the median build cost $0.09 and took
+22 calls. The ISO 8601 build used 18 reviewer calls and 57 specialist calls
+and came within a third of its $1 ceiling. Three builds are too few to say
+how much of that is the stricter review and how much is ordinary variation;
+the report does not record why each revision was requested.
+
+An earlier attempt the same day
+([run 36715069184](https://github.com/michael-muh-freakin-mercer/caveman/actions/runs/36715069184), $0.17)
+completed one build and then stopped with "Event loop is closed", a fault in
+the campaign script rather than in a build.
+
 ## 2026-09-28: first campaign
 
 **Result: 10 of 10 builds completed** ([report](20260928T180959Z.md), [data](20260928T180959Z.json)).

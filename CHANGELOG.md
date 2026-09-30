@@ -5,7 +5,7 @@
 - The first live build on cavman.dev passed every review while a planned launcher shortcut was never delivered, the vault folder was not hidden, secrets were taken as command-line arguments and saves were not atomic. Reviewers returned one overall verdict, and green tests were enough to earn it.
 - A reviewer now gets a numbered list of plan items built from the task packet (the planned deliverable, each acceptance criterion, each constraint, and in workflow mode each run success criterion only that task covers) together with the user's request, and must return a verdict on each. A review is recorded as failed when an item has no verdict or is ruled unmet, or when the reviewer reports a high or critical finding, whatever it put in `passed`. The failure names the items, so the specialist's revision knows what is missing.
 - Reviewers are told to look for secrets on the command line or in logs, in-place saves of user data, injection, path traversal, loose file permissions and silent data loss.
-- Not covered yet: a success criterion shared between several tasks is not checked as a whole when the run finishes. Verified offline only; reviewer behaviour with real models is unmeasured until the next live run.
+- Not covered yet: a success criterion shared between several tasks is not checked as a whole when the run finishes. A three-build live smoke completed 3 of 3 for $1.00, but builds cost more than before ($0.14 to $0.67 against a $0.09 median) and one took 33 minutes; see `docs/live-campaign/README.md`.
 
 ## 2026-09-30 — Error reporting to Sentry
 
