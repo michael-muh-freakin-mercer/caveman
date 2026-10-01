@@ -7,13 +7,14 @@ import { MAX_PROMPT_LENGTH, newBuildPath, savePendingPrompt } from "@/lib/prompt
 import { announceTyping } from "@/components/brand/live-cavman";
 import { useHydrated } from "@/lib/use-hydrated";
 
+// Examples stay within what live builds have proven: Python and TypeScript code with real tests.
 const EXAMPLES: { label: string; prompt: string }[] = [
-  { label: "Web app", prompt: "Build me a booking app for a tattoo studio" },
-  { label: "SaaS", prompt: "Build a subscription invoicing SaaS for freelancers" },
-  { label: "Mobile app", prompt: "Build a habit-tracking mobile app with streaks and reminders" },
-  { label: "Internal tool", prompt: "Build an internal tool to track equipment check-outs" },
-  { label: "API", prompt: "Build a REST API for a recipe catalogue with search" },
-  { label: "CLI", prompt: "Build a CLI that renames photos by the date they were taken" },
+  { label: "CLI", prompt: "Build a Python CLI that renames photos by the date they were taken, with tests" },
+  { label: "Library", prompt: "Build a Python library that parses and validates ISO 8601 durations, with tests" },
+  { label: "API", prompt: "Build a REST API core for a recipe catalogue (routing and search, no framework) in Python, with tests" },
+  { label: "TypeScript", prompt: "Build a TypeScript rate limiter (token bucket) with node:test tests" },
+  { label: "Parser", prompt: "Build a TypeScript CSV parser that handles quoted fields, with tests" },
+  { label: "Booking logic", prompt: "Build the availability engine for a tattoo studio's bookings in Python, with tests" },
 ];
 
 export function BuildPrompt({ signedIn }: { signedIn: boolean }) {
@@ -78,7 +79,7 @@ export function BuildPrompt({ signedIn }: { signedIn: boolean }) {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="Build me a booking app for a tattoo studio"
+              placeholder="Build a Python CLI that renames photos by the date they were taken"
               className="min-h-12 flex-1 resize-none bg-transparent px-1 py-3 text-base text-fg placeholder:text-faint focus:outline-none focus-visible:shadow-none focus-visible:outline-none sm:py-2.5 sm:text-lg"
               style={{ fieldSizing: "content" } as React.CSSProperties}
             />
