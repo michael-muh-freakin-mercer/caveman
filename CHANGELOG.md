@@ -3,6 +3,7 @@
 ## 2026-09-30 — Pricing says the hosted beta is free
 
 - The pricing page now leads with the hosted beta at cavman.dev: free during the beta within a monthly model allowance shown in the account, with a "Start building free" button to sign-up. It says paid plans are coming, that nothing is charged without notice first, and that beta users get a discount. Self-hosting is still listed at $0 plus provider usage.
+- The hosted card promises sandboxed tests only for Python and TypeScript builds (other stacks and documents get review only), downloads only for delivered projects, and cost as the model provider reports it.
 
 ## 2026-09-30 — The landing page promises only what builds have proven
 

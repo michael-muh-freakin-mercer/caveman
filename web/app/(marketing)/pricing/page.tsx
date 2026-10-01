@@ -8,8 +8,8 @@ export const metadata: Metadata = { title: "Pricing" };
 const HOSTED = [
   "Nothing to install: describe it at cavman.dev and Cavman builds it",
   "A monthly model allowance on us, shown in your account",
-  "Sandboxed validation and independent review on every build",
-  "Download the finished project from every completed build",
+  "Independent review on every build, plus sandboxed tests for Python and TypeScript",
+  "Download each delivered project",
 ];
 
 const SELF_HOSTED = [
@@ -40,7 +40,7 @@ export default function PricingPage() {
         <h1 className="display text-balance mt-5 text-2xl leading-tight text-fg sm:text-4xl">Free while we dig. <span className="marker">Honest prices after.</span></h1>
         <p className="mt-5 text-lg text-fg-soft">
           Hosted Cavman is free during the beta. Cavman is also open source under the MIT license: run it yourself and
-          you pay only what your model provider charges. Either way, every run shows exactly what it cost.
+          you pay only what your model provider charges. Either way, every run shows what it cost, as reported by the model provider.
         </p>
       </div>
       <div className="mt-14 grid gap-6 md:grid-cols-2">
