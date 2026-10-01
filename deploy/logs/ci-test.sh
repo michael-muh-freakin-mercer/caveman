@@ -21,6 +21,10 @@ cleanup() {
 trap cleanup EXIT
 
 export CAVMAN_DOMAIN=logs-check.invalid
+# compose.prod.yaml falls back to the pre-rename CAVEMAN_DOMAIN with a required
+# check, and the Compose on CI's runner evaluates that check even when
+# CAVMAN_DOMAIN is set (Compose 5.5 does not). Setting both keeps it quiet.
+export CAVEMAN_DOMAIN=$CAVMAN_DOMAIN
 export GRAFANA_LOKI_URL=http://loki-standin:3100/loki/api/v1/push
 export GRAFANA_LOKI_USER=12345
 export GRAFANA_LOKI_TOKEN=ci-token-$RANDOM$RANDOM
