@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-01 — Log shipper starts under its locked-down settings
+
+- The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).
+- New CI job "log shipper in the production overlay" (`deploy/logs/ci-test.sh`) starts the service from `compose.prod.yaml` next to a stand-in for Loki and checks that it stays up, that a marked container's lines arrive with the right labels and credentials, and that an unmarked container is left out.
+
 ## 2026-09-30 — Pricing says the hosted beta is free
 
 - The pricing page now leads with the hosted beta at cavman.dev: free during the beta within a monthly model allowance shown in the account, with a "Start building free" button to sign-up. It says paid plans are coming, that nothing is charged without notice first, and that beta users get a discount. Self-hosting is still listed at $0 plus provider usage.

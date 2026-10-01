@@ -83,7 +83,10 @@ services:
     user: root  # Docker's log files are readable by root only
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    command: ["run", "--storage.path=/var/lib/alloy/data", "--disable-reporting", "/etc/alloy/config.alloy"]
+    # State (how far each log file has been read) goes to a volume of its own,
+    # outside the image's /var/lib/alloy: that directory belongs to the image's
+    # alloy user, and root without capabilities cannot enter it.
+    command: ["run", "--storage.path=/alloy-state", "--disable-reporting", "/etc/alloy/config.alloy"]
     environment:
       GRAFANA_LOKI_URL: ${GRAFANA_LOKI_URL:-}
       GRAFANA_LOKI_USER: ${GRAFANA_LOKI_USER:-}
@@ -91,7 +94,7 @@ services:
     volumes:
       - ./logs/config.alloy:/etc/alloy/config.alloy:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - alloy-data:/var/lib/alloy/data
+      - alloy-state:/alloy-state
 
 volumes:
   cavman-data:
@@ -102,4 +105,4 @@ volumes:
     driver_opts: { type: none, o: bind, device: "${CAVMAN_DATA_MOUNT:-/mnt/cavman-data}" }
   caddy-data:
   caddy-config:
-  alloy-data:
+  alloy-state:
