@@ -375,3 +375,13 @@ test("two-factor sign-in: turn it on, sign in with a code and with a backup code
   await plain.getByRole("button", { name: "Sign in" }).click();
   await plain.waitForURL(/\/app$/);
 });
+
+test("a new account is shown how a build goes, and the docs answer common questions", async ({ page }) => {
+  await signUp(page);
+  await expect(page.getByRole("heading", { name: "How a build goes" })).toBeVisible();
+  await page.getByRole("link", { name: "common questions" }).click();
+  await page.waitForURL(/\/docs#faq$/);
+  await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
+  await expect(page.getByText("What does a build cost?")).toBeVisible();
+  await expect(page.getByRole("link", { name: "support@cavman.dev" })).toBeVisible();
+});
