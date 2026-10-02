@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Later builds open pull requests
+
+- Once a project has been published to GitHub, a later build in that project can open a pull request on that repository instead of creating another one. Cavman pushes the build's verified commit to a new `cavman/<run>` branch, never forced, and opens a pull request against the default branch, with the request and result in its description. The default branch changes only if the user merges it.
+- It is refused unless the build's commit continues from the published one, so the pull request holds only that build's work. Publishing to a new repository is still offered.
+- The run page shows "Open a pull request" for such builds, and "View Pull Request" afterwards. The API takes `mode: "pull_request"` on `/api/runs/{id}/publish`, and the run detail has `project_publication`.
+
 ## 2026-10-01 — Accessibility, phones, Firefox and Safari
 
 - New end-to-end checks (`web/e2e/quality.spec.ts`): every public page, every signed-in page, a run waiting for approval and a completed run are scanned with axe-core for WCAG 2.1 A and AA, and must be no wider than the screen.
@@ -300,7 +306,6 @@
 - Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
 - Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
 - Workers refuse to start when Bubblewrap isolation is unusable.
-
 
 ## Unreleased — 2026-09-27
 
