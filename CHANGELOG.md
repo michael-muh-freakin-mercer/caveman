@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — The finished project is checked as a whole
+
+- Each task's reviewer rules only on the success criteria that task alone covers. A criterion several tasks share was never checked anywhere. Now, once every task is accepted and integrated, and before the run completes, the project's own checks (pytest, compile, node:test, tsc, whichever its tasks used) run together on the integrated code, and a fresh reviewer reads that code and rules on each shared criterion. A failed check, an unmet or unruled criterion, a high or critical finding, or a reviewer who read no file fails the review, whatever the reviewer claimed.
+- When it fails, Cavman proposes one more task, written from the reviewer's suggested fix, to make the project meet the missed criteria. Adding a task changes the plan, so the kernel asks the owner to approve it: the Change the plan card says what the review found. If approved, the task runs and the project is reviewed again. If declined, the run completes and its result says which criteria the review found unmet. If no plan revisions are left, the result says so too.
+- Runs with no shared criterion are unchanged. A passing review is noted in the run's result.
+
 ## 2026-10-01 — Accessibility, phones, Firefox and Safari
 
 - New end-to-end checks (`web/e2e/quality.spec.ts`): every public page, every signed-in page, a run waiting for approval and a completed run are scanned with axe-core for WCAG 2.1 A and AA, and must be no wider than the screen.
@@ -300,7 +306,6 @@
 - Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
 - Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
 - Workers refuse to start when Bubblewrap isolation is unusable.
-
 
 ## Unreleased — 2026-09-27
 
