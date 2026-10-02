@@ -49,7 +49,7 @@ def test_campaign_runs_every_build_on_one_event_loop(tmp_path, monkeypatch):
     """The provider client is cached with live connections, which die with their loop."""
     import asyncio
 
-    from caveman.worker import Worker
+    from cavman.worker import Worker
 
     loops, run_once = set(), Worker.run_once
 
