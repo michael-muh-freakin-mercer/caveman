@@ -20,7 +20,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [x] 🧑 First live build on cavman.dev (2026-09-30: a Linux secret-folder CLI, $0.35, 54 tests passing)
 - [x] 🤖 Review must check delivered work against the plan, not just tests: that first build passed every review while missing planned items (launcher shortcut not delivered, vault not hidden) and taking secrets as command-line arguments (shell history) with non-atomic saves (reviewers now rule on every plan item and report findings by severity; an unmet or unruled item or a high or critical finding fails the review)
 - [x] 🤖 Confirm the stricter review with real models (live smoke 2026-09-30: 3 of 3 builds completed, $1.00; see `docs/live-campaign/`)
-- [ ] 🤖 Measure what the stricter review costs: builds ran $0.14 to $0.67 against a $0.09 median before, and one took 33 minutes. Find out why reviewers asked for revisions and whether the requests were sound
+- [x] 🤖 Measure what the stricter review costs (2026-10-02, `docs/live-campaign/README.md`: wide variance, mostly from reviews failed for reading no file and sent back as if the work were wrong; fixed): builds ran $0.14 to $0.67 against a $0.09 median before, and one took 33 minutes. Find out why reviewers asked for revisions and whether the requests were sound
 - [ ] 🤖 Check the finished project as a whole against each success criterion shared between tasks (reviews are per task today)
 
 ### 2. Stronger isolation for untrusted code
@@ -82,7 +82,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 ### 10. Setting expectations about what Cavman can build
 - [x] 🤖 Say in the UI which stacks get real tests (Python, Node/TypeScript) and which are reviewed code only
 - [x] 🤖 Warn before mobile or unsupported-stack builds
-- [ ] 🤖 Run project build scripts (`npm run build`), not just tests
+- [x] 🤖 Run project build scripts (`npm run build`), not just tests (check `npm_build`: the build script runs in the network-denied jail on a scratch copy, without pre/post hooks)
 - [x] 🤖 Cost estimate before a build starts (from what recent completed builds here actually cost, per model mode; plus the ceiling and the monthly allowance left)
 
 ### 11. Talking with a build
@@ -92,7 +92,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 
 ### 12. GitHub
 - [ ] 🤖 Publish flow end to end against github.com, including the scope upgrade (tested against a stand-in only)
-- [ ] 🤖 Import a real public repository (tested against a local copy only)
+- [x] 🤖 Import a real public repository (`tests/test_github_live.py` imports octocat/Hello-World from github.com through the API; an advisory CI job runs it on every push)
 - [ ] 🤖 Private repository import with the user's token
 - [ ] 🤖 Push updates to an existing repository as a pull request
 
@@ -103,26 +103,26 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 ### 14. Account
 - [x] 🤖 Session management (see and revoke signed-in devices)
 - [x] 🤖 Change password in Settings
-- [ ] 🤖 Change email in Settings (needs the email provider to verify the new address)
-- [ ] 🤖 Optional two-factor authentication
+- [x] 🤖 Change email in Settings (the current address approves the change, then the new one is verified)
+- [x] 🤖 Optional two-factor authentication (authenticator app plus encrypted single-use backup codes; guards password sign-in, GitHub sign-in relies on GitHub's own)
 
 ### 15. Quality
-- [ ] 🤖 Accessibility audit to WCAG AA
-- [ ] 🤖 Mobile layout check
-- [ ] 🤖 Firefox and Safari (only Chromium is tested)
-- [ ] 🤖 Load test: concurrent builds and live-update connections
-- [ ] 🤖 Pagination on run and project lists; streamed export for large accounts
+- [x] 🤖 Accessibility audit to WCAG AA (axe-core, WCAG 2.1 A and AA, on every page type in every browser in CI: `web/e2e/quality.spec.ts`; fixed low-contrast green and grey text, a link told apart only by colour, and a scroll area keyboards could not reach. Not yet done: a manual pass with a screen reader)
+- [x] 🤖 Mobile layout check (no page wider than the screen on Pixel 7 and iPhone 14 sizes, plus the core build journey on both)
+- [x] 🤖 Firefox and Safari (the accessibility, layout and core build journeys run in Firefox and WebKit, Safari's engine, in CI; the full journey set stays on Chromium)
+- [x] 🤖 Load test: concurrent builds and live-update connections (`scripts/load_test.py`, results in `docs/LOAD_TEST.md`: 100 builds and 500 live connections with no errors; worker slots, not the platform, limit cavman.dev)
+- [x] 🤖 Pagination on run and project lists; streamed export for large accounts (keyset paging, 25 runs or 24 projects a page; the export streams one run at a time through the web server)
 
 ### 16. Onboarding and support
-- [ ] 🤖 First-run guidance, empty states, help/FAQ, pricing page
+- [x] 🤖 First-run guidance, empty states, help/FAQ, pricing page (empty states and pricing were in place; the empty overview now shows how a build goes, and the docs have a Questions section)
 - [x] 🧑 Support contact channel (email only for now: support@cavman.dev, owner's decision 2026-10-02)
 
 ## P2: soon after launch
 - [ ] 🤖 Keep or retire manager mode (its conversation sessions are still local SQLite)
 - [ ] 🤖 More sandbox stacks (Go, Rust, Java)
-- [ ] 🤖 Compare Budget / Balanced / Maximum Quality with real models
+- [x] 🤖 Compare Budget / Balanced / Maximum Quality with real models (2026-10-02: deepseek-v4-flash too weak; suggest deepseek-v4-pro for Budget and Balanced, claude-sonnet-5.5 for Maximum Quality; set `CAVMAN_MODELS_*` to offer them)
 - [x] 🤖 Dependency update automation (Dependabot weekly for pip, npm and GitHub Actions: `.github/dependabot.yml`)
-- [ ] 🤖 Plan the CI runner move from Ubuntu 24.04 deliberately
+- [x] 🤖 Plan the CI runner move from Ubuntu 24.04 deliberately (`docs/runbooks/ci-runner-move.md`; an advisory job already runs the suite on Ubuntu 26.04)
 - [ ] 🧑 Privacy-respecting product analytics for the sign-up → first build funnel
 
 ## Suggested order
