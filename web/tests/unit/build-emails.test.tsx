@@ -47,7 +47,7 @@ describe("deliverNotices", () => {
     const send = vi.fn(async (email: { to: string }) => {
       if (email.to === "dave@x") throw new Error("provider down");
     });
-    const markSent = vi.fn(async () => {});
+    const markSent = vi.fn(async (_jobId: string) => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await deliverNotices({
       fetchNotices: async () => notices, markSent, send,
