@@ -2,8 +2,8 @@
 #
 # Isolation note: the worker executes candidate checks under Bubblewrap, which
 # needs unprivileged user namespaces *inside* the container. Docker's default
-# seccomp profile blocks them, so the worker container must run with a seccomp
-# profile that permits user-namespace creation (see deploy/README.md). Cavman
+# seccomp profile blocks them, so the worker container must run with
+# deploy/seccomp-worker.json, which permits them (see deploy/README.md). Cavman
 # fails closed if the sandbox is unusable; it never falls back to host execution.
 #
 # The distribution interpreter is used deliberately: the sandbox binds /usr into

@@ -27,7 +27,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
 - [x] 🤖 Implement it behind `ExecutionBackend`, keeping the fail-closed sandbox tests (`CAVMAN_SANDBOX_BACKEND=e2b`, template in `scripts/e2b_template.py`, live tests in the E2B sandbox workflow)
 - [x] 🧑 Build the E2B template once and set `CAVMAN_SANDBOX_BACKEND=e2b` and `E2B_API_KEY` on the workers (template `cavman-sandbox`; isolation probe passed on cavman-1, 2026-09-29)
-- [ ] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile
+- [x] 🤖 If workers stay in containers, replace `seccomp=unconfined` with a hardened profile (`deploy/seccomp-worker.json`: Docker's default plus the six calls Bubblewrap needs; the CI job `deploy` runs under it. cavman.dev workers use E2B and need none of it)
 
 ### 3. Deployment
 - [x] 🧑 Approve infrastructure: DigitalOcean (one 8 GB / 4 vCPU Droplet, managed Postgres, block storage volume, Caddy for TLS); domain cavman.dev

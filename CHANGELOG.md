@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-30 — Worker containers keep Docker's seccomp filter
+
+- `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
+- `apparmor=unconfined` and `systempaths=unconfined` are unchanged; Bubblewrap cannot mount `/proc` without them.
+- `scripts/worker_seccomp.py` rebuilds the profile from Docker's default. `deploy/e2e.sh` fails if the worker container is not seccomp-filtered.
+- cavman.dev is not affected: its workers use E2B and `compose.prod.yaml` already drops all three options.
+
 ## 2026-09-30 — Review checks the build against its plan
 
 - The first live build on cavman.dev passed every review while a planned launcher shortcut was never delivered, the vault folder was not hidden, secrets were taken as command-line arguments and saves were not atomic. Reviewers returned one overall verdict, and green tests were enough to earn it.
