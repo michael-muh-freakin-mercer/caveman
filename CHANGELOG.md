@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-02 — Repository import proven against github.com
+
+- `tests/test_github_live.py` (opt-in with `CAVMAN_LIVE_GITHUB=1`) imports GitHub's public example repository through the API, the way a user's build does, and checks the result: one local commit, no upstream remote or shallow state. It also checks that a missing or private repository is refused by the real API. An advisory CI job runs it on every push. It cannot fail the build, so a GitHub outage does not block merges.
+
 ## 2026-10-01 — Rehearse the move to Ubuntu 26.04 runners
 
 - An advisory CI job runs the backend suite on `ubuntu-26.04`, which has Python 3.14 as its system interpreter, the one the sandbox uses. The job cannot fail the build and is not a required check. `docs/runbooks/ci-runner-move.md` lists what depends on the runner image and the steps to move.
