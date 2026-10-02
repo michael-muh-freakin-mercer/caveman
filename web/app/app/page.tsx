@@ -37,7 +37,7 @@ export default async function Overview() {
 }
 
 function OverviewSections({ runs }: { runs: RunSummary[] }) {
-  const needsYou = runs.filter((r) => r.state === "approval_needed");
+  const needsYou = runs.filter((r) => r.state === "approval_needed" || r.state === "input_needed");
   const active = runs.filter((r) => isExecuting(r.state));
   return (
     <>
