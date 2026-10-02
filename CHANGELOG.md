@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-02 — Manager mode is retired
+
+- Every build now runs the workflow driver, where plain code drives plan, delegate, validate, review and accept, and models only plan, build and review. The original mode, where a Manager model drove each step through tool calls, used far more model calls and was never used on cavman.dev. It is gone, along with its scripted test models, the `--orchestration` flag of the live campaign, `CAVMAN_MANAGER_MAX_TURNS`, and the per-run conversation sessions it kept in local SQLite.
+- `CAVMAN_ORCHESTRATION=manager` now stops the API and worker at startup with a message saying so, instead of quietly running something different. `workflow` is still accepted.
+- Runs and the system view no longer report an `orchestration` field. The Continue dialog no longer has an instruction box. It only appeared in manager mode.
+- Erasing an account still deletes any old manager-mode sessions for its runs.
+
 ## 2026-10-01 — Accessibility, phones, Firefox and Safari
 
 - New end-to-end checks (`web/e2e/quality.spec.ts`): every public page, every signed-in page, a run waiting for approval and a completed run are scanned with axe-core for WCAG 2.1 A and AA, and must be no wider than the screen.
