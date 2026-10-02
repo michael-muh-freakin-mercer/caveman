@@ -20,7 +20,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [x] 🧑 First live build on cavman.dev (2026-09-30: a Linux secret-folder CLI, $0.35, 54 tests passing)
 - [x] 🤖 Review must check delivered work against the plan, not just tests: that first build passed every review while missing planned items (launcher shortcut not delivered, vault not hidden) and taking secrets as command-line arguments (shell history) with non-atomic saves (reviewers now rule on every plan item and report findings by severity; an unmet or unruled item or a high or critical finding fails the review)
 - [x] 🤖 Confirm the stricter review with real models (live smoke 2026-09-30: 3 of 3 builds completed, $1.00; see `docs/live-campaign/`)
-- [ ] 🤖 Measure what the stricter review costs: builds ran $0.14 to $0.67 against a $0.09 median before, and one took 33 minutes. Find out why reviewers asked for revisions and whether the requests were sound
+- [x] 🤖 Measure what the stricter review costs (2026-10-02, `docs/live-campaign/README.md`: wide variance, mostly from reviews failed for reading no file and sent back as if the work were wrong; fixed): builds ran $0.14 to $0.67 against a $0.09 median before, and one took 33 minutes. Find out why reviewers asked for revisions and whether the requests were sound
 - [ ] 🤖 Check the finished project as a whole against each success criterion shared between tasks (reviews are per task today)
 
 ### 2. Stronger isolation for untrusted code
@@ -120,7 +120,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 ## P2: soon after launch
 - [ ] 🤖 Keep or retire manager mode (its conversation sessions are still local SQLite)
 - [ ] 🤖 More sandbox stacks (Go, Rust, Java)
-- [ ] 🤖 Compare Budget / Balanced / Maximum Quality with real models
+- [x] 🤖 Compare Budget / Balanced / Maximum Quality with real models (2026-10-02: deepseek-v4-flash too weak; suggest deepseek-v4-pro for Budget and Balanced, claude-sonnet-5.5 for Maximum Quality; set `CAVMAN_MODELS_*` to offer them)
 - [x] 🤖 Dependency update automation (Dependabot weekly for pip, npm and GitHub Actions: `.github/dependabot.yml`)
 - [x] 🤖 Plan the CI runner move from Ubuntu 24.04 deliberately (`docs/runbooks/ci-runner-move.md`; an advisory job already runs the suite on Ubuntu 26.04)
 - [ ] 🧑 Privacy-respecting product analytics for the sign-up → first build funnel
