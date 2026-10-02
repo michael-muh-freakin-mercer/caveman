@@ -7,6 +7,17 @@
 - `scripts/worker_seccomp.py` rebuilds the profile from Docker's default. `deploy/e2e.sh` fails if the worker container is not seccomp-filtered.
 - cavman.dev is not affected: its workers use E2B and `compose.prod.yaml` already drops all three options.
 
+## 2026-09-30 — Review checks the build against its plan
+
+- The first live build on cavman.dev passed every review while a planned launcher shortcut was never delivered, the vault folder was not hidden, secrets were taken as command-line arguments and saves were not atomic. Reviewers returned one overall verdict, and green tests were enough to earn it.
+- A reviewer now gets a numbered list of plan items built from the task packet (the planned deliverable, each acceptance criterion, each constraint, and in workflow mode each run success criterion only that task covers) together with the user's request, and must return a verdict on each. A review is recorded as failed when an item has no verdict, is ruled unmet, or is ruled met without evidence, or when the reviewer reports a high or critical finding, whatever it put in `passed`. The failure names the items, so the specialist's revision knows what is missing.
+- Reviewers are told to look for secrets on the command line or in logs, in-place saves of user data, injection, path traversal, loose file permissions and silent data loss.
+- Not covered yet: a success criterion shared between several tasks is not checked as a whole when the run finishes. A three-build live smoke completed 3 of 3 for $1.00, but builds cost more than before ($0.14 to $0.67 against a $0.09 median) and one took 33 minutes; see `docs/live-campaign/README.md`.
+
+## 2026-09-30 — Live campaign survives more than one build
+
+- A three-build live smoke stopped at its second build with "Event loop is closed". The campaign started a new event loop for every job while the provider client, which is cached, kept a connection from the previous loop. It now runs every job on one loop, as a worker does. Production workers were never affected.
+
 ## 2026-10-01 — Log shipper starts under its locked-down settings
 
 - The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).

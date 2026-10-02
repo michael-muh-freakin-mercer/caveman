@@ -6,6 +6,7 @@ import pytest
 
 pytest.importorskip("agents")
 
+import fakes
 from cavman.workflow import PlanProposal, WorkflowDriver
 from walter.adapter import INITIAL_COMPLETION_CRITERION, DurableController
 from walter.models import TaskStatus
@@ -91,7 +92,8 @@ def test_all_model_only_run_completes_through_the_kernel(driver, monkeypatch):
             from walter.contracts import WorkerResult
             return WorkerResult(task_id="spec", status="completed", summary="done", deliverable="The spec.")
         from walter.adapter import ReviewResult
-        return ReviewResult(passed=True, evidence=["fine"], reason="Meets criteria")
+        return ReviewResult(passed=True, evidence=["fine"], reason="Meets criteria",
+                            verdicts=fakes.verdicts(kwargs["input"]))
     monkeypatch.setattr(workflow.controller, "_invoke", invoke)
     message = asyncio.run(workflow.run())
     run = workflow.controller.inspect()
@@ -114,7 +116,8 @@ def test_failed_review_routes_through_kernel_recovery(driver, monkeypatch):
             return WorkerResult(task_id="spec", status="completed", summary="done", deliverable="The spec.")
         from walter.adapter import ReviewResult
         passed = next(reviews)
-        return ReviewResult(passed=passed, evidence=["checked"], reason="ok" if passed else "Missing detail")
+        return ReviewResult(passed=passed, evidence=["checked"], reason="ok" if passed else "Missing detail",
+                            verdicts=fakes.verdicts(kwargs["input"], passed))
     monkeypatch.setattr(workflow.controller, "_invoke", invoke)
     asyncio.run(workflow.run())
     run = workflow.controller.inspect()
@@ -123,6 +126,34 @@ def test_failed_review_routes_through_kernel_recovery(driver, monkeypatch):
     assert failure.classification.value == "BAD_OUTPUT" and "Missing detail" in failure.evidence
     assert run.recoveries[0].action == "REVISE" and run.tasks["spec"].attempts == 2
     assert json.loads(run.artifacts[run.tasks["spec"].artifact_ids[0]].reviews[0].evidence)["passed"] is False
+
+
+def test_reviewer_rules_on_run_criteria_only_its_task_covers(driver, monkeypatch):
+    """A criterion shared between tasks cannot be held against one of them."""
+    workflow, _ = driver
+    items = {}
+
+    async def invoke(**kwargs):
+        if kwargs["role"] == "planner":
+            return plan([
+                # A repeated index still leaves "spec" the only task covering criterion 0.
+                {"packet": packet("spec"), "capability": "model_only", "checks": ["result_schema"],
+                 "covers": [0, 0, 1]},
+                {"packet": packet("guide", ["spec"]), "capability": "model_only", "checks": ["result_schema"],
+                 "covers": [1]}])
+        if kwargs["role"] == "worker":
+            from walter.contracts import WorkerResult
+            return WorkerResult(task_id=kwargs["task_id"], status="completed", summary="done",
+                                deliverable="The deliverable.")
+        from walter.adapter import ReviewResult
+        items[kwargs["task_id"]] = [item["text"] for item in json.loads(kwargs["input"])["plan_items"]]
+        return ReviewResult(passed=True, evidence=["fine"], reason="Meets criteria",
+                            verdicts=fakes.verdicts(kwargs["input"]))
+    monkeypatch.setattr(workflow.controller, "_invoke", invoke)
+    asyncio.run(workflow.run())
+    assert workflow.controller.inspect().status == "completed"
+    assert items["spec"][-1] == "Run success criterion this task alone covers: First measurable criterion"
+    assert not any("Run success criterion" in text for text in items["guide"])
 
 
 class _Files:

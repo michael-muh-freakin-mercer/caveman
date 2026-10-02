@@ -6,7 +6,7 @@ import pytest
 from agents import Runner, set_tracing_disabled
 from agents.items import ToolCallOutputItem
 
-from fakes import message_step, responder_step, scripted_model, tool_step
+from fakes import message_step, responder_step, review_step, scripted_model, tool_step
 from walter import runtime
 from walter.adapter import INITIAL_COMPLETION_CRITERION, DurableController
 from walter.contracts import TaskPacket
@@ -83,7 +83,7 @@ def test_durable_manager_loop_completes_offline(tmp_path, monkeypatch):
     ])
     worker = scripted_model([
         message_step(json.dumps(WORKER_RESULT)),
-        message_step(json.dumps(REVIEW_RESULT)),
+        review_step(REVIEW_RESULT),
     ])
 
     monkeypatch.setattr(runtime.RuntimeConfig, "from_env",
@@ -206,7 +206,7 @@ def test_kernel_refuses_out_of_order_manager_calls_and_the_run_still_completes(t
     ])
     worker = scripted_model([
         message_step(json.dumps(WORKER_RESULT)),
-        message_step(json.dumps(REVIEW_RESULT)),
+        review_step(REVIEW_RESULT),
     ])
 
     monkeypatch.setattr(runtime.RuntimeConfig, "from_env",

@@ -128,8 +128,26 @@ def _worker_result(task_id: str, deliverable: str, summary: str) -> dict:
     }))
 
 
+def _plan_item_numbers(call_input) -> list[int]:
+    """The numbered plan items a reviewer was asked to rule on."""
+    for entry in [call_input] if isinstance(call_input, str) else call_input:
+        content = entry if isinstance(entry, str) else entry.get("content")
+        if isinstance(content, list):
+            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        try:
+            return [item["item"] for item in json.loads(content)["plan_items"]]
+        except (TypeError, ValueError, KeyError):
+            continue
+    return []
+
+
 def _review(passed: bool, reason: str) -> dict:
-    return _message(json.dumps({"passed": passed, "evidence": [reason], "reason": reason}))
+    def responder(call):
+        verdicts = [{"item": number, "met": passed, "evidence": reason}
+                    for number in _plan_item_numbers(call.input)]
+        return _message(json.dumps({"passed": passed, "evidence": [reason], "reason": reason,
+                                    "verdicts": verdicts}))
+    return {"responder": responder}
 
 
 API_MODULE = '''"""Booking endpoint logic built on the accepted booking core."""

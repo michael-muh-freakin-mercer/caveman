@@ -16,9 +16,12 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Tune planner and specialist prompts, turn limits and recovery from the results. Bar: ≥70% complete, median cost under the $5 default budget (met: 100%, $0.09)
 - [x] 🤖 Confirm OpenRouter reports cost on this path so USD budgets enforce real numbers (matches OpenRouter's usage counter within $0.005)
 - [x] 🤖 Opt-in, budget-capped live smoke in CI (`.github/workflows/live-smoke.yml`, run by hand from Actions)
-- [ ] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run
+- [x] 🧑 Add the `OPENROUTER_API_KEY` repository secret so it can run (set 2026-09-28; first CI run 2026-09-30)
 - [x] 🧑 First live build on cavman.dev (2026-09-30: a Linux secret-folder CLI, $0.35, 54 tests passing)
-- [ ] 🤖 Review must check delivered work against the plan, not just tests: that first build passed every review while missing planned items (launcher shortcut not delivered, vault not hidden) and taking secrets as command-line arguments (shell history) with non-atomic saves
+- [x] 🤖 Review must check delivered work against the plan, not just tests: that first build passed every review while missing planned items (launcher shortcut not delivered, vault not hidden) and taking secrets as command-line arguments (shell history) with non-atomic saves (reviewers now rule on every plan item and report findings by severity; an unmet or unruled item or a high or critical finding fails the review)
+- [x] 🤖 Confirm the stricter review with real models (live smoke 2026-09-30: 3 of 3 builds completed, $1.00; see `docs/live-campaign/`)
+- [ ] 🤖 Measure what the stricter review costs: builds ran $0.14 to $0.67 against a $0.09 median before, and one took 33 minutes. Find out why reviewers asked for revisions and whether the requests were sound
+- [ ] 🤖 Check the finished project as a whole against each success criterion shared between tasks (reviews are per task today)
 
 ### 2. Stronger isolation for untrusted code
 - [x] 🧑 Choose a microVM or managed sandbox: E2B (free plan to start; upgrade before public launch for longer sandbox lifetimes and more concurrency)
@@ -45,9 +48,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up verification email not yet tested)
 
 ### 6. Legal
-- [ ] 🧑👥 Terms of service, privacy policy, acceptable-use policy
-- [ ] 🧑👥 List of third parties processing user data (OpenRouter and model providers, email, hosting)
-- [ ] 🧑👥 Data retention policy, cookie notice, minimum age
+- [x] 🧑👥 Terms of service, privacy policy, acceptable-use policy: live at `/terms`, `/privacy` and `/acceptable-use` (signed off by the owner 2026-09-30; not reviewed by a lawyer)
+- [x] 🧑👥 List of third parties processing user data (OpenRouter and model providers, email, hosting): listed in the privacy policy (signed off by the owner 2026-09-30; not reviewed by a lawyer)
+- [x] 🧑👥 Data retention policy, cookie notice, minimum age: in the privacy policy and terms; minimum age 18 (signed off by the owner 2026-09-30; not reviewed by a lawyer)
 - [x] 🤖 Pages and links in the app (data export and account deletion already exist): live at `/terms`, `/privacy`, `/acceptable-use`; owner facts in `web/lib/legal.ts`
 
 ### 7. Abuse and tenancy limits
