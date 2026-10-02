@@ -281,7 +281,7 @@ class WorkflowDriver:
                            f"{r.check}: {r.evidence[-600:]}" for r in failed))
             return
         try:
-            report = await self.controller.review(task_id)
+            report = await self.controller.review(task_id, run_criteria=self._own_criteria(task_id))
         except (UsageBudgetExceeded, asyncio.CancelledError):
             raise
         except Exception as exc:
@@ -294,6 +294,15 @@ class WorkflowDriver:
             self.controller.accept_and_integrate(task_id, "Trusted validation and independent review passed")
         except GateError as exc:
             self._fail(task_id, FailureClass.MISSING_EVIDENCE, f"Acceptance refused: {exc}")
+
+    def _own_criteria(self, task_id: str) -> list[str]:
+        """Run success criteria only this task is planned to satisfy.
+
+        Its reviewer rules on those too. A criterion shared between tasks is
+        left out: no single candidate can be held to the whole of it.
+        """
+        coverage = (self._load_state() or {}).get("coverage", {})
+        return [criterion for criterion, tasks in coverage.items() if set(tasks) == {task_id}]
 
     # Recovery ----------------------------------------------------------------
 

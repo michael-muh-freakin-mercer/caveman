@@ -22,6 +22,8 @@ The current adapter supports `result_schema`, `compile`, `pytest` (legacy alias 
 
 Runtime-planned tasks require independent review; `developer_sandbox` tasks are marked high risk. Review should test every acceptance criterion and use artifact, validation, source/diff, and relevant upstream evidence. Security, safety, permission, and self-modifying work always require independent evaluation.
 
+Review checks the candidate against the plan, not only against its tests (2026-09-30 decision). The adapter builds a numbered list of plan items from the persisted task packet: the planned deliverable, every acceptance criterion, every constraint, and, in workflow mode, each run success criterion that only this task is planned to satisfy. The reviewer receives that list with the user's request and must return one verdict per item. The reviewer's own `passed` is a claim: the adapter records the review as failed when any item has no verdict, any item is ruled unmet, or the reviewer reports a finding of high or critical severity. Reviewers are told to look for secrets taken as command-line arguments, printed, logged or stored in plain text, for user data saved in place, and for injection, path traversal, loose file permissions and silent data loss. A success criterion shared between several tasks is not yet checked as a whole at the end of a run.
+
 The Manager checks deliverable existence, scope, criteria, contradictions, provenance, validation results, reviewer independence, and candidate identity. Manager acceptance is necessary but does not replace scoped human promotion approval.
 
 ## Rejection

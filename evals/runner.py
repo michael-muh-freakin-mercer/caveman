@@ -136,10 +136,10 @@ def _eval_001_scripts(controller):
     worker = [
         fakes.message_step(json.dumps(_worker_result(
             "research", "Competitor brief: Alpha, Beta, Gamma, Delta, Epsilon."))),
-        fakes.message_step(json.dumps(REVIEW_PASS)),
+        fakes.review_step(REVIEW_PASS),
         fakes.message_step(json.dumps(_worker_result(
             "positioning", "Positioning: the evidence-backed alternative for pragmatists."))),
-        fakes.message_step(json.dumps(REVIEW_PASS)),
+        fakes.review_step(REVIEW_PASS),
     ]
     return manager, worker
 
@@ -205,11 +205,11 @@ def _eval_002_scripts(controller):
     ]
     worker = [
         fakes.message_step(json.dumps(_worker_result("copy", "Final copy: headline, body, CTA."))),
-        fakes.message_step(json.dumps(REVIEW_PASS)),
+        fakes.review_step(REVIEW_PASS),
         fakes.message_step(json.dumps(_worker_result("design", "Design spec: hero, features, footer."))),
-        fakes.message_step(json.dumps(REVIEW_PASS)),
+        fakes.review_step(REVIEW_PASS),
         fakes.message_step(json.dumps(_worker_result("impl", "Implementation matches copy and design."))),
-        fakes.message_step(json.dumps(REVIEW_PASS)),
+        fakes.review_step(REVIEW_PASS),
     ]
     return manager, worker
 
@@ -301,10 +301,10 @@ def _eval_003_scripts(controller):
         "report", "Quarterly summary: revenue, churn, pipeline, and outlook sections complete.")
     worker = [
         fakes.message_step(json.dumps(weak_claim)),
-        fakes.message_step(json.dumps(review_fail)),
+        fakes.review_step(review_fail),
         fakes.message_step(json.dumps(honest_blocker)),
         fakes.message_step(json.dumps(substantive)),
-        fakes.message_step(json.dumps(REVIEW_PASS)),
+        fakes.review_step(REVIEW_PASS),
     ]
     return manager, worker
 
