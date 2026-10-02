@@ -121,7 +121,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 More sandbox stacks (Go, Rust, Java)
 - [ ] 🤖 Compare Budget / Balanced / Maximum Quality with real models
 - [ ] 🤖 Dependency update automation (e.g. Renovate)
-- [ ] 🤖 Plan the CI runner move from Ubuntu 24.04 deliberately
+- [x] 🤖 Plan the CI runner move from Ubuntu 24.04 deliberately (`docs/runbooks/ci-runner-move.md`; an advisory job already runs the suite on Ubuntu 26.04)
 - [ ] 🧑 Privacy-respecting product analytics for the sign-up → first build funnel
 
 ## Suggested order

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-01 — Rehearse the move to Ubuntu 26.04 runners
+
+- An advisory CI job runs the backend suite on `ubuntu-26.04`, which has Python 3.14 as its system interpreter, the one the sandbox uses. The job cannot fail the build and is not a required check. `docs/runbooks/ci-runner-move.md` lists what depends on the runner image and the steps to move.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
