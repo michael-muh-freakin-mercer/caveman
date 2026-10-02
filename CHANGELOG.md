@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-02 — The site speaks to developers
+
+- Link previews and the browser tab now say "Cavman — AI builds that have to prove they work", with a description naming who it is for (developers) and what it does best (Python and TypeScript libraries, CLIs and API cores, handed over after real tests and a second review). The dig-site joke stays in the landing page's headline.
+- The last web-app examples are gone: the How it works flow and the landing page's example run now show a Python CLI that renames photos by date, with Python, TypeScript, API, test and docs specialists, and the new-build placeholder models a good, testable request.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
