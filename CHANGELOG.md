@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-01 — Rehearse the move to Ubuntu 26.04 runners
+
+- An advisory CI job runs the backend suite on `ubuntu-26.04`, which has Python 3.14 as its system interpreter, the one the sandbox uses. The job cannot fail the build and is not a required check. `docs/runbooks/ci-runner-move.md` lists what depends on the runner image and the steps to move.
+
 ## 2026-10-01 — Builds prove the project's own build script
 
 - New trusted check `npm_build` runs the project's `npm run build` in the same network-denied jail as the Node tests, with dependencies from the isolated installer. The workspace stays read-only: the sources are copied to scratch, `node_modules` is linked in read-only, and the output is thrown away. Pre- and post-build hooks are not run.
