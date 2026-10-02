@@ -7,6 +7,13 @@
 - WebKit (Safari's engine) could not sign in on the plain-HTTP test stack: the production CSP's `upgrade-insecure-requests` made it send the page's own requests to `https://localhost`, which Chromium and Firefox exempt but WebKit does not. The directive is now sent only when the page came over HTTPS, directly or through Caddy's `X-Forwarded-Proto`, which is always the case on cavman.dev.
 - Fixed what the scan found: the "ok" green (`#16803f` to `#126b34`) and the faint grey (`#6f7369` to `#5f625a`) now reach 4.5:1 on their backgrounds, the docs link to the setup guide is underlined, not just coloured, and the run's activity list can be scrolled from the keyboard.
 
+## 2026-10-02 — Reviewers must read the work, and are asked again if they do not
+
+- Live smokes showed the same request costing $0.03 in one build and $0.65 in another. In one case both reviewers ruled every item met, and the work was sent back anyway, because they had judged from the diff in their input without opening a file. Trusted code fails such a review, but it said so only in the evidence. The specialist got a reason saying everything was fine and spent 79 calls redoing working code.
+- Reviewers are now told to open the candidate's files before ruling. One that reads nothing is asked once more. If it still reads nothing, the review fails with a reason that says the verdict was discarded for that reason.
+- Findings and the model comparison are in `docs/live-campaign/README.md`.
+- The real-github.com import check sends the workflow's own token, so parallel CI runs no longer share GitHub's anonymous rate limit.
+
 ## 2026-10-01 — Change your email, and optional two-factor sign-in
 
 - Settings > Account can change the account's email. A verified address must approve the change by a link sent to it first, then the new address confirms by its own link, so a stolen session cannot quietly move the account. An unverified address gets only the second link.
