@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { AccountData } from "@/components/app/account-data";
+import { BuildEmailsToggle } from "@/components/app/build-emails-toggle";
 import { SecurityPanel } from "@/components/app/security-panel";
 import { ApiError } from "@/components/app/api-error";
 import { PageHeader } from "@/components/app/page-header";
@@ -47,6 +48,9 @@ export default async function SettingsPage() {
             <div><dt className="text-xs text-muted">Name</dt><dd className="text-fg">{user.name}</dd></div>
             <div><dt className="text-xs text-muted">Email</dt><dd className="text-fg">{user.email}</dd></div>
           </dl>
+        </Panel>
+        <Panel title="Email" description="Builds can take a while. Cavman can tell you when one is worth coming back for.">
+          <BuildEmailsToggle initial={current?.user.buildEmails !== false} />
         </Panel>
         <Panel title="GitHub" description="Cavman never pushes or creates repositories without your explicit approval.">
           <p className="text-sm text-fg-soft">

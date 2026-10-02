@@ -84,6 +84,11 @@ const options = {
   },
   socialProviders: github,
   user: {
+    // Emails about the user's own builds (lib/build-emails.ts). On unless turned
+    // off in Settings; accounts from before this field read it as unset, which counts as on.
+    additionalFields: {
+      buildEmails: { type: "boolean" as const, required: false, defaultValue: true, input: false },
+    },
     // Deleting an account requires the password (or, for GitHub-only accounts, a
     // session from the last day). Cavman's data goes first: if a build is
     // still running the API refuses, and the account is kept.
