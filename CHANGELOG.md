@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Start from a private GitHub repository
+
+- A new project can start from a private GitHub repository the user can read. The web server reads the user's own GitHub token from the encrypted auth store, only when the account has granted the `repo` scope and the request names a repository. It sends the token to the API in an `X-Cavman-GitHub-Token` header the browser cannot set. The importer uses it for GitHub's metadata and the download, and never stores or logs it.
+- The operator's import token (`CAVMAN_GITHUB_IMPORT_TOKEN`) still only raises rate limits: a private repository is refused unless the importing user's own token is present.
+- When a repository is private, or not found without a token, the API answers with `needs_scope: "repo"`. The New build form then offers "Give Cavman access to your GitHub repositories" and, after GitHub, returns to the form with the request and repository filled in. The project records whether its source was private.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
