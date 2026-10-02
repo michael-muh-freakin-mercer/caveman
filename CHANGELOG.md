@@ -3,6 +3,7 @@
 ## 2026-10-01 — Campaign reports say why work was sent back
 
 - A live campaign report now lists every failed check and every review that asked for changes, in order, with the reviewer's reason, plus the number of candidates and the cost by role (planner, specialist, reviewer) for each build. The 2026-09-30 smoke showed review had made builds dearer but recorded nothing about why revisions were requested.
+- The report is rewritten after every build, marked partial until the campaign ends, and `--deadline-minutes` stops new builds from starting late. The live smoke uses 70 minutes against its 90-minute job timeout. A smoke on 2026-10-02 hit that timeout and left no report, although it had spent money.
 
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
