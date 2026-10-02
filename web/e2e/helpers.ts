@@ -30,9 +30,12 @@ export async function runJson(page: Page, runId: string) {
 
 /** The current 6-digit TOTP code for a base32 secret (RFC 6238, SHA-1, 30 s). */
 export function totp(secret: string, at = Date.now()): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let bits = "";
-  for (const char of secret.replace(/=+$/, "").toUpperCase()) bits += alphabet.indexOf(char).toString(2).padStart(5, "0");
+  for (const char of secret.replace(/=+$/, "").toUpperCase()) {
+    // Base32: A-Z are 0-25, 2-7 are 26-31.
+    const value = char >= "A" ? char.charCodeAt(0) - 65 : char.charCodeAt(0) - 24;
+    bits += value.toString(2).padStart(5, "0");
+  }
   const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => parseInt(byte, 2)));
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
