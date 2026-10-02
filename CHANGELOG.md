@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-02 — Load test
+
+- `scripts/load_test.py` drives the real API and worker processes with many accounts' builds and live-update connections at once, using scripted models, so it costs nothing. 100 concurrent builds with 500 open streams all completed, with no stream errors and an API p95 of 240 ms. Results and what they mean for cavman.dev are in `docs/LOAD_TEST.md`: the single worker slot, not the platform, is the limit.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.

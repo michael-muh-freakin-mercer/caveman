@@ -109,7 +109,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Accessibility audit to WCAG AA
 - [ ] 🤖 Mobile layout check
 - [ ] 🤖 Firefox and Safari (only Chromium is tested)
-- [ ] 🤖 Load test: concurrent builds and live-update connections
+- [x] 🤖 Load test: concurrent builds and live-update connections (`scripts/load_test.py`, results in `docs/LOAD_TEST.md`: 100 builds and 500 live connections with no errors; worker slots, not the platform, limit cavman.dev)
 - [ ] 🤖 Pagination on run and project lists; streamed export for large accounts
 
 ### 16. Onboarding and support
