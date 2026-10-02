@@ -23,6 +23,7 @@ CHECK_LABELS = {
     "pytest_regression": "Regression tests",
     "node_test": "Node tests",
     "tsc": "TypeScript typecheck",
+    "npm_build": "Project build",
 }
 
 FAILURE_EXPLANATIONS = {

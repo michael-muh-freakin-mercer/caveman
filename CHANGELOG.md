@@ -4,6 +4,25 @@
 
 - `scripts/load_test.py` drives the real API and worker processes with many accounts' builds and live-update connections at once, using scripted models, so it costs nothing. 100 concurrent builds with 500 open streams all completed, with no stream errors and an API p95 of 240 ms. Results and what they mean for cavman.dev are in `docs/LOAD_TEST.md`: the single worker slot, not the platform, is the limit.
 
+## 2026-10-02 — Repository import proven against github.com
+
+- `tests/test_github_live.py` (opt-in with `CAVMAN_LIVE_GITHUB=1`) imports GitHub's public example repository through the API, the way a user's build does, and checks the result: one local commit, no upstream remote or shallow state. It also checks that a missing or private repository is refused by the real API. An advisory CI job runs it on every push. It cannot fail the build, so a GitHub outage does not block merges.
+
+## 2026-10-01 — Rehearse the move to Ubuntu 26.04 runners
+
+- An advisory CI job runs the backend suite on `ubuntu-26.04`, which has Python 3.14 as its system interpreter, the one the sandbox uses. The job cannot fail the build and is not a required check. `docs/runbooks/ci-runner-move.md` lists what depends on the runner image and the steps to move.
+
+## 2026-10-01 — Builds prove the project's own build script
+
+- New trusted check `npm_build` runs the project's `npm run build` in the same network-denied jail as the Node tests, with dependencies from the isolated installer. The workspace stays read-only: the sources are copied to scratch, `node_modules` is linked in read-only, and the output is thrown away. Pre- and post-build hooks are not run.
+- The planner is told to require it when `package.json` has a `build` script, so a bundler or framework build that fails no longer passes because the tests did. Specialists can run it with `run_check("npm_build")`. A task with no `build` script fails the check with a plain reason.
+- Limits: two minutes, the usual Node memory cap and 32 MB of scratch. Dev servers are still not run.
+
+## 2026-10-01 — Campaign reports say why work was sent back
+
+- A live campaign report now lists every failed check and every review that asked for changes, in order, with the reviewer's reason, plus the number of candidates and the cost by role (planner, specialist, reviewer) for each build. The 2026-09-30 smoke showed review had made builds dearer but recorded nothing about why revisions were requested.
+- The report is rewritten after every build, marked partial until the campaign ends, and `--deadline-minutes` stops new builds from starting late. The live smoke uses 70 minutes against its 90-minute job timeout. A smoke on 2026-10-02 hit that timeout and left no report, although it had spent money.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
