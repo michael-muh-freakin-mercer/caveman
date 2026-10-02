@@ -33,7 +33,8 @@ def load_system_prompt() -> str:
 class ItemVerdict(BaseModel):
     item: int = Field(description="Number of the plan item this verdict rules on.")
     met: bool = Field(description="True only if the candidate itself delivers the item.")
-    evidence: str = Field(default="", description="Where in the candidate you found it, or what is missing.")
+    evidence: str = Field(default="", description="Where in the candidate you found it, or what is missing. "
+                          "Required when met is true.")
 
 
 class ReviewFinding(BaseModel):
@@ -78,7 +79,8 @@ def hold_to_plan(report: ReviewResult, items: list[str]) -> ReviewResult:
     The reviewer's own ``passed`` is a claim. The first live build passed every
     review while a planned shortcut was never delivered and secrets were taken
     as command-line arguments (2026-09-30), so a pass now has to be backed by a
-    verdict on each item and by no high or critical finding.
+    verdict on each item, with evidence for every item ruled met, and by no high
+    or critical finding.
     """
     problems = []
     for number, text in enumerate(items, 1):
@@ -89,6 +91,8 @@ def hold_to_plan(report: ReviewResult, items: list[str]) -> ReviewResult:
             if not verdict.met:
                 detail = f" ({verdict.evidence.strip()})" if verdict.evidence.strip() else ""
                 problems.append(f"Plan item {number} not met: {text}{detail}")
+            elif not verdict.evidence.strip():
+                problems.append(f"Plan item {number} ruled met without evidence: {text}")
     problems += [f"{finding.severity.capitalize()} finding: {finding.issue}"
                  for finding in report.findings if finding.severity in BLOCKING_SEVERITIES]
     if problems:

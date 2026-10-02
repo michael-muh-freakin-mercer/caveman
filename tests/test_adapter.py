@@ -946,11 +946,23 @@ def test_review_fails_on_an_unmet_plan_item_whatever_the_reviewer_concluded(monk
         controller, monkeypatch,
         ReviewResult(passed=True, evidence=["tests pass"], reason="good enough",
                      verdicts=[{"item": 1, "met": False, "evidence": "no launcher shortcut in the diff"},
-                               {"item": 2, "met": True}]))
+                               {"item": 2, "met": True, "evidence": "result.txt"}]))
     assert not review.passed
     assert report.reason == ("Plan item 1 not met: Planned deliverable is present and complete: "
                              "One inspectable result (no launcher shortcut in the diff)")
     assert report.reason in json.loads(review.evidence)["evidence"]
+
+
+def test_review_fails_on_a_plan_item_ruled_met_without_evidence(monkeypatch):
+    """An empty "met" is as unbacked as silence: the reviewer has to say where it found the item."""
+    controller = _submitted_for_review(monkeypatch)
+    report, review, _ = _review_with(
+        controller, monkeypatch,
+        ReviewResult(passed=True, evidence=["tests pass"], reason="looks complete",
+                     verdicts=[{"item": 1, "met": True, "evidence": "result.txt"},
+                               {"item": 2, "met": True, "evidence": "  "}]))
+    assert not report.passed and not review.passed
+    assert report.reason == "Plan item 2 ruled met without evidence: Acceptance criterion: result is present"
 
 
 @pytest.mark.parametrize("severity,passes", [("critical", False), ("High", False), ("medium", True), ("low", True)])
