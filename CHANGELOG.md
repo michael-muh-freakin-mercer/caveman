@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-01 — Paged run and project lists, streamed export
+
+- `GET /api/runs`, `GET /api/projects` and `GET /api/projects/{id}` return one page, newest first (`limit`, 1 to 100), with a `next` cursor for the page after it (`before=`). Paging is by (created, id), so builds started while someone pages do not shift or repeat items. A project still reports its full `run_count` and its latest run on every page.
+- The Runs, Projects and project pages show 25 runs or 24 projects with Older and Newest links. The overview reads the newest 50 runs instead of all of them.
+- Projects no longer load every run to count them: one count query and the latest run.
+- The account export streams one run at a time from the API through the web server, so a large account is never built in memory. The file's content is unchanged.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.

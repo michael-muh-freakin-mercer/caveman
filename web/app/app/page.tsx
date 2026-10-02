@@ -12,7 +12,8 @@ import type { RunSummary } from "@/lib/types";
 
 export default async function Overview() {
   const user = await requireUser("/app");
-  const result = await load<{ runs: RunSummary[] }>(user.id, "runs");
+  // The newest 50 runs: anything waiting for a decision or still building is among them in practice.
+  const result = await load<{ runs: RunSummary[] }>(user.id, "runs?limit=50");
   const first = user.name.split(" ")[0] || "there";
   return (
     <>

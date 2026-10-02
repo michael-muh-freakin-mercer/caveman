@@ -110,7 +110,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Mobile layout check
 - [ ] 🤖 Firefox and Safari (only Chromium is tested)
 - [ ] 🤖 Load test: concurrent builds and live-update connections
-- [ ] 🤖 Pagination on run and project lists; streamed export for large accounts
+- [x] 🤖 Pagination on run and project lists; streamed export for large accounts (keyset paging, 25 runs or 24 projects a page; the export streams one run at a time through the web server)
 
 ### 16. Onboarding and support
 - [ ] 🤖 First-run guidance, empty states, help/FAQ, pricing page
