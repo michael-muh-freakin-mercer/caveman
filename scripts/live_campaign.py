@@ -111,6 +111,10 @@ def main(argv=None) -> int:
     headers = {"Authorization": f"Bearer {token}", "X-Cavman-User": "campaign"}
     rows, spent, halted = [], 0.0, ""
     started_at = datetime.now(timezone.utc)
+    # One event loop for the whole campaign, as in a real worker. The provider
+    # client is cached and keeps connections alive, so a loop per job left the
+    # next build a connection tied to a closed loop ("Event loop is closed").
+    loop = asyncio.new_event_loop()
     with TestClient(create_app(settings)) as client:
         for prompt in prompts:
             if halted:
@@ -129,7 +133,7 @@ def main(argv=None) -> int:
             for _ in range(10):  # bounded: jobs, approvals and continuations
                 worker = Worker(settings)
                 try:
-                    while asyncio.run(worker.run_once()):
+                    while loop.run_until_complete(worker.run_once()):
                         pass
                 finally:
                     worker.close()
@@ -160,6 +164,8 @@ def main(argv=None) -> int:
             if not usage["cost_complete"] and args.executor == "provider" and not args.allow_unknown_cost:
                 halted = "stopped: the provider did not report cost for every call, so spend cannot be capped"
                 print(halted, file=sys.stderr)
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    loop.close()
     args.out.mkdir(parents=True, exist_ok=True)
     stamp = started_at.strftime("%Y%m%dT%H%M%SZ")
     completed = [r for r in rows if r.get("state") == "complete"]
