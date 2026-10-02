@@ -149,7 +149,7 @@ export default function DocsPage() {
           </dl>
           <p className="mt-8 leading-relaxed text-fg-soft">
             Something else? Email{" "}
-            <a className="text-glacier underline-offset-4 hover:underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+            <a className="text-glacier underline underline-offset-4" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
           </p>
         </section>
         <p className="mt-14 text-sm text-muted">
