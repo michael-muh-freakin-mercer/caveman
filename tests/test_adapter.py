@@ -1571,3 +1571,22 @@ def test_exhaustion_still_fails_without_salvage_or_without_work(tmp_path, monkey
         pass
     task = controller.inspect().tasks["task"]
     assert task.artifact_ids == [] and task.status != "SUBMITTED"
+
+
+def test_project_build_needs_a_build_script():
+    from walter.adapter import _build_script_problem
+
+    class Files:
+        def __init__(self, manifest):
+            self.manifest = manifest
+
+        def read_file(self, workspace_id, path, *, worker_id=None):
+            assert path == "package.json"
+            return self.manifest
+
+    assert "package.json" in _build_script_problem(Files(""), "w", "a", ["index.ts"])
+    assert "not a valid JSON" in _build_script_problem(Files("{oops"), "w", "a", ["package.json"])
+    assert "not a valid JSON" in _build_script_problem(Files("[]"), "w", "a", ["package.json"])
+    assert "no \"build\"" in _build_script_problem(Files('{"scripts": {"test": "x"}}'), "w", "a", ["package.json"])
+    assert "no \"build\"" in _build_script_problem(Files('{"scripts": {"build": " "}}'), "w", "a", ["package.json"])
+    assert _build_script_problem(Files('{"scripts": {"build": "vite build"}}'), "w", "a", ["package.json"]) is None
