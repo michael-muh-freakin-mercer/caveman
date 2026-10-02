@@ -870,16 +870,48 @@ def test_developer_lane_review_still_requires_candidate_inspection(tmp_path, mon
     asyncio.run(controller.delegate("task"))
     controller.validate("task")
 
+    attempts = []
+
     async def uninspected(**kwargs):
+        attempts.append(kwargs["instructions"])
         return ReviewResult(passed=True, evidence=["looks fine"], reason="no files read",
                             verdicts=fakes.verdicts(kwargs["input"]))
 
     monkeypatch.setattr(controller, "_invoke", uninspected)
-    asyncio.run(controller.review("task"))
+    report = asyncio.run(controller.review("task"))
     state = controller.inspect()
     review = state.artifacts[state.tasks["task"].artifact_ids[-1]].reviews[-1]
     assert not review.passed
-    assert "did not inspect any candidate file" in review.evidence
+    assert "did not open any candidate file" in review.evidence
+    # Asked once more before the verdict is discarded, and the reason says why.
+    assert len(attempts) == 2 and "rejected because you read no file" in attempts[1]
+    assert report.reason.startswith("The reviewer did not open any candidate file")
+
+
+def test_a_reviewer_that_reads_on_its_second_attempt_is_accepted(tmp_path, monkeypatch):
+    controller, _ = _developer_pytest_controller(tmp_path)
+
+    async def candidate(**kwargs):
+        _write_candidate(controller)
+        return WorkerResult(task_id="task", status="completed", summary="candidate",
+                            deliverable="bounded candidate")
+
+    monkeypatch.setattr(controller, "_invoke", candidate)
+    asyncio.run(controller.delegate("task"))
+    controller.validate("task")
+    attempts = []
+
+    async def reads_when_told(**kwargs):
+        attempts.append(1)
+        if len(attempts) == 2:
+            read_file = next(t for t in kwargs["tools"] if t.name == "read_file")
+            await _call_tool(read_file, path="test_candidate.py")
+        return ReviewResult(passed=True, evidence=["read test_candidate.py"], reason="met",
+                            verdicts=fakes.verdicts(kwargs["input"]))
+
+    monkeypatch.setattr(controller, "_invoke", reads_when_told)
+    assert asyncio.run(controller.review("task")).passed
+    assert len(attempts) == 2
 
 
 def _submitted_for_review(monkeypatch, node=None):
