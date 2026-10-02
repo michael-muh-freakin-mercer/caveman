@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-02 — The site speaks to developers
+
+- Link previews and the browser tab now say "Cavman — AI builds that have to prove they work", with a description naming who it is for (developers) and what it does best (Python and TypeScript libraries, CLIs and API cores, handed over after real tests and a second review). The dig-site joke stays in the landing page's headline.
+- The last web-app examples are gone: the How it works flow and the landing page's example run now show a Python CLI that renames photos by date, with Python, TypeScript, API, test and docs specialists, and the new-build placeholder models a good, testable request.
+
 ## 2026-10-01 — Accessibility, phones, Firefox and Safari
 
 - New end-to-end checks (`web/e2e/quality.spec.ts`): every public page, every signed-in page, a run waiting for approval and a completed run are scanned with axe-core for WCAG 2.1 A and AA, and must be no wider than the screen.
@@ -300,7 +305,6 @@
 - Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
 - Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
 - Workers refuse to start when Bubblewrap isolation is unusable.
-
 
 ## Unreleased — 2026-09-27
 
