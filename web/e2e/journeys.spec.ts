@@ -295,3 +295,13 @@ test("a user sees their signed-in devices, signs one out and changes their passw
   await other.getByRole("button", { name: "Sign in" }).click();
   await other.waitForURL(/\/app$/);
 });
+
+test("an instruction given while a build runs is shown and reaches the work", async ({ page }) => {
+  await signUp(page);
+  await startBuild(page, "Build me a booking app for a tattoo studio");
+  await page.getByRole("button", { name: "Add an instruction" }).click();
+  await page.getByLabel("Instruction", { exact: true }).fill("Store times in UTC");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("list", { name: "Your instructions during the build" })).toContainText("Store times in UTC");
+  await expect(page.getByRole("heading", { name: "Build complete" })).toBeVisible();
+});

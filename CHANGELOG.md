@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — Give a build instructions while it runs
+
+- The run page has *Add an instruction* while a build is executing, and the *Continue* dialog's instruction box now works in workflow mode too (it used to be refused). Instructions are stored beside the run (`run_instructions`, at most 20 a run), listed under the request on the run page, and included in the export through the run detail.
+- The workflow driver reads them at the start of every round. Specialists starting work from then on get them in their instructions, newest winning over the task packet where they conflict. Reviewers get them as `owner_instructions` and fail work that ignores one that applies. Work already accepted is not redone; a follow-up run is the way to change it.
+- New `POST /api/runs/{id}/instructions`. Manager mode keeps its own path (the message goes to the Manager on Continue).
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
