@@ -34,7 +34,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [x] 🤖 Step-by-step DigitalOcean guide and production Compose overlay ([DEPLOY_DIGITALOCEAN.md](DEPLOY_DIGITALOCEAN.md))
 - [x] 🤖 Verify `deploy/web.Dockerfile` and `deploy/compose.yaml` end to end (`deploy/e2e.sh`, CI job `deploy`: all 15 journeys pass)
 - [x] 🤖 Verify Better Auth on Postgres (same run)
-- [ ] 🤖 Verify a multi-host deployment on Postgres (`CAVMAN_DATABASE_URL`). Two workers sharing one queue on one host pass; separate machines sharing the volume are untested
+- [x] 🧑 Single host or several: one Droplet for now (owner, 2026-10-01). Multi-host on Postgres stays unverified until a second machine is wanted; two workers sharing one queue on one host pass
 - [x] 🤖 SQLite → Postgres data migration tool (`cavman ops migrate-to-postgres`, auth included)
 - [x] 🧑 Approve the first deploy (live at https://cavman.dev on Droplet cavman-1, 2026-09-29)
 
@@ -68,7 +68,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [x] 🤖 Integrate them (Sentry in the API, workers and web server, off until `SENTRY_DSN` is set; log shipping to Grafana Cloud with Alloy in `compose.prod.yaml`, off until `COMPOSE_PROFILES=logs`; both listed in the privacy policy)
 - [x] 🧑 Create the Grafana Cloud stack, set `GRAFANA_LOKI_*` and `COMPOSE_PROFILES=logs` on cavman.dev, and confirm logs arrive (2026-10-01, after #40: Alloy pushing to Grafana Cloud, no dropped entries)
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
-- [ ] 🤖 Autoscale workers from queue depth
+- [x] 🤖 Worker capacity on one host: `CAVMAN_WORKER_CONCURRENCY` (idle slots cost nothing). Autoscaling across machines is deferred with multi-host (owner, 2026-10-01)
 - [x] 🧑 Backups for Postgres and the shared volume (nightly at ~07:30 UTC, encrypted, off-server to the `cavman-backups` Space: `deploy/backup/`; live since 2026-09-30)
 - [x] 🤖 Tested restore drill (`deploy/backup/restore-drill.sh`: runs in CI on every push; first production drill passed 2026-09-30, logged in RUNBOOK.md)
 
@@ -121,7 +121,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [ ] 🤖 Keep or retire manager mode (its conversation sessions are still local SQLite)
 - [ ] 🤖 More sandbox stacks (Go, Rust, Java)
 - [ ] 🤖 Compare Budget / Balanced / Maximum Quality with real models
-- [ ] 🤖 Dependency update automation (e.g. Renovate)
+- [x] 🤖 Dependency update automation (Dependabot weekly for pip, npm and GitHub Actions: `.github/dependabot.yml`)
 - [ ] 🤖 Plan the CI runner move from Ubuntu 24.04 deliberately
 - [ ] 🧑 Privacy-respecting product analytics for the sign-up → first build funnel
 
