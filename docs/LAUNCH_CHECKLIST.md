@@ -113,7 +113,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Pagination on run and project lists; streamed export for large accounts
 
 ### 16. Onboarding and support
-- [ ] 🤖 First-run guidance, empty states, help/FAQ, pricing page
+- [x] 🤖 First-run guidance, empty states, help/FAQ, pricing page (empty states and pricing were in place; the empty overview now shows how a build goes, and the docs have a Questions section)
 - [ ] 🧑 Support contact channel
 
 ## P2: soon after launch

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — First-run guidance and a FAQ
+
+- A new account's overview shows how a build goes in four steps (describe it, watch it work, decide when asked, take it away), with links to the docs and the questions.
+- The docs page has a Questions section: what Cavman builds well, cost, the monthly allowance, why a build waits, running the result, privacy and self-hosting, plus the support address.
+- The docs now cover starting from a public GitHub repository, asking for changes, and publishing to GitHub, and no longer say publishing "is not wired yet".
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
