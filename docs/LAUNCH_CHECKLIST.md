@@ -6,7 +6,7 @@ they land and note the commit or PR.
 Owner: 🧑 needs the project owner's decision, money or approval · 🤖 engineering
 work that can be done now · 👥 needs outside people.
 
-Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
+Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc budget **$50 a month** for model credit for free builds and demos, E2B and similar (2026-10-02; marketing has its own budget).
 
 ## P0: can't launch without these
 
@@ -45,7 +45,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 
 ### 5. Email
 - [x] 🧑 Resend account, sending domain verified (SPF and DKIM): cavman.dev, sender no-reply@cavman.dev; inbound support@cavman.dev forwards via Cloudflare Email Routing (2026-09-30)
-- [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up verification email not yet tested)
+- [x] 🤖 Require email verification in hosted mode; test reset and verification against the real provider (`CAVMAN_REQUIRE_EMAIL_VERIFICATION=1` on cavman.dev; password reset delivered through Resend 2026-09-30; a fresh sign-up's verification email delivered and confirmed by the owner 2026-10-02)
 
 ### 6. Legal
 - [x] 🧑👥 Terms of service, privacy policy, acceptable-use policy: live at `/terms`, `/privacy` and `/acceptable-use` (signed off by the owner 2026-09-30; not reviewed by a lawyer)
@@ -66,7 +66,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [x] 🤖 Dashboards and alerts: queue age, failed jobs, sandbox health, spend (`deploy/monitoring/`; needs a Prometheus and Grafana to run in, chosen with error reporting below)
 - [x] 🧑 Choose error reporting (e.g. Sentry) and log hosting (Sentry live on cavman.dev since 2026-09-30 for the API, workers and web server; Grafana Cloud chosen for logs 2026-09-30)
 - [x] 🤖 Integrate them (Sentry in the API, workers and web server, off until `SENTRY_DSN` is set; log shipping to Grafana Cloud with Alloy in `compose.prod.yaml`, off until `COMPOSE_PROFILES=logs`; both listed in the privacy policy)
-- [ ] 🧑 Create the Grafana Cloud stack, set `GRAFANA_LOKI_*` and `COMPOSE_PROFILES=logs` on cavman.dev, and confirm logs arrive
+- [x] 🧑 Create the Grafana Cloud stack, set `GRAFANA_LOKI_*` and `COMPOSE_PROFILES=logs` on cavman.dev, and confirm logs arrive (2026-10-01, after #40: Alloy pushing to Grafana Cloud, no dropped entries)
 - [x] 🤖 Runbook: stuck runs, worker outage, restore from backup (`docs/RUNBOOK.md`)
 - [ ] 🤖 Autoscale workers from queue depth
 - [x] 🧑 Backups for Postgres and the shared volume (nightly at ~07:30 UTC, encrypted, off-server to the `cavman-backups` Space: `deploy/backup/`; live since 2026-09-30)
@@ -75,7 +75,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ## P1: needed for a good launch
 
 ### 9. Billing (if paid)
-- [ ] 🧑 Pricing and plans; approve a Stripe account
+- [x] 🧑 Pricing and plans (approved 2026-10-02: free during the beta at a $1 monthly allowance; then Free with $1 of usage a month, Builder at $20 a month with $12 of usage, and $10 top-ups for $6 of usage; beta users get a discount)
+- [ ] 🧑 Open and approve a Stripe account
 - [ ] 🤖 Checkout, metering tied to account caps, invoices, billing page in Settings
 
 ### 10. Setting expectations about what Cavman can build
@@ -114,7 +115,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 
 ### 16. Onboarding and support
 - [ ] 🤖 First-run guidance, empty states, help/FAQ, pricing page
-- [ ] 🧑 Support contact channel
+- [x] 🧑 Support contact channel (email only for now: support@cavman.dev, owner's decision 2026-10-02)
 
 ## P2: soon after launch
 - [ ] 🤖 Keep or retire manager mode (its conversation sessions are still local SQLite)
