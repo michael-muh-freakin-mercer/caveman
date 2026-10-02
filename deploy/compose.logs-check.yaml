@@ -1,0 +1,17 @@
+# CI check of the log shipper in compose.prod.yaml, used by deploy/logs/ci-test.sh.
+# Layered on compose.yaml and compose.prod.yaml; never use it for a real
+# deployment. Only `alloy` and `loki-standin` are started: the shipper exactly
+# as production runs it, pushing to a stand-in that prints what it receives.
+services:
+  api:
+    env_file: !reset []
+  worker:
+    env_file: !reset []
+  web:
+    env_file: !reset []
+
+  loki-standin:
+    image: python:3.12-alpine
+    command: ["python", "-u", "/loki-standin.py"]
+    volumes:
+      - ./logs/loki-standin.py:/loki-standin.py:ro

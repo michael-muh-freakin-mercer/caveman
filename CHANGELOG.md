@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-01 — Log shipper starts under its locked-down settings
+
+- The `alloy` service failed on its first production start with `mkdir /var/lib/alloy/data: permission denied`: that directory belongs to the image's own user, and the service runs as root with every capability dropped, so it could not enter it. Its state now lives in a volume of its own at `/alloy-state`. The unused `alloy-data` volume can be removed (`docker volume ls | grep alloy-data`).
+- New CI job "log shipper in the production overlay" (`deploy/logs/ci-test.sh`) starts the service from `compose.prod.yaml` next to a stand-in for Loki and checks that it stays up, that a marked container's lines arrive with the right labels and credentials, and that an unmarked container is left out.
+
+## 2026-09-30 — Pricing says the hosted beta is free
+
+- The pricing page now leads with the hosted beta at cavman.dev: free during the beta within a monthly model allowance shown in the account, with a "Start building free" button to sign-up. It says paid plans are coming, that nothing is charged without notice first, and that beta users get a discount. Self-hosting is still listed at $0 plus provider usage.
+- The hosted card promises sandboxed tests only for Python and TypeScript builds (other stacks and documents get review only), downloads only for delivered projects, and cost as the model provider reports it.
+
+## 2026-09-30 — The landing page promises only what builds have proven
+
+- The example prompts under the landing page's build box were a web app, a SaaS and a mobile app, which no live build has shown Cavman delivering. They are now the kinds of work the live campaign completed: a Python CLI, a Python library, an API core, a TypeScript rate limiter, a CSV parser and a tattoo studio's booking availability engine, each with tests. The placeholder follows.
+- The line under the headline says Cavman hands work over only after a second reviewer signs off, and names what it is best at today: Python and TypeScript libraries, CLIs and API cores, where real tests must pass too. Other stacks get review only, so the page no longer promises tests for them.
+- The "Hands it over" step no longer offers publishing, which is not wired up yet (see Docs, "Current limitations"); it says the reviewed build is yours to download.
+
 ## 2026-09-30 — A new look: the dig site
 
 - The web app has a new light design: concrete background with a survey grid, ink outlines, duck-yellow for the one main action per screen, and pink and sky-blue stickers for small jokes. Headings use Rubik Mono One, text uses Archivo and code uses JetBrains Mono.
