@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-02 — Repository import proven against github.com
+
+- `tests/test_github_live.py` (opt-in with `CAVMAN_LIVE_GITHUB=1`) imports GitHub's public example repository through the API, the way a user's build does, and checks the result: one local commit, no upstream remote or shallow state. It also checks that a missing or private repository is refused by the real API. An advisory CI job runs it on every push. It cannot fail the build, so a GitHub outage does not block merges.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
