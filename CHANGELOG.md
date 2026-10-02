@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — Builds prove the project's own build script
+
+- New trusted check `npm_build` runs the project's `npm run build` in the same network-denied jail as the Node tests, with dependencies from the isolated installer. The workspace stays read-only: the sources are copied to scratch, `node_modules` is linked in read-only, and the output is thrown away. Pre- and post-build hooks are not run.
+- The planner is told to require it when `package.json` has a `build` script, so a bundler or framework build that fails no longer passes because the tests did. Specialists can run it with `run_check("npm_build")`. A task with no `build` script fails the check with a plain reason.
+- Limits: two minutes, the usual Node memory cap and 32 MB of scratch. Dev servers are still not run.
+
 ## 2026-10-01 — Campaign reports say why work was sent back
 
 - A live campaign report now lists every failed check and every review that asked for changes, in order, with the reviewer's reason, plus the number of candidates and the cost by role (planner, specialist, reviewer) for each build. The 2026-09-30 smoke showed review had made builds dearer but recorded nothing about why revisions were requested.
