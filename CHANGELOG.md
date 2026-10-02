@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-01 — Change your email, and optional two-factor sign-in
+
+- Settings > Account can change the account's email. A verified address must approve the change by a link sent to it first, then the new address confirms by its own link, so a stolen session cannot quietly move the account. An unverified address gets only the second link.
+- Settings > Two-factor sign-in turns on a code from an authenticator app (Better Auth's two-factor plugin): scan a QR code or type the key, confirm with a code, and save ten single-use backup codes. Signing in with a password then asks for a code or a backup code, with an option to trust the device for 30 days. New backup codes and turning it off need the password. The TOTP secret and the backup codes are stored encrypted. GitHub sign-in is not gated; it relies on GitHub's own two-factor.
+- The plugin adds a `twoFactor` table and a `twoFactorEnabled` user column through the automatic auth migration. The privacy policy mentions the encrypted key and codes.
+- New dependency: `uqr` (MIT, no dependencies) draws the QR code as an SVG in the browser.
+
 ## 2026-10-01 — Paged run and project lists, streamed export
 
 - `GET /api/runs`, `GET /api/projects` and `GET /api/projects/{id}` return one page, newest first (`limit`, 1 to 100), with a `next` cursor for the page after it (`before=`). Paging is by (created, id), so builds started while someone pages do not shift or repeat items. A project still reports its full `run_count` and its latest run on every page.
