@@ -228,6 +228,22 @@ def _tool_trace_hooks(role: str, task_id: str | None):
 CHECK_OUTPUT_CHARS = 3000
 
 
+NODE_CHECKS = frozenset({"node_test", "tsc", "npm_build"})
+
+
+def _build_script_problem(manager, workspace_id: str, worker_id: str | None, files: list[str]) -> str | None:
+    """Why `npm run build` cannot run here, or None when package.json declares a build script."""
+    if "package.json" not in files:
+        return "The project build needs a package.json with a \"build\" script"
+    try:
+        scripts = json.loads(manager.read_file(workspace_id, "package.json", worker_id=worker_id)).get("scripts")
+    except (ValueError, AttributeError):
+        return "package.json is not a valid JSON object"
+    if not isinstance(scripts, dict) or not isinstance(scripts.get("build"), str) or not scripts["build"].strip():
+        return "package.json has no \"build\" script"
+    return None
+
+
 def _run_check(manager, workspace_id: str, worker_id: str, check: str, paths: list[str]) -> str:
     """Build the exact sandbox template for a named check.
 
@@ -259,14 +275,19 @@ def _run_check(manager, workspace_id: str, worker_id: str, check: str, paths: li
         category, argv = "test", ["node", "--test", *tests]
     elif check == "tsc":
         category, argv = "check", ["tsc"]
+    elif check == "npm_build":
+        problem = _build_script_problem(manager, workspace_id, worker_id, files)
+        if problem:
+            return json.dumps({"check": check, "passed": False, "output": problem})
+        category, argv = "build", ["npm", "run", "build"]
     else:
         return json.dumps({"check": check, "passed": False,
-                           "output": 'Unknown check. Use "pytest", "compile", "node_test" or "tsc".'})
+                           "output": 'Unknown check. Use "pytest", "compile", "node_test", "tsc" or "npm_build".'})
     try:
         node_modules = (manager.node_dependencies(workspace_id, worker_id=worker_id)
-                        if check in {"node_test", "tsc"} else None)
+                        if check in NODE_CHECKS else None)
         output = manager.run_command(workspace_id, category, argv, worker_id=worker_id,
-                                     node_modules=node_modules)
+                                     node_modules=node_modules, timeout=120 if check == "npm_build" else 30)
     except (SandboxViolation, SandboxUnavailable) as exc:
         return json.dumps({"check": check, "passed": False, "output": f"The sandbox refused this check: {exc}"})
     text = (output.stdout + ("\n" + output.stderr if output.stderr else "")).strip()
@@ -324,6 +345,7 @@ def workspace_tools(manager, workspace_id: str, worker_id: str, *, writable: boo
             - "compile": Python syntax. paths: .py files (default: every .py file).
             - "node_test": Node's test runner. paths: *.test.ts / *.test.js files (default: all of them).
             - "tsc": TypeScript type check of the project (needs tsconfig.json and typescript).
+            - "npm_build": the project's own `npm run build` (needs a "build" script in package.json).
             """
             return _run_check(manager, workspace_id, worker_id, check, paths or [])
 
@@ -1261,7 +1283,7 @@ class DurableController:
                 runnable = sorted({"pytest" if check.startswith("pytest") else check
                                    for check in task.required_checks
                                    if check in {"compile", "pytest", "pytest_candidate", "pytest_regression",
-                                                "node_test", "tsc"}})
+                                                "node_test", "tsc", "npm_build"}})
                 try:
                     turns = self.configuration().worker_max_turns
                 except Exception:
@@ -1448,7 +1470,7 @@ class DurableController:
                             # the tool call.
                             valid = False
                             evidence = f"Regression suite could not complete in the sandbox: {exc}"
-            elif check in {"node_test", "tsc"}:
+            elif check in NODE_CHECKS:
                 if not task.workspace_id or self.workspaces is None:
                     raise ValueError("Executable check requires candidate workspace")
                 valid, evidence = self._node_check(check, executor_grant)
@@ -1473,6 +1495,11 @@ class DurableController:
                 return False, ("No candidate Node test files (*.test.ts, *.test.js, ...) were added or "
                                "changed; a developer candidate must include tests")
             argv, category = ["node", "--test", *tests], "test"
+        elif check == "npm_build":
+            problem = _build_script_problem(self.workspaces, grant.id, grant.worker_id, files)
+            if problem:
+                return False, problem
+            argv, category = ["npm", "run", "build"], "build"
         else:
             if "tsconfig.json" not in files:
                 return False, "Type checking requires a tsconfig.json in the project"

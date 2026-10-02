@@ -4,6 +4,17 @@
 
 - An advisory CI job runs the backend suite on `ubuntu-26.04`, which has Python 3.14 as its system interpreter, the one the sandbox uses. The job cannot fail the build and is not a required check. `docs/runbooks/ci-runner-move.md` lists what depends on the runner image and the steps to move.
 
+## 2026-10-01 — Builds prove the project's own build script
+
+- New trusted check `npm_build` runs the project's `npm run build` in the same network-denied jail as the Node tests, with dependencies from the isolated installer. The workspace stays read-only: the sources are copied to scratch, `node_modules` is linked in read-only, and the output is thrown away. Pre- and post-build hooks are not run.
+- The planner is told to require it when `package.json` has a `build` script, so a bundler or framework build that fails no longer passes because the tests did. Specialists can run it with `run_check("npm_build")`. A task with no `build` script fails the check with a plain reason.
+- Limits: two minutes, the usual Node memory cap and 32 MB of scratch. Dev servers are still not run.
+
+## 2026-10-01 — Campaign reports say why work was sent back
+
+- A live campaign report now lists every failed check and every review that asked for changes, in order, with the reviewer's reason, plus the number of candidates and the cost by role (planner, specialist, reviewer) for each build. The 2026-09-30 smoke showed review had made builds dearer but recorded nothing about why revisions were requested.
+- The report is rewritten after every build, marked partial until the campaign ends, and `--deadline-minutes` stops new builds from starting late. The live smoke uses 70 minutes against its 90-minute job timeout. A smoke on 2026-10-02 hit that timeout and left no report, although it had spent money.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
