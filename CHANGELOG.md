@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — The finished project is checked as a whole
+
+- Each task's reviewer rules only on the success criteria that task alone covers. A criterion several tasks share was never checked anywhere. Now, once every task is accepted and integrated, and before the run completes, the project's own checks (pytest, compile, node:test, tsc, whichever its tasks used) run together on the integrated code, and a fresh reviewer reads that code and rules on each shared criterion. A failed check, an unmet or unruled criterion, a high or critical finding, or a reviewer who read no file fails the review, whatever the reviewer claimed.
+- When it fails, Cavman proposes one more task, written from the reviewer's suggested fix, to make the project meet the missed criteria. Adding a task changes the plan, so the kernel asks the owner to approve it: the Change the plan card says what the review found. If approved, the task runs and the project is reviewed again. If declined, the run completes and its result says which criteria the review found unmet. If no plan revisions are left, the result says so too.
+- Runs with no shared criterion are unchanged. A passing review is noted in the run's result.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
