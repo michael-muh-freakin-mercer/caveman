@@ -107,9 +107,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [x] 🤖 Optional two-factor authentication (authenticator app plus encrypted single-use backup codes; guards password sign-in, GitHub sign-in relies on GitHub's own)
 
 ### 15. Quality
-- [ ] 🤖 Accessibility audit to WCAG AA
-- [ ] 🤖 Mobile layout check
-- [ ] 🤖 Firefox and Safari (only Chromium is tested)
+- [x] 🤖 Accessibility audit to WCAG AA (axe-core, WCAG 2.1 A and AA, on every page type in every browser in CI: `web/e2e/quality.spec.ts`; fixed low-contrast green and grey text, a link told apart only by colour, and a scroll area keyboards could not reach. Not yet done: a manual pass with a screen reader)
+- [x] 🤖 Mobile layout check (no page wider than the screen on Pixel 7 and iPhone 14 sizes, plus the core build journey on both)
+- [x] 🤖 Firefox and Safari (the accessibility, layout and core build journeys run in Firefox and WebKit, Safari's engine, in CI; the full journey set stays on Chromium)
 - [x] 🤖 Load test: concurrent builds and live-update connections (`scripts/load_test.py`, results in `docs/LOAD_TEST.md`: 100 builds and 500 live connections with no errors; worker slots, not the platform, limit cavman.dev)
 - [x] 🤖 Pagination on run and project lists; streamed export for large accounts (keyset paging, 25 runs or 24 projects a page; the export streams one run at a time through the web server)
 

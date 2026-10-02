@@ -212,7 +212,7 @@ jobs:
         working-directory: web
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium firefox webkit
       - name: Run journeys
         working-directory: web
         env:
