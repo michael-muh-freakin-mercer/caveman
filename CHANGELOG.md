@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Later builds open pull requests
+
+- Once a project has been published to GitHub, a later build in that project can open a pull request on that repository instead of creating another one. Cavman pushes the build's verified commit to a new `cavman/<run>` branch, never forced, and opens a pull request against the default branch, with the request and result in its description. The default branch changes only if the user merges it.
+- It is refused unless the build's commit continues from the published one, so the pull request holds only that build's work. Publishing to a new repository is still offered.
+- The run page shows "Open a pull request" for such builds, and "View Pull Request" afterwards. The API takes `mode: "pull_request"` on `/api/runs/{id}/publish`, and the run detail has `project_publication`.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.

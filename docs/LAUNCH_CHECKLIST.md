@@ -93,7 +93,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Publish flow end to end against github.com, including the scope upgrade (tested against a stand-in only)
 - [ ] 🤖 Import a real public repository (tested against a local copy only)
 - [ ] 🤖 Private repository import with the user's token
-- [ ] 🤖 Push updates to an existing repository as a pull request
+- [x] 🤖 Push updates to an existing repository as a pull request (a later build of a published project pushes its verified commit to a new `cavman/<run>` branch and opens a pull request; refused unless it builds on the published code; tested against a stand-in)
 
 ### 13. Safe previews of built web apps
 - [ ] 🧑 Approve a separate preview domain and isolated preview cluster
