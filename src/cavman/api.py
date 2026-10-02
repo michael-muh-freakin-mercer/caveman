@@ -16,6 +16,7 @@ Trust model
 from __future__ import annotations
 
 import asyncio
+import base64
 import hmac
 import json
 import math
@@ -166,6 +167,33 @@ def principal(request: Request, authorization: Annotated[str | None, Header()] =
 
 
 User = Annotated[str, Depends(principal)]
+
+# Lists are paged newest first. A cursor is the URL-safe base64 of
+# "<created_at>~<id>" of the last item shown; keyset paging stays correct while
+# new builds are added.
+PageSize = Annotated[int, Query(ge=1, le=100)]
+Cursor = Annotated[str | None, Query(max_length=120, pattern=r"^[A-Za-z0-9_-]+={0,2}$")]
+CURSOR = re.compile(r"(\d{4}-\d\d-\d\dT[0-9:.+\-]+)~([0-9a-f]{32})")
+
+
+def parse_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if not cursor:
+        return None
+    try:
+        match = CURSOR.fullmatch(base64.urlsafe_b64decode(cursor.encode()).decode())
+    except (ValueError, UnicodeDecodeError):
+        match = None
+    if match is None:
+        raise HTTPException(422, "Invalid page cursor.")
+    return match.group(1), match.group(2)
+
+
+def next_cursor(rows: list, limit: int) -> str | None:
+    """The cursor for the next page, when one more row than the page was found."""
+    if len(rows) <= limit:
+        return None
+    last = rows[limit - 1]
+    return base64.urlsafe_b64encode(f"{last.created_at}~{last.id}".encode()).decode()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -367,22 +395,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/account/export")
     def export_account(user: User):
-        """Everything Cavman holds for this account, as shown to its owner."""
-        runs = []
-        for record in platform.list_runs(user):
-            view = detail(record)
-            run = engine.load(record.id)
-            view["timeline"] = [projector.event(run, event) for event in engine.events(record.id)]
-            view["artifacts"] = [projector.artifact(run, artifact, content=True) for artifact in run.artifacts.values()]
-            runs.append(view)
+        """Everything Cavman holds for this account, as shown to its owner.
+
+        Streamed one run at a time, so a large account never sits in memory as
+        one document. The body is a single JSON object that starts with "{".
+        """
         projects = [project_view(project, []) for project in platform.list_projects(user)]
         for project in projects:
             project.pop("runs", None)
-        return {"format": "cavman-export/1", "exported_at": datetime.now(timezone.utc).isoformat(),
+        head = {"format": "cavman-export/1", "exported_at": datetime.now(timezone.utc).isoformat(),
                 "user_id": user, "spending": account_usage(engine, platform, settings, user),
-                "projects": projects, "runs": runs,
                 "notes": "Delivered project files are in each run's download archive; "
-                         "they are not repeated here."}
+                         "they are not repeated here.", "projects": projects}
+        records = platform.list_runs(user)
+
+        def body():
+            yield json.dumps(head)[:-1] + ', "runs": ['
+            for index, record in enumerate(records):
+                view = detail(record)
+                run = engine.load(record.id)
+                view["timeline"] = [projector.event(run, event) for event in engine.events(record.id)]
+                view["artifacts"] = [projector.artifact(run, artifact, content=True)
+                                     for artifact in run.artifacts.values()]
+                yield ("," if index else "") + json.dumps(view)
+            yield "]}"
+
+        return StreamingResponse(body(), media_type="application/json")
 
     @app.delete("/api/account")
     def delete_account(user: User):
@@ -472,14 +510,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "latest_run": summaries[0] if summaries else None, "runs": summaries}
 
     @app.get("/api/projects")
-    def list_projects(user: User):
+    def list_projects(user: User, limit: PageSize = 24, before: Cursor = None):
+        projects = platform.list_projects(user, limit=limit + 1, before=parse_cursor(before))
         items = []
-        for project in platform.list_projects(user):
-            view = project_view(project, platform.list_runs(user, project.id)[:1])
-            view["run_count"] = len(platform.list_runs(user, project.id))
+        for project in projects[:limit]:
+            view = project_view(project, platform.list_runs(user, project.id, limit=1))
+            view["run_count"] = platform.count_runs(user, project.id)
             view.pop("runs")
             items.append(view)
-        return {"projects": items}
+        return {"projects": items, "next": next_cursor(projects, limit)}
 
     @app.post("/api/projects", status_code=201)
     def create_project(body: ProjectRequest, user: User):
@@ -501,19 +540,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return project_view(project, [])
 
     @app.get("/api/projects/{project_id}")
-    def get_project(project_id: str, user: User):
+    def get_project(project_id: str, user: User, limit: PageSize = 25, before: Cursor = None):
         if not re.fullmatch(r"[0-9a-f]{32}", project_id):
             raise HTTPException(404, "Project not found.")
         project = platform.get_project(user, project_id)
         if project is None:
             raise HTTPException(404, "Project not found.")
-        return project_view(project, platform.list_runs(user, project_id))
+        runs = platform.list_runs(user, project_id, limit=limit + 1, before=parse_cursor(before))
+        latest = runs[:1] if before is None else platform.list_runs(user, project_id, limit=1)
+        view = project_view(project, runs[:limit])
+        view["run_count"] = platform.count_runs(user, project_id)
+        view["latest_run"] = summary(latest[0]) if latest else None
+        return {**view, "next": next_cursor(runs, limit)}
 
     # Runs -------------------------------------------------------------
 
     @app.get("/api/runs")
-    def list_runs(user: User, project_id: str | None = None):
-        return {"runs": [summary(r) for r in platform.list_runs(user, project_id)]}
+    def list_runs(user: User, project_id: str | None = None, limit: PageSize = 25, before: Cursor = None):
+        runs = platform.list_runs(user, project_id, limit=limit + 1, before=parse_cursor(before))
+        return {"runs": [summary(r) for r in runs[:limit]], "next": next_cursor(runs, limit)}
 
     @app.get("/api/runs/{run_id}")
     def get_run(run_id: str, user: User):

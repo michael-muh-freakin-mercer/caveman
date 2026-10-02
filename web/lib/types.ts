@@ -290,6 +290,7 @@ export interface ProjectView {
   run_count: number;
   latest_run: RunSummary | null;
   runs?: RunSummary[];
+  next?: string | null;
 }
 
 export interface SystemView {
