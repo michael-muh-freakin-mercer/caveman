@@ -13,7 +13,7 @@ and a JSON todo CLI), with send-back reasons recorded (#47).
 
 | Model | Request | Result | Calls | Cost | Time |
 |---|---|---|---|---|---|
-| deepseek-v4-pro (default) | ISO 8601 | budget reached | 150 cap | $0.65 | 62 min |
+| deepseek-v4-pro (default) | ISO 8601 | budget reached | n/a | $0.65 | 62 min |
 | deepseek-v4-pro | ISO 8601 | complete | 22 | $0.03 | 7 min |
 | deepseek-v4-pro | todo CLI | complete | n/a | $0.05 | 9 min |
 | deepseek-v4-flash | ISO 8601 | budget reached (150-call cap) | 150 | $0.26 | 49 min |
@@ -36,7 +36,7 @@ per-build cost of deepseek-v4-pro. Suggested configuration: Budget and Balanced 
 Maximum Quality on claude-sonnet-5.5. Repeat the Sonnet ISO build after the reviewer fix before
 quoting quality numbers.
 
-Total live spend on 2026-10-02: about $4.6 (these runs plus two smokes cut off by the job timeout).
+Live spend on 2026-10-02: $3.18 provider-reported in the runs above, plus the unfinished last builds of two smokes cut off by the job timeout (no report survived; each was capped at $1), and one smoke started by another session.
 
 ## 2026-09-30: live smoke with plan-item review
 
