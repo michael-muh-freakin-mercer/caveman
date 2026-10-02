@@ -42,7 +42,7 @@ MESSAGES = {
 
 PLATFORM_NOTES = ("Executable sandbox checks support Python (compile, pytest, pytest_regression) and "
                   "Node/TypeScript (node_test with node:test test files; tsc with a tsconfig.json and "
-                  "typescript dependency). Deliver other stacks as reviewed documents or source files, "
+                  "typescript dependency; npm_build runs the project's own npm run build). Deliver other stacks as reviewed documents or source files, "
                   "and say so honestly in the final result.")
 
 
