@@ -102,8 +102,8 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 ### 14. Account
 - [x] 🤖 Session management (see and revoke signed-in devices)
 - [x] 🤖 Change password in Settings
-- [ ] 🤖 Change email in Settings (needs the email provider to verify the new address)
-- [ ] 🤖 Optional two-factor authentication
+- [x] 🤖 Change email in Settings (the current address approves the change, then the new one is verified)
+- [x] 🤖 Optional two-factor authentication (authenticator app plus encrypted single-use backup codes; guards password sign-in, GitHub sign-in relies on GitHub's own)
 
 ### 15. Quality
 - [ ] 🤖 Accessibility audit to WCAG AA

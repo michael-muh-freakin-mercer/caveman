@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-01 — Change your email, and optional two-factor sign-in
+
+- Settings > Account can change the account's email. A verified address must approve the change by a link sent to it first, then the new address confirms by its own link, so a stolen session cannot quietly move the account. An unverified address gets only the second link.
+- Settings > Two-factor sign-in turns on a code from an authenticator app (Better Auth's two-factor plugin): scan a QR code or type the key, confirm with a code, and save ten single-use backup codes. Signing in with a password then asks for a code or a backup code, with an option to trust the device for 30 days. New backup codes and turning it off need the password. The TOTP secret and the backup codes are stored encrypted. GitHub sign-in is not gated; it relies on GitHub's own two-factor.
+- The plugin adds a `twoFactor` table and a `twoFactorEnabled` user column through the automatic auth migration. The privacy policy mentions the encrypted key and codes.
+- New dependency: `uqr` (MIT, no dependencies) draws the QR code as an SVG in the browser.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.
