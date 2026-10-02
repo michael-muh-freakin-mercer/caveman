@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — First-run guidance and a FAQ
+
+- A new account's overview shows how a build goes in four steps (describe it, watch it work, decide when asked, take it away), with links to the docs and the questions.
+- The docs page has a Questions section: what Cavman builds well, cost, the monthly allowance, why a build waits, running the result, privacy and self-hosting, plus the support address.
+- The docs now cover starting from a public GitHub repository, asking for changes, and publishing to GitHub, and no longer say publishing "is not wired yet".
+
 ## 2026-10-02 — Load test
 
 - `scripts/load_test.py` drives the real API and worker processes with many accounts' builds and live-update connections at once, using scripted models, so it costs nothing. 100 concurrent builds with 500 open streams all completed, with no stream errors and an API p95 of 240 ms. Results and what they mean for cavman.dev are in `docs/LOAD_TEST.md`: the single worker slot, not the platform, is the limit.

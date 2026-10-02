@@ -295,3 +295,13 @@ test("a user sees their signed-in devices, signs one out and changes their passw
   await other.getByRole("button", { name: "Sign in" }).click();
   await other.waitForURL(/\/app$/);
 });
+
+test("a new account is shown how a build goes, and the docs answer common questions", async ({ page }) => {
+  await signUp(page);
+  await expect(page.getByRole("heading", { name: "How a build goes" })).toBeVisible();
+  await page.getByRole("link", { name: "common questions" }).click();
+  await page.waitForURL(/\/docs#faq$/);
+  await expect(page.getByRole("heading", { name: "Questions" })).toBeVisible();
+  await expect(page.getByText("What does a build cost?")).toBeVisible();
+  await expect(page.getByRole("link", { name: "support@cavman.dev" })).toBeVisible();
+});
