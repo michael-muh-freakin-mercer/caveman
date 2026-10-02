@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-01 — Paged run and project lists, streamed export
+
+- `GET /api/runs`, `GET /api/projects` and `GET /api/projects/{id}` return one page, newest first (`limit`, 1 to 100), with a `next` cursor for the page after it (`before=`). Paging is by (created, id), so builds started while someone pages do not shift or repeat items. A project still reports its full `run_count` and its latest run on every page.
+- The Runs, Projects and project pages show 25 runs or 24 projects with Older and Newest links. The overview reads the newest 50 runs instead of all of them.
+- Projects no longer load every run to count them: one count query and the latest run.
+- The account export streams one run at a time from the API through the web server, so a large account is never built in memory. The file's content is unchanged.
+
 ## 2026-10-01 — First-run guidance and a FAQ
 
 - A new account's overview shows how a build goes in four steps (describe it, watch it work, decide when asked, take it away), with links to the docs and the questions.

@@ -111,7 +111,7 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter); misc 
 - [ ] 🤖 Mobile layout check
 - [ ] 🤖 Firefox and Safari (only Chromium is tested)
 - [x] 🤖 Load test: concurrent builds and live-update connections (`scripts/load_test.py`, results in `docs/LOAD_TEST.md`: 100 builds and 500 live connections with no errors; worker slots, not the platform, limit cavman.dev)
-- [ ] 🤖 Pagination on run and project lists; streamed export for large accounts
+- [x] 🤖 Pagination on run and project lists; streamed export for large accounts (keyset paging, 25 runs or 24 projects a page; the export streams one run at a time through the web server)
 
 ### 16. Onboarding and support
 - [x] 🤖 First-run guidance, empty states, help/FAQ, pricing page (empty states and pricing were in place; the empty overview now shows how a build goes, and the docs have a Questions section)
