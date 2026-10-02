@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-02 — Email when a build needs you
+
+- When a build is ready, waits for a decision, reaches its budget or stops early, its owner gets an email with a link to the run. Builds can take half an hour, so people no longer have to keep the tab open. A build the user stopped themselves is not emailed.
+- The API lists finished jobs nobody has been told about at `GET /api/notices` and records each one at `POST /api/notices/{job_id}/sent`; both need the service token and are about no single user. Jobs that ended more than six hours earlier are never offered, so a server's first start does not mail old builds. Account deletion removes the records.
+- The web server, which holds the email provider and the addresses, checks every `CAVMAN_NOTICE_POLL_SECONDS` (default 60) and emails only verified addresses. A failed send is retried on the next pass. `CAVMAN_BUILD_EMAILS=0` turns it off for the server.
+- Settings has a new Email panel with "Email me about my builds", on by default.
+
 ## 2026-10-01 — Accessibility, phones, Firefox and Safari
 
 - New end-to-end checks (`web/e2e/quality.spec.ts`): every public page, every signed-in page, a run waiting for approval and a completed run are scanned with axe-core for WCAG 2.1 A and AA, and must be no wider than the screen.
@@ -300,7 +307,6 @@
 - Core (additive): provider-reported USD spend ceiling in `UsageBudget` (`WALTER_MAX_COST_USD`), a provider registry seam in `runtime.build_models`, and `build_walter` honoring a per-run controller configuration.
 - Added `web/`: Next.js marketing site, Better Auth sign-in, authenticated same-origin API proxy, and the live run dashboard; Vitest and Playwright journeys; CI jobs for both.
 - Workers refuse to start when Bubblewrap isolation is unusable.
-
 
 ## Unreleased — 2026-09-27
 
