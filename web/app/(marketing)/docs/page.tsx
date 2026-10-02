@@ -78,7 +78,7 @@ export default function DocsPage() {
         <h1 className="display text-balance text-2xl leading-tight text-fg sm:text-3xl">Cavman documentation</h1>
         <p className="mt-4 text-lg text-fg-soft">
           Everything you need to use Cavman. Operators should read the{" "}
-          <a className="text-glacier underline-offset-4 hover:underline" href="https://github.com/michael-muh-freakin-mercer/cavman#readme" rel="noreferrer">
+          <a className="text-glacier underline underline-offset-4" href="https://github.com/michael-muh-freakin-mercer/cavman#readme" rel="noreferrer">
             setup guide in the repository
           </a>
           .

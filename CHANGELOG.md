@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-01 — Accessibility, phones, Firefox and Safari
+
+- New end-to-end checks (`web/e2e/quality.spec.ts`): every public page, every signed-in page, a run waiting for approval and a completed run are scanned with axe-core for WCAG 2.1 A and AA, and must be no wider than the screen.
+- The same checks and the core journeys (`web/e2e/cross-browser.spec.ts`: sign up, build, follow it live, decide an approval, download) run in Chromium, Firefox, WebKit (Safari's engine) and at Pixel 7 and iPhone 14 sizes. The full journey set stays on Chromium; the Compose deployment job runs Chromium only.
+- Fixed what the scan found: the "ok" green (`#16803f` to `#126b34`) and the faint grey (`#6f7369` to `#5f625a`) now reach 4.5:1 on their backgrounds, the docs link to the setup guide is underlined, not just coloured, and the run's activity list can be scrolled from the keyboard.
+
 ## 2026-09-30 — Worker containers keep Docker's seccomp filter
 
 - `deploy/compose.yaml` ran Bubblewrap workers with `seccomp=unconfined`, which switched off the container's whole system-call filter to let Bubblewrap create a user namespace. They now run under `deploy/seccomp-worker.json`: Docker's default profile plus the six calls Bubblewrap needs (`clone`, `unshare`, `mount`, `umount2`, `pivot_root`, `sethostname`). Everything else the default denies stays denied.

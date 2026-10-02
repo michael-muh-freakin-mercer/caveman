@@ -106,9 +106,9 @@ Approvals on record: live-model campaign spend up to **$50** (OpenRouter).
 - [ ] 🤖 Optional two-factor authentication
 
 ### 15. Quality
-- [ ] 🤖 Accessibility audit to WCAG AA
-- [ ] 🤖 Mobile layout check
-- [ ] 🤖 Firefox and Safari (only Chromium is tested)
+- [x] 🤖 Accessibility audit to WCAG AA (axe-core, WCAG 2.1 A and AA, on every page type in every browser in CI: `web/e2e/quality.spec.ts`; fixed low-contrast green and grey text, a link told apart only by colour, and a scroll area keyboards could not reach. Not yet done: a manual pass with a screen reader)
+- [x] 🤖 Mobile layout check (no page wider than the screen on Pixel 7 and iPhone 14 sizes, plus the core build journey on both)
+- [x] 🤖 Firefox and Safari (the accessibility, layout and core build journeys run in Firefox and WebKit, Safari's engine, in CI; the full journey set stays on Chromium)
 - [ ] 🤖 Load test: concurrent builds and live-update connections
 - [ ] 🤖 Pagination on run and project lists; streamed export for large accounts
 
