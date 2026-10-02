@@ -9,8 +9,9 @@ once --total-budget-usd of provider-reported cost has been spent.
     .venv/bin/python scripts/live_campaign.py --executor scripted  # free dry run
 
 The report (markdown + JSON) records, per request: final state, tasks accepted,
-failure classes, model calls by role, provider-reported cost (and whether some
-calls reported none), elapsed time and delivered files.
+failure classes, model calls and cost by role, provider-reported cost (and whether some
+calls reported none), elapsed time, delivered files, and every time a check or
+a reviewer sent work back, with the reviewer's reason.
 """
 from __future__ import annotations
 
@@ -77,6 +78,29 @@ def gate_failures(args, completed: int, requests: int, cost_complete: bool) -> l
     if not cost_complete and args.executor == "provider" and not args.allow_unknown_cost:
         failures.append("Some calls reported no cost, so the spend cap was not enforced")
     return failures
+
+
+def sendbacks(detail: dict) -> list[dict]:
+    """Every failed check and every review that asked for changes, in order.
+
+    This is what a build pays for beyond its first attempt, so the report says
+    why each happened, not just that it did.
+    """
+    items = []
+    for artifact in detail["artifacts"]:
+        for check in artifact["validations"]:
+            if check["status"] == "failed":
+                items.append({"task": artifact["task_title"], "version": artifact["version"], "by": "check",
+                              "reason": f"{check['label']} failed", "at": check["created_at"]})
+        for review in artifact["reviews"]:
+            if review["status"] != "passed":
+                items.append({"task": artifact["task_title"], "version": artifact["version"], "by": "reviewer",
+                              "reason": review["reason"], "at": review["created_at"]})
+    return sorted(items, key=lambda item: item["at"])
+
+
+def role_costs(usage: dict) -> dict[str, float]:
+    return {role: round(entry["cost_usd"], 6) for role, entry in usage["by_role"].items()}
 
 
 def main(argv=None) -> int:
@@ -155,6 +179,8 @@ def main(argv=None) -> int:
                 "tasks": f"{detail['tasks_accepted']}/{detail['tasks_total']}",
                 "failures": sorted({f["classification"] for f in detail["failure_details"]}),
                 "calls": usage["calls"], "calls_by_role": {k: v["calls"] for k, v in usage["by_role"].items()},
+                "cost_by_role": role_costs(usage),
+                "attempts": len(detail["artifacts"]), "sendbacks": sendbacks(detail),
                 "cost_usd": usage["cost_usd"], "cost_complete": usage["cost_complete"],
                 "elapsed_s": round(time.monotonic() - began, 1),
                 "files": (detail["delivery"] or {}).get("files", []),
@@ -190,6 +216,16 @@ def main(argv=None) -> int:
             ", ".join(row.get("failures", [])), row.get("calls", ""),
             f"${row['cost_usd']:.4f}" + ("" if row.get("cost_complete", True) else "+") if "cost_usd" in row else "",
             f"{row['elapsed_s']}s" if "elapsed_s" in row else ""))
+    sent_back = [row for row in rows if row.get("sendbacks")]
+    if sent_back:
+        lines += ["", "## Why work was sent back", ""]
+        for row in sent_back:
+            roles = ", ".join(f"{role} ${cost:.4f}" for role, cost in row["cost_by_role"].items())
+            lines += [f"**{row['prompt']}** ({row['attempts']} candidates; {roles})", ""]
+            for item in row["sendbacks"]:
+                reason = " ".join(item["reason"].split()) or "(no reason given)"
+                lines.append(f"- {item['task']}, candidate {item['version']}, {item['by']}: {reason}")
+            lines.append("")
     (args.out / f"{stamp}.md").write_text("\n".join(lines) + "\n")
     print(f"Report: {args.out / (stamp + '.md')}")
     failures = gate_failures(args, len(completed), len(rows), summary["cost_complete"])

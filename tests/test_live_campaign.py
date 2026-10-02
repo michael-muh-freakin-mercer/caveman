@@ -24,7 +24,13 @@ def test_campaign_dry_run_writes_a_report(tmp_path):
     summary = json.loads(report.read_text())
     assert summary["requests"] == 2 and summary["completed"] == 2
     assert summary["runs"][1]["failures"] == ["BAD_OUTPUT"]
-    assert "| Request | State |" in (tmp_path / "out" / report.name.replace(".json", ".md")).read_text()
+    assert summary["runs"][0]["sendbacks"] == []
+    [sent_back, *_] = summary["runs"][1]["sendbacks"]
+    assert sent_back["by"] == "check" and sent_back["reason"].endswith("failed")
+    assert summary["runs"][1]["attempts"] >= 2
+    markdown = (tmp_path / "out" / report.name.replace(".json", ".md")).read_text()
+    assert "| Request | State |" in markdown
+    assert "## Why work was sent back" in markdown and "candidate 1, check:" in markdown
 
 
 def test_campaign_refuses_to_start_without_provider_config(tmp_path, monkeypatch):
