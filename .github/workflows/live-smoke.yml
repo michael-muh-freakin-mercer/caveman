@@ -83,6 +83,8 @@ jobs:
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -e '.[test]'
 
+      # The report is rewritten after every build and no build starts after 70
+      # minutes, so the 90-minute job timeout cannot throw away what was learned.
       - name: Live builds
         env:
           BUILDS: ${{ inputs.builds }}
@@ -94,6 +96,7 @@ jobs:
             --run-budget-usd "$RUN_BUDGET" \
             --total-budget-usd "$TOTAL_BUDGET" \
             --out "$RUNNER_TEMP/live-report" \
+            --deadline-minutes 70 \
             --min-completion 1.0
 
       - name: Report
