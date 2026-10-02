@@ -134,3 +134,15 @@ def test_no_build_starts_after_the_deadline(tmp_path):
                                   "--out", str(tmp_path / "out"), "--data-dir", str(tmp_path / "data")]) == 0
     [row] = json.loads(next((tmp_path / "out").glob("*.json")).read_text())["runs"]
     assert row["state"] == "skipped (campaign time limit reached)"
+
+
+@pytest.mark.skipif(not Path("/usr/bin/bwrap").exists(), reason="Bubblewrap unavailable")
+def test_load_test_script_runs_a_small_load(tmp_path):
+    out = tmp_path / "load.json"
+    completed = subprocess.run(
+        [sys.executable, str(REPO / "scripts/load_test.py"), "--users", "2", "--builds-per-user", "1",
+         "--streams-per-run", "1", "--workers", "1", "--worker-concurrency", "2", "--step-delay", "0",
+         "--out", str(out)], capture_output=True, text=True, timeout=300)
+    assert completed.returncode == 0, completed.stdout[-2000:] + completed.stderr[-2000:]
+    report = json.loads(out.read_text())
+    assert report["completed"] == 2 and report["streams"]["errors"] == 0

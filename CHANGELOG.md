@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-02 — Load test
+
+- `scripts/load_test.py` drives the real API and worker processes with many accounts' builds and live-update connections at once, using scripted models, so it costs nothing. 100 concurrent builds with 500 open streams all completed, with no stream errors and an API p95 of 240 ms. Results and what they mean for cavman.dev are in `docs/LOAD_TEST.md`: the single worker slot, not the platform, is the limit.
+
 ## 2026-10-02 — Repository import proven against github.com
 
 - `tests/test_github_live.py` (opt-in with `CAVMAN_LIVE_GITHUB=1`) imports GitHub's public example repository through the API, the way a user's build does, and checks the result: one local commit, no upstream remote or shallow state. It also checks that a missing or private repository is refused by the real API. An advisory CI job runs it on every push. It cannot fail the build, so a GitHub outage does not block merges.
