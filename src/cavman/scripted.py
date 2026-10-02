@@ -609,6 +609,8 @@ def build_workflow_scripts(scenario: str, kind: str) -> tuple[list, dict]:
             ("cancel", "reviewer"): [_tool("read_file", {"path": "cancel.py"}, "review-cancel"), review_pass]}
     if scenario in {"shared", "shared-fix"}:
         project_read = _tool("read_file", {"path": "notify.py"}, "project-read")
+        if kind != "start" and scenario == "shared":  # a retried project review
+            return [], {("project", "reviewer"): [project_read, review_pass]}
         if kind != "start":  # after the owner approved the proposed fix
             return [], {
                 ("project-fix-1", "worker"): _write("project-fix-1", "fix",

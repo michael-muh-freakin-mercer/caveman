@@ -1036,3 +1036,26 @@ def test_project_checks_that_fail_together_fail_the_project_review_whatever_the_
     assert detail["state"] == "approval_needed"
     [approval] = detail["approvals"]
     assert "Checks failing on the integrated project: pytest" in approval["what"]
+
+
+@needs_sandbox
+def test_a_project_review_that_cannot_run_stops_the_build_for_a_retry(client, settings, monkeypatch):
+    from walter.adapter import DurableController
+
+    calls = []
+    real = DurableController.review_project
+
+    async def flaky(self, criteria):
+        calls.append(criteria)
+        if len(calls) == 1:
+            raise RuntimeError("provider timed out")
+        return await real(self, criteria)
+
+    monkeypatch.setattr(DurableController, "review_project", flaky)
+    run_id = build(client, prompt="Booking core with reminders #shared")["run_id"]
+    drain(settings)
+    detail = client.get(f"/api/runs/{run_id}", headers=ALICE).json()
+    assert detail["state"] == "waiting" and "Continue the run to try again" in detail["jobs"][-1]["message"]
+    assert client.post(f"/api/runs/{run_id}/continue", json={}, headers=ALICE).status_code == 202
+    drain(settings)
+    assert client.get(f"/api/runs/{run_id}", headers=ALICE).json()["state"] == "complete"

@@ -399,7 +399,14 @@ class WorkflowDriver:
         previous = state.get("project_review") or {}
         if previous.get("accepted") == judged and (previous.get("passed") or previous.get("decision") == "rejected"):
             return None
-        report, results = await self.controller.review_project(shared)
+        try:
+            report, results = await self.controller.review_project(shared)
+        except (UsageBudgetExceeded, asyncio.CancelledError):
+            raise
+        except Exception as exc:
+            logger.warning("Whole-project review could not complete: %r", exc)
+            return ("The finished project could not be reviewed as a whole (" + str(exc)[:300]
+                    + "). Continue the run to try again.")
         record = {"accepted": judged, "passed": report.passed, "criteria": shared,
                   "reason": report.reason[:2000], "checks": [r["check"] for r in results]}
         if report.passed:
