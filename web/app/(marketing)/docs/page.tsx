@@ -33,7 +33,7 @@ const SECTIONS = [
     title: "What “done” means",
     body: [
       "A specialist returning work only creates a candidate. It is accepted only after every predeclared check passes in the sandbox and a fresh independent reviewer approves it — against the exact bytes submitted. The run completes only when every success criterion cites accepted work.",
-      "Checks run inside Bubblewrap with no network, a cleared environment, and resource limits. The sandbox runs Python (compile, pytest) and Node/TypeScript (the Node test runner and tsc). npm dependencies are installed by a separate isolated step with install scripts disabled, then mounted read-only. Other stacks are delivered as reviewed source and documents.",
+      "Checks run inside Bubblewrap with no network, a cleared environment, and resource limits. The sandbox runs Python (compile, pytest) and Node/TypeScript (the Node test runner, tsc and the project's npm run build). npm dependencies are installed by a separate isolated step with install scripts disabled, then mounted read-only. Other stacks are delivered as reviewed source and documents.",
     ],
   },
   {
@@ -64,7 +64,7 @@ const SECTIONS = [
     id: "limits",
     title: "Current limitations",
     body: [
-      "Live previews of generated apps are not available yet; Cavman will not render untrusted code on its own origin. Only public GitHub repositories can be imported, and publishing creates a new repository rather than updating one. Sandboxed execution supports Python and Node/TypeScript; builds and dev servers are not run. OpenRouter is the only configured model provider.",
+      "Live previews of generated apps are not available yet; Cavman will not render untrusted code on its own origin. Only public GitHub repositories can be imported, and publishing creates a new repository rather than updating one. Sandboxed execution supports Python and Node/TypeScript; a project's own build script runs too, but dev servers do not. OpenRouter is the only configured model provider.",
     ],
   },
 ];
